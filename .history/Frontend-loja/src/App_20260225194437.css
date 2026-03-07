@@ -1,0 +1,157 @@
+/* App.css - Estilo global da loja */
+
+:root {
+  --cor-primaria: #000;
+  --cor-secundaria: #fff;
+  --cor-acento: #f59e0b;
+  --fonte-principal: 'Inter', sans-serif;
+}
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+  font-family: var(--fonte-principal);
+}
+
+body {
+  background-color: #f5f5f5;
+  color: #1f2937;
+  line-height: 1.6;
+}
+
+/* Links */
+a {
+  text-decoration: none;
+  color: inherit;
+}
+
+/* Botões */
+button {
+  cursor: pointer;
+  font-family: var(--fonte-principal);
+  transition: all 0.2s ease-in-out;
+}
+
+button.primary {
+  background-color: var(--cor-primaria);
+  color: var(--cor-secundaria);
+  padding: 0.6rem 1.2rem;
+  border-radius: 8px;
+  font-weight: 600;
+  border: none;
+}
+
+button.primary:hover {
+  background-color: #1a1a1a;
+}
+
+/* Inputs */
+input, textarea, select {
+  padding: 0.5rem;
+  border: 1px solid #d1d5db;
+  border-radius: 8px;
+  font-size: 1rem;
+  outline: none;
+}
+
+input:focus, textarea:focus, select:focus {
+  border-color: var(--cor-acento);
+}
+
+/* Container central */
+.container {
+  width: 90%;
+  max-width: 1200px;
+  margin: 2rem auto;
+}
+
+/* Header */
+header {
+  background-color: var(--cor-primaria);
+  color: var(--cor-secundaria);
+  padding: 1rem 0;
+  text-align: center;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+
+header nav a {
+  margin: 0 1rem;
+  font-weight: 600;
+  color: var(--cor-secundaria);
+}
+
+header nav a:hover {
+  color: var(--cor-acento);
+}
+
+/* Footer */
+footer {
+  background-color: #111827;
+  color: #fff;
+  text-align: center;
+  padding: 1.5rem 0;
+  margin-top: 2rem;
+  font-size: 0.9rem;
+}
+
+/* Grid de produtos */
+.grid-produtos {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+  gap: 1.5rem;
+}
+
+/* Card de produto */
+.card-produto {
+  background-color: #fff;
+  border-radius: 12px;
+  padding: 1rem;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  box-shadow: 0 4px 8px rgba(0,0,0,0.05);
+  transition: transform 0.2s ease;
+}
+
+.card-produto:hover {
+  transform: translateY(-5px);
+}
+
+.card-produto h2 {
+  font-size: 1.2rem;
+  margin-bottom: 0.5rem;
+}
+
+.card-produto p.preco {
+  font-size: 1.5rem;
+  color: #16a34a;
+  font-weight: bold;
+  margin-bottom: 0.5rem;
+}
+
+.card-produto p.estoque {
+  font-size: 0.9rem;
+  color: #6b7280;
+  margin-bottom: 1rem;
+}
+
+button.comprar {
+  background-color: var(--cor-primaria);
+  color: var(--cor-secundaria);
+  padding: 0.5rem;
+  border-radius: 8px;
+  font-weight: 600;
+  border: none;
+  transition: all 0.2s;
+}
+
+button.comprar:hover {
+  background-color: #1a1a1a;
+}
+
+/* Produto esgotado */
+.card-produto.esgotado button.comprar {
+  background-color: #9ca3af;
+  cursor: not-allowed;
+}

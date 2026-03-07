@@ -1,0 +1,144 @@
+/* Container geral */
+.meus-pedidos-container {
+  padding: 20px;
+  background-color: #f5f5f5;
+  min-height: 90vh;
+  font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+}
+
+.meus-pedidos-container h1 {
+  text-align: center;
+  color: #222;
+  margin-bottom: 25px;
+}
+
+/* Card do pedido */
+.pedido-card {
+  background-color: #fff;
+  border-radius: 10px;
+  padding: 20px;
+  margin-bottom: 20px;
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.05);
+  transition: transform 0.2s, box-shadow 0.2s;
+}
+
+.pedido-card:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 6px 15px rgba(0, 0, 0, 0.1);
+}
+
+.pedido-card h2 {
+  font-size: 20px;
+  margin-bottom: 10px;
+  color: #333;
+}
+
+.pedido-card p {
+  margin: 5px 0;
+  color: #555;
+}
+
+/* Status do pedido */
+.status-pendente {
+  color: orange;
+  font-weight: bold;
+}
+
+.status-concluido {
+  color: green;
+  font-weight: bold;
+}
+
+.status-cancelado {
+  color: red;
+  font-weight: bold;
+}
+
+/* Lista de itens do pedido */
+.pedido-itens {
+  margin-top: 15px;
+  border-top: 1px solid #eee;
+  padding-top: 10px;
+}
+
+.pedido-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px 10px;
+  margin-bottom: 8px;
+  background-color: #fafafa;
+  border-radius: 6px;
+  transition: background-color 0.2s;
+}
+
+.pedido-item:hover {
+  background-color: #f0f0f0;
+}
+
+.pedido-item span {
+  color: #333;
+  font-size: 14px;
+}
+
+/* Cabeçalho da lista de itens */
+.pedido-itens h4 {
+  margin-bottom: 10px;
+  color: #444;
+  font-size: 16px;
+}
+
+/* Botões de ação */
+.pedido-acoes {
+  margin-top: 15px;
+  display: flex;
+  gap: 10px;
+}
+
+.pedido-acoes button {
+  padding: 8px 14px;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 14px;
+  transition: background-color 0.2s, transform 0.2s;
+}
+
+.pedido-acoes button:hover {
+  transform: translateY(-2px);
+}
+
+.btn-detalhes {
+  background-color: #007bff;
+  color: #fff;
+}
+
+.btn-detalhes:hover {
+  background-color: #0056b3;
+}
+
+.btn-repetir {
+  background-color: #28a745;
+  color: #fff;
+}
+
+.btn-repetir:hover {
+  background-color: #1e7e34;
+}
+
+.btn-cancelar {
+  background-color: #dc3545;
+  color: #fff;
+}
+
+.btn-cancelar:hover {
+  background-color: #b02a37;
+}
+
+/* Mensagem de pedidos vazios */
+.meus-pedidos-container p {
+  text-align: center;
+  font-size: 16px;
+  color: #666;
+  margin-top: 40px;
+}
