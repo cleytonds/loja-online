@@ -24,9 +24,6 @@ build/
 out/
 coverage/
 
-# Vite cache
-.vite/
-
 # ========================
 # TypeScript
 # ========================
