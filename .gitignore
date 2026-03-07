@@ -55,6 +55,11 @@ Thumbs.db
 *.sw?
 
 # ========================
+# Editor History / Backup
+# ========================
+.history/
+
+# ========================
 # Misc / Optional
 # ========================
 jspm_packages/
