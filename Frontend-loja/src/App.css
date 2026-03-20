@@ -70,20 +70,113 @@ input:focus, textarea:focus, select:focus {
 }
 
 /* Header */
-header {
-  background-color: var(--cor-primaria);
-  color: var(--cor-secundaria);
-  padding: 1rem 0;
-  text-align: center;
-  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+/* =========================
+   HEADER NOVO (ESTILO LOJA)
+============================ */
+
+/* TOPO BRANCO */
+.header-topo {
+  background: #fff;
+  border-bottom: 1px solid #ddd;
 }
-header nav a {
-  margin: 0 1rem;
-  font-weight: 600;
-  color: var(--cor-secundaria);
+
+.header-container {
+  max-width: 1200px;
+  margin: auto;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 15px 20px;
 }
-header nav a:hover {
+
+/* LOGO */
+.logo {
+  font-size: 26px;
+  font-weight: 300;
+  letter-spacing: 2px;
+}
+
+/* ÍCONES */
+.header-icons {
+  display: flex;
+  gap: 20px;
+  align-items: center;
+}
+
+.icon {
+  font-size: 20px;
+  cursor: pointer;
+}
+
+/* CARRINHO */
+.carrinho-icon {
+  position: relative;
+}
+
+.contador-carrinho {
+  position: absolute;
+  top: -8px;
+  right: -10px;
+  background: red;
+  color: #fff;
+  font-size: 11px;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* MENU PRETO */
+.menu-preto {
+  background: #000;
+}
+
+.menu-container {
+  max-width: 1200px;
+  margin: auto;
+  display: flex;
+  justify-content: center;
+  gap: 40px;
+  padding: 12px 10px;
+}
+
+.menu-container a,
+.menu-container button {
+  color: #fff;
+  font-size: 14px;
+  font-weight: 500;
+  background: none;
+  border: none;
+  cursor: pointer;
+  transition: 0.2s;
+}
+
+.menu-container a:hover,
+.menu-container button:hover {
   color: var(--cor-acento);
+}
+
+/* BOTÃO SAIR */
+.btn-sair {
+  background: none;
+  border: none;
+}
+
+/* RESPONSIVO HEADER */
+@media (max-width: 768px) {
+
+  .header-container {
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  .menu-container {
+    flex-wrap: wrap;
+    gap: 15px;
+  }
+
 }
 
 /* Footer */
@@ -277,4 +370,175 @@ button.comprar:hover {
   .card-produto { padding: 0.8rem; }
   .card-produto h2 { font-size: 1rem; }
   .card-produto p.preco { font-size: 1.2rem; }
+}
+/* =========================
+   MENU PROFISSIONAL
+============================ */
+
+.menu-container a {
+  position: relative;
+  padding: 5px 0;
+}
+
+/* LINHA ANIMADA */
+.menu-container a::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  bottom: -5px;
+  width: 0%;
+  height: 2px;
+  background: var(--cor-acento);
+  transition: 0.3s;
+}
+
+.menu-container a:hover::after {
+  width: 100%;
+}
+
+/* LINK ATIVO */
+.menu-container a.active {
+  color: var(--cor-acento);
+}
+
+.menu-container a.active::after {
+  width: 100%;
+}
+
+/* =========================
+   DROPDOWN PRODUTOS
+============================ */
+
+.menu-item {
+  position: relative;
+}
+
+.dropdown {
+  position: absolute;
+  top: 35px;
+  left: 0;
+  background: #fff;
+  color: #000;
+  min-width: 200px;
+  box-shadow: 0 5px 20px rgba(0,0,0,0.1);
+  border-radius: 6px;
+  opacity: 0;
+  visibility: hidden;
+  transform: translateY(10px);
+  transition: 0.3s;
+  z-index: 100;
+}
+
+.menu-item:hover .dropdown {
+  opacity: 1;
+  visibility: visible;
+  transform: translateY(0);
+}
+
+.dropdown a {
+  display: block;
+  padding: 10px 15px;
+  color: #000;
+  font-size: 14px;
+}
+
+.dropdown a:hover {
+  background: #f5f5f5;
+}
+
+/* =========================
+   BOTÕES PROFISSIONAIS
+============================ */
+
+/* BOTÃO PRINCIPAL */
+.btn-primary {
+  background: #000;
+  color: #fff;
+  padding: 10px 18px;
+  border-radius: 6px;
+  font-weight: 500;
+  border: none;
+  transition: 0.3s;
+}
+
+.btn-primary:hover {
+  background: #222;
+  transform: translateY(-2px);
+}
+
+/* BOTÃO SECUNDÁRIO */
+.btn-secundario {
+  background: transparent;
+  border: 1px solid #000;
+  color: #000;
+  padding: 10px 18px;
+  border-radius: 6px;
+  transition: 0.3s;
+}
+
+.btn-secundario:hover {
+  background: #000;
+  color: #fff;
+}
+
+/* BOTÃO COMPRAR (estilo imagem) */
+.btn-comprar {
+  background: #000;
+  color: #fff;
+  width: 100%;
+  padding: 12px;
+  border-radius: 4px;
+  font-weight: 500;
+  letter-spacing: 1px;
+  transition: 0.3s;
+}
+
+.btn-comprar:hover {
+  background: #333;
+}
+
+/* BOTÃO CARRINHO (minimalista) */
+.btn-carrinho {
+  background: #f5f5f5;
+  border: none;
+  padding: 10px;
+  border-radius: 4px;
+}
+
+.btn-carrinho:hover {
+  background: #e5e5e5;
+}
+
+.skeleton {
+  height: 300px;
+  background: linear-gradient(
+    90deg,
+    #eee 25%,
+    #ddd 50%,
+    #eee 75%
+  );
+  background-size: 200% 100%;
+  animation: loading 1.5s infinite;
+  border-radius: 10px;
+}
+
+@keyframes loading {
+  0% { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+
+.icon {
+  cursor: pointer;
+  font-size: 20px;
+}
+
+.badge {
+  background: red;
+  color: white;
+  border-radius: 50%;
+  font-size: 12px;
+  padding: 3px 6px;
+  position: absolute;
+  top: -5px;
+  right: -8px;
 }

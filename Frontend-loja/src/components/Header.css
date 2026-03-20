@@ -1,0 +1,83 @@
+.header {
+  background: #fff;
+  border-bottom: 1px solid #eee;
+}
+
+.header-container {
+  max-width: 1100px;
+  margin: auto;
+  padding: 15px;
+  display: flex;
+  align-items: center;
+  gap: 15px;
+}
+
+/* LOGO */
+.logo {
+  font-size: 22px;
+  font-weight: bold;
+  cursor: pointer;
+}
+
+/* BUSCA */
+.input-busca {
+  flex: 1;
+  padding: 10px;
+  border-radius: 8px;
+  border: 1px solid #ddd;
+  outline: none;
+  transition: 0.2s;
+}
+
+.input-busca:focus {
+  border-color: #999;
+}
+
+/* ÍCONES */
+.header-icons {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+}
+
+/* 👇 agora serve pros ícones profissionais */
+.icon {
+  font-size: 22px;
+  color: #333;
+  cursor: pointer;
+  transition: 0.2s;
+}
+
+.icon:hover {
+  color: #000;
+  transform: scale(1.1);
+}
+
+/* CARRINHO */
+.carrinho-icon {
+  position: relative;
+  cursor: pointer;
+}
+
+/* BADGE (agora bonito de verdade) */
+.badge {
+  position: absolute;
+  top: -6px;
+  right: -8px;
+
+  background: #ff3b30;
+  color: #fff;
+
+  font-size: 10px;
+  font-weight: bold;
+
+  min-width: 18px;
+  height: 18px;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  border-radius: 50%;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.2);
+}

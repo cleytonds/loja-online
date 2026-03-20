@@ -1,0 +1,66 @@
+.perfil-container {
+  display: flex;
+  justify-content: center;
+  padding: 40px 20px;
+}
+
+.perfil-card {
+  background: #fff;
+  width: 100%;
+  max-width: 400px;
+  padding: 25px;
+  border-radius: 10px;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+  text-align: center;
+}
+
+.perfil-topo {
+  margin-bottom: 20px;
+}
+
+.avatar {
+  font-size: 50px;
+  margin-bottom: 10px;
+}
+
+.perfil-topo h2 {
+  margin: 5px 0;
+}
+
+.perfil-topo p {
+  color: #666;
+  font-size: 14px;
+}
+
+.perfil-acoes {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.perfil-acoes button {
+  padding: 12px;
+  border: none;
+  border-radius: 6px;
+  background: #3483fa;
+  color: white;
+  cursor: pointer;
+  font-weight: bold;
+}
+
+.perfil-acoes button:hover {
+  background: #2968c8;
+}
+
+.perfil-acoes .sair {
+  background: #e74c3c;
+}
+
+.perfil-acoes .sair:hover {
+  background: #c0392b;
+}
+
+.loading {
+  text-align: center;
+  margin-top: 50px;
+}

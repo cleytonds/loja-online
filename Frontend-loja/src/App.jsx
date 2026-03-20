@@ -1,85 +1,64 @@
-// src/App.jsx
-import { HashRouter as Router, Routes, Route, Link } from "react-router-dom";
+import { HashRouter as Router, Routes, Route } from "react-router-dom";
 
 import Home from "./pages/Home.jsx";
-import Produtos from "./pages/Produtos.jsx";
+import Produtos from "./pages/produtos.jsx";
 import Login from "./pages/Login.jsx";
 import Cadastro from "./pages/Cadastro.jsx";
 import Carrinho from "./pages/Carrinho.jsx";
-import VerificarCodigo from "./pages/VerificarCodigo.jsx";
+import Confirmacao from "./pages/Confirmacao.jsx";
 import MeusPedidos from "./pages/MeusPedidos.jsx";
+import EsqueciSenha from "./pages/EsqueciSenha.jsx";
+import RedefinirSenha from "./pages/RedefinirSenha.jsx";
+import Busca from "./pages/Busca.jsx";
+import Perfil from "./pages/Perfil.jsx";
+import Favoritos from "./pages/Favoritos.jsx";
+import { FiShoppingCart } from "react-icons/fi";
+
+import Header from "./components/Header";
+import MiniCarrinho from "./components/MiniCarrinho";
+
+import { CarrinhoProvider } from "./context/CarrinhoContext";
 
 import "./App.css";
 
-<Link to="/meus-pedidos">Meus Pedidos</Link>
-
 export default function App() {
-
-  const token = localStorage.getItem("token");
-
   return (
     <Router>
-      
 
-      {/* HEADER */}
-      <header className="bg-yellow-400 shadow-md">
-        <div className="max-w-6xl mx-auto flex flex-col md:flex-row md:justify-between md:items-center p-4 gap-4">
+      <CarrinhoProvider>
 
-          <h1 className="text-2xl font-bold text-black text-center md:text-left">
-            DLmodas
-          </h1>
+        <Header />
 
-          <nav className="flex flex-wrap justify-center md:justify-end gap-4 text-black font-medium">
+        <MiniCarrinho />
 
-            <Link to="/">Home</Link>
-            <Link to="/produtos">Produtos</Link>
-            <Link to="/carrinho">Carrinho</Link>
+        <main className="main-content">
+          <Routes>
 
-            {!token && (
-              <>
-                <Link to="/login">Conecte-se</Link>
-              </>
-            )}
+            <Route path="/" element={<Home />} />
+            <Route path="/produtos" element={<Produtos />} />
+            <Route path="/carrinho" element={<Carrinho />} />
 
-            {token && (
-              <button
-                onClick={() => {
-                  localStorage.removeItem("token");
-                  window.location.reload();
-                }}
-                className="bg-black text-white px-3 py-1 rounded"
-              >
-                Sair
-              </button>
-            )}
+            <Route path="/login" element={<Login />} />
+            <Route path="/cadastro" element={<Cadastro />} />
 
-          </nav>
+            <Route path="/confirmar/:token" element={<Confirmacao />} />
+            <Route path="/meus-pedidos" element={<MeusPedidos />} />
 
-        </div>
-      </header>
+            <Route path="/esqueci-senha" element={<EsqueciSenha />} />
+            <Route path="/redefinir-senha/:token" element={<RedefinirSenha />} />
 
+            <Route path="/busca" element={<Busca />} />
+            <Route path="/perfil" element={<Perfil />} />
+            <Route path="/favoritos" element={<Favoritos />} />
 
-      {/* CONTEÚDO */}
-      <main className="bg-gray-100 min-h-screen pt-6">
+          </Routes>
+        </main>
 
-        <Routes>
-          <Route path="/meus-pedidos" element={<MeusPedidos />} />
-          <Route path="/" element={<Home />} />
-          <Route path="/produtos" element={<Produtos />} />
-          <Route path="/carrinho" element={<Carrinho />} />
-          <Route path="/login" element={<Login />} />
-          <Route path="/cadastro" element={<Cadastro />} />
-          <Route path="/confirmar/:token" element={<VerificarCodigo />} />
+        <footer className="footer">
+          © {new Date().getFullYear()} DLmodas
+        </footer>
 
-        </Routes>
-
-      </main>
-
-
-      {/* FOOTER */}
-      <footer className="bg-black text-white text-center p-4 mt-10">
-        © {new Date().getFullYear()} DLmodas. Todos os direitos reservados.
-      </footer>
+      </CarrinhoProvider>
 
     </Router>
   );

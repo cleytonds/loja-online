@@ -169,3 +169,14 @@ cursor:pointer;
 background:#c4004c;
 
 }
+
+/* Animação para feedback visual ao adicionar ao carrinho */
+.animar {
+  animation: pulse 0.4s;
+}
+
+@keyframes pulse {
+  0% {transform: scale(1);}
+  50% {transform: scale(1.1);}
+  100% {transform: scale(1);}
+}

@@ -1,0 +1,81 @@
+/* CONTAINER */
+.favoritos-container {
+  max-width: 1000px;
+  margin: 30px auto;
+  padding: 20px;
+}
+
+/* TÍTULO */
+.titulo {
+  text-align: center;
+  margin-bottom: 20px;
+}
+
+/* GRID */
+.grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+  gap: 15px;
+}
+
+/* CARD */
+.card {
+  background: #fff;
+  padding: 10px;
+  border-radius: 8px;
+  text-align: center;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+}
+
+.card img {
+  width: 100%;
+  height: 150px;
+  object-fit: cover;
+  border-radius: 6px;
+}
+
+.card h3 {
+  font-size: 14px;
+  margin: 10px 0;
+}
+
+.card p {
+  color: #3483fa;
+  font-weight: bold;
+}
+
+/* AÇÕES */
+.acoes {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  margin-top: 10px;
+}
+
+.acoes button {
+  padding: 8px;
+  border: none;
+  border-radius: 5px;
+  cursor: pointer;
+  background: #3483fa;
+  color: white;
+}
+
+.acoes .remover {
+  background: #e74c3c;
+}
+
+/* VAZIO */
+.favoritos-vazio {
+  text-align: center;
+  margin-top: 80px;
+}
+
+.favoritos-vazio button {
+  margin-top: 10px;
+  padding: 10px 15px;
+  background: #3483fa;
+  color: white;
+  border: none;
+  border-radius: 5px;
+}

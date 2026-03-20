@@ -1,54 +1,74 @@
-import { useEffect, useState } from "react";
-import { useParams, Link } from "react-router-dom";
+import { useState } from "react";
+import { useParams, useNavigate } from "react-router-dom";
 import api from "../services/api";
 
 export default function Confirmacao() {
-  const { token } = useParams();
-  const [status, setStatus] = useState("confirmando"); // "confirmando", "sucesso", "erro"
 
-  useEffect(() => {
-    async function confirmar() {
-      try {
-        await api.get(`/auth/confirmar/${token}`);
-        setStatus("sucesso");
-      } catch (err) {
-        setStatus("erro");
-      }
+  const { token } = useParams();
+  const navigate = useNavigate();
+
+  const [codigo, setCodigo] = useState("");
+  const [mensagem, setMensagem] = useState("");
+
+  async function confirmar(e) {
+    e.preventDefault();
+
+    try {
+
+      const res = await api.post("/auth/verificar-codigo", {
+        token,
+        codigo
+      });
+
+      localStorage.setItem("token", res.data.token);
+
+      setMensagem("Conta confirmada com sucesso!");
+
+      setTimeout(() => {
+        navigate("/");
+      }, 2000);
+
+    } catch (err) {
+
+      setMensagem("Código ou token inválido");
+
     }
-    confirmar();
-  }, [token]);
+  }
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gray-100 p-6">
-      <div className="bg-white p-10 rounded-2xl shadow-xl w-full max-w-md text-center">
-        {status === "confirmando" && <p>Confirmando seu email...</p>}
 
-        {status === "sucesso" && (
-          <>
-            <h1 className="text-2xl font-bold mb-4">Email confirmado ✅</h1>
-            <p className="mb-6">Sua conta foi ativada. Agora você pode fazer login!</p>
-            <Link
-              to="/login"
-              className="px-6 py-3 bg-black text-white rounded-lg hover:bg-gray-800"
-            >
-              Ir para Login
-            </Link>
-          </>
+      <div className="bg-white p-10 rounded-2xl shadow-xl w-full max-w-md">
+
+        <h1 className="text-2xl font-bold mb-6 text-center">
+          Confirmar Cadastro
+        </h1>
+
+        <form onSubmit={confirmar} className="flex flex-col gap-4">
+
+          <input
+            type="text"
+            placeholder="Digite o código do email"
+            value={codigo}
+            onChange={(e) => setCodigo(e.target.value)}
+            className="border p-2 rounded"
+            required
+          />
+
+          <button
+            className="bg-yellow-400 p-2 rounded font-bold"
+          >
+            Confirmar Conta
+          </button>
+
+        </form>
+
+        {mensagem && (
+          <p className="text-center mt-4">{mensagem}</p>
         )}
 
-        {status === "erro" && (
-          <>
-            <h1 className="text-2xl font-bold mb-4 text-red-500">Erro ❌</h1>
-            <p className="mb-6">Token inválido ou expirado.</p>
-            <Link
-              to="/cadastro"
-              className="px-6 py-3 bg-black text-white rounded-lg hover:bg-gray-800"
-            >
-              Voltar para Cadastro
-            </Link>
-          </>
-        )}
       </div>
+
     </div>
   );
 }

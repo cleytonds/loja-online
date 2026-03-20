@@ -1,7 +1,8 @@
 import "./produtos.css";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useContext } from "react";
 import { useNavigate } from "react-router-dom";
 import api from "../services/api";
+import { CarrinhoContext } from "../context/CarrinhoContext";
 
 const imagensTeste = {
   1: "https://via.placeholder.com/300x350.png?text=Vestido",
@@ -29,16 +30,27 @@ function Produtos() {
   const [categoriaSelecionada, setCategoriaSelecionada] = useState("Todas");
   const [menuAberto, setMenuAberto] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [animando, setAnimando] = useState(false);
 
   const navigate = useNavigate();
+
+  // ✅ PEGA DO CONTEXTO (CORRETO)
+  const { adicionarAoCarrinho } = useContext(CarrinhoContext);
 
   useEffect(() => {
     async function fetchProdutos() {
       try {
         const res = await api.get("/produtos");
-        setProdutos(res.data);
+
+        if (Array.isArray(res.data)) {
+          setProdutos(res.data);
+        } else {
+          setProdutos([]);
+        }
+
       } catch (err) {
         console.error("Erro ao buscar produtos:", err);
+        setProdutos([]);
       } finally {
         setLoading(false);
       }
@@ -47,61 +59,40 @@ function Produtos() {
     fetchProdutos();
   }, []);
 
-  function adicionarAoCarrinho(produto) {
+  // ✅ ANIMAÇÃO + ADD
+  function handleAdicionar(produto) {
+    adicionarAoCarrinho(produto);
 
-    let carrinho = JSON.parse(localStorage.getItem("carrinho")) || [];
-
-    const itemExistente = carrinho.find(p => p.id === produto.id);
-
-    if (itemExistente) {
-      itemExistente.quantidade += 1;
-    } else {
-      carrinho.push({
-        id: produto.id,
-        nome: produto.nome,
-        preco: produto.preco,
-        quantidade: 1
-      });
-    }
-
-    localStorage.setItem("carrinho", JSON.stringify(carrinho));
-
-    alert("Produto adicionado ao carrinho 🛒");
+    setAnimando(true);
+    setTimeout(() => setAnimando(false), 300);
   }
 
   function comprarAgora(produto) {
-
-    let carrinho = JSON.parse(localStorage.getItem("carrinho")) || [];
-
-    carrinho.push({
-      id: produto.id,
-      nome: produto.nome,
-      preco: produto.preco,
-      quantidade: 1
-    });
-
-    localStorage.setItem("carrinho", JSON.stringify(carrinho));
-
+    adicionarAoCarrinho(produto);
     navigate("/carrinho");
   }
 
+  // LOADING
   if (loading) {
-    return <p className="loading">Carregando produtos...</p>;
+    return (
+      <div className="grid-produtos">
+        {[1,2,3,4,5,6].map((i) => (
+          <div key={i} className="skeleton"></div>
+        ))}
+      </div>
+    );
   }
 
-  const produtosFiltrados =
-    categoriaSelecionada === "Todas"
-      ? produtos
-      : produtos.filter(p => p.categoria === categoriaSelecionada);
+  // FILTRO
+  const produtosFiltrados = produtos.filter(p => {
+    if (categoriaSelecionada === "Todas") return true;
+    return p.categoria === categoriaSelecionada;
+  });
 
   return (
-
     <div className="loja-container">
 
-      <h1 className="titulo-loja"></h1>
-
-      {/* MENU DE CATEGORIAS */}
-
+      {/* MENU */}
       <div className="menu-categorias">
 
         <button
@@ -112,11 +103,8 @@ function Produtos() {
         </button>
 
         {menuAberto && (
-
           <div className="menu-dropdown">
-
             {categorias.map((cat) => (
-
               <div
                 key={cat}
                 className="menu-item"
@@ -127,17 +115,13 @@ function Produtos() {
               >
                 {cat}
               </div>
-
             ))}
-
           </div>
-
         )}
 
       </div>
 
       {/* PRODUTOS */}
-
       <div className="produtos-grid">
 
         {produtosFiltrados.map((produto) => (
@@ -156,23 +140,23 @@ function Produtos() {
             <h2 className="produto-nome">{produto.nome}</h2>
 
             <p className="produto-preco">
-              R$ {produto.preco}
+              R$ {Number(produto.preco).toFixed(2)}
             </p>
 
             <div className="produto-botoes">
 
               <button
-                onClick={() => adicionarAoCarrinho(produto)}
-                className="btn-carrinho"
+                onClick={() => handleAdicionar(produto)}
+                className={`btn-carrinho ${animando ? "animar" : ""}`}
               >
-                🛒 Carrinho
+                🛒
               </button>
 
               <button
                 onClick={() => comprarAgora(produto)}
                 className="btn-comprar"
               >
-                Comprar
+                COMPRAR
               </button>
 
             </div>
@@ -184,7 +168,6 @@ function Produtos() {
       </div>
 
     </div>
-
   );
 }
 
