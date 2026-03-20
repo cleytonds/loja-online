@@ -142,14 +142,17 @@ router.post("/solicitar-recuperacao", async (req, res) => {
   const { email } = req.body;
 
   try {
+
     const [usuarios] = await db.promise().query(
       "SELECT * FROM usuarios WHERE LOWER(TRIM(email)) = LOWER(TRIM(?))",
       [email]
     );
 
-    if (!usuarios.length) return res.status(404).json({ error: "Email não cadastrado" });
+    if (!usuarios.length)
+      return res.status(404).json({ error: "Email não cadastrado" });
 
     const usuario = usuarios[0];
+
     const token = crypto.randomBytes(32).toString("hex");
 
     await db.promise().query(
@@ -157,22 +160,26 @@ router.post("/solicitar-recuperacao", async (req, res) => {
       [token, usuario.id]
     );
 
-    const link = `${process.env.FRONT_URL}/redefinir-senha/${token}`;
+    const link = `${process.env.FRONT_URL}/#/redefinir-senha/${token}`;
 
     await enviarEmail(
       email,
-      "Redefinição de senha DLmodas",
+      "Redefinição de senha - DLmodas",
       `
-      <p>Clique no link abaixo para redefinir sua senha:</p>
-      <a href="${link}">${link}</a>
-      <p>Se não solicitou, ignore este email.</p>
+      <h2>Redefinir senha</h2>
+      <p>Clique no link abaixo para criar uma nova senha:</p>
+      <a href="${link}">Redefinir senha</a>
+      <p>Se você não solicitou, ignore este email.</p>
       `
     );
 
-    res.json({ mensagem: "Email de redefinição enviado!" });
+    res.json({ mensagem: "Email de recuperação enviado!" });
+
   } catch (err) {
-    console.error("Erro na recuperação de senha:", err);
-    res.status(500).json({ error: "Erro ao enviar email" });
+
+    console.error("Erro ao enviar email:", err);
+    res.status(500).json({ error: "Erro ao enviar e-mail" });
+
   }
 });
 
