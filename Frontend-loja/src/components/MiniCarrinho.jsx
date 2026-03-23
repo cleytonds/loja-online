@@ -4,6 +4,7 @@ import { useNavigate } from "react-router-dom";
 import "./MiniCarrinho.css";
 
 export default function MiniCarrinho() {
+
   const {
     carrinho,
     aberto,
@@ -15,56 +16,57 @@ export default function MiniCarrinho() {
 
   const navigate = useNavigate();
 
-  // total do carrinho seguro
+  // 🔥 TOTAL SEGURO (NUNCA QUEBRA)
   const total = carrinho.reduce((acc, item) => {
-    const preco = Number(item?.preco) || 0;
-    const quantidade = Number(item?.quantidade) || 1;
+    const preco = Number(item.preco) || 0;
+    const quantidade = Number(item.quantidade) || 0;
     return acc + preco * quantidade;
   }, 0);
 
-  // não renderiza se estiver fechado
-  if (!aberto) return null;
-
   return (
     <>
-      {/* OVERLAY */}
-      <div className="overlay" onClick={fecharCarrinho}></div>
+      {/* 🔹 Overlay */}
+      <div
+        className={`overlay ${aberto ? "ativo" : ""}`}
+        onClick={fecharCarrinho}
+      ></div>
 
-      {/* DRAWER LATERAL */}
-      <div className="drawer">
+      {/* 🔹 Drawer */}
+      <div className={`drawer ${aberto ? "ativo" : ""}`}>
 
-        {/* HEADER */}
+        {/* 🔹 Header */}
         <div className="drawer-header">
           <p>Seu Carrinho</p>
           <span onClick={fecharCarrinho}>✕</span>
         </div>
 
-        {/* BODY */}
+        {/* 🔹 Body */}
         <div className="drawer-body">
-          {carrinho.length === 0 && <p>Seu carrinho está vazio</p>}
 
-          {carrinho.map((item, index) => {
-            const id = item?.id ?? index;
-            const nome = item?.nome ?? "Produto";
-            const imagem = item?.imagem ?? "https://via.placeholder.com/60";
-            const preco = Number(item?.preco) || 0;
-            const cor = item?.cor || "Padrão";
-            const tamanho = item?.tamanho || "Único";
-            const quantidade = Number(item?.quantidade) || 1;
+          {carrinho.length === 0 && (
+            <p>Seu carrinho está vazio</p>
+          )}
+
+          {carrinho.map((item) => {
+
+            const id = Number(item.id);
+            const nome = item.nome;
+            const imagem = item.imagem || "https://via.placeholder.com/60";
+            const preco = Number(item.preco) || 0;
+            const quantidade = Number(item.quantidade) || 0;
 
             return (
               <div key={id} className="item">
 
-                {/* IMAGEM */}
                 <img src={imagem} alt={nome} />
 
-                {/* INFORMAÇÕES */}
                 <div className="info">
                   <p className="nome">{nome}</p>
-                  <p className="detalhes">Cor: {cor} | Tam: {tamanho}</p>
-                  <p className="preco">R$ {(preco * quantidade).toFixed(2)}</p>
 
-                  {/* CONTROLE DE QUANTIDADE */}
+                  <p className="preco">
+                    R$ {preco.toFixed(2)}
+                  </p>
+
                   <div className="qtd-controle">
                     <button onClick={() => diminuirQuantidade(id)}>-</button>
                     <span>{quantidade}</span>
@@ -72,35 +74,43 @@ export default function MiniCarrinho() {
                   </div>
                 </div>
 
-                {/* REMOVER ITEM */}
-                <button className="btn-remover" onClick={() => removerDoCarrinho(id)}>✕</button>
+                <button
+                  className="btn-remover"
+                  onClick={() => removerDoCarrinho(id)}
+                >
+                  ✕
+                </button>
               </div>
             );
           })}
+
         </div>
 
-        {/* FOOTER */}
+        {/* 🔹 Footer */}
         <div className="drawer-footer">
+
           <div className="total">
             <span>Total</span>
-            <span>R$ {total.toFixed(2)}</span>
+            <span>
+              {isNaN(total)
+                ? "R$ 0,00"
+                : `R$ ${total.toLocaleString("pt-BR", {
+                    minimumFractionDigits: 2
+                  })}`}
+            </span>
           </div>
 
-          {/* BOTÃO CONTINUAR COMPRANDO */}
           <button
-            type="button"
             className="btn-continuar"
             onClick={() => {
-              fecharCarrinho();       // fecha o drawer
-              navigate("/produtos");  // navega para produtos
+              fecharCarrinho();
+              navigate("/produtos");
             }}
           >
             Continuar comprando
           </button>
 
-          {/* BOTÃO VER CARRINHO */}
           <button
-            type="button"
             onClick={() => {
               fecharCarrinho();
               navigate("/carrinho");
@@ -108,6 +118,7 @@ export default function MiniCarrinho() {
           >
             Ver carrinho
           </button>
+
         </div>
 
       </div>

@@ -38,26 +38,32 @@ function Produtos() {
   const { adicionarAoCarrinho } = useContext(CarrinhoContext);
 
   useEffect(() => {
-    async function fetchProdutos() {
-      try {
-        const res = await api.get("/produtos");
+  async function fetchProdutos() {
+    try {
+      const res = await api.get("/produtos");
 
-        if (Array.isArray(res.data)) {
-          setProdutos(res.data);
-        } else {
-          setProdutos([]);
-        }
+      if (Array.isArray(res.data)) {
+        const dadosCorrigidos = res.data.map(p => ({
+          ...p,
+          id: Number(p.id),        // ✅ força número
+          preco: Number(p.preco)  // ✅ garante cálculo correto
+        }));
 
-      } catch (err) {
-        console.error("Erro ao buscar produtos:", err);
+        setProdutos(dadosCorrigidos);
+      } else {
         setProdutos([]);
-      } finally {
-        setLoading(false);
       }
-    }
 
-    fetchProdutos();
-  }, []);
+    } catch (err) {
+      console.error("Erro ao buscar produtos:", err);
+      setProdutos([]);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  fetchProdutos();
+}, []);
 
   // ✅ ANIMAÇÃO + ADD
   function handleAdicionar(produto) {

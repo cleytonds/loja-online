@@ -1,77 +1,111 @@
-import { createContext, useState } from "react";
+import { createContext, useState, useEffect } from "react";
 
-
+// 🔹 Cria o contexto
 export const CarrinhoContext = createContext();
 
 export function CarrinhoProvider({ children }) {
-  const [carrinho, setCarrinho] = useState([]);
+
+  // 🔥 CARREGAR DO LOCALSTORAGE
+  const [carrinho, setCarrinho] = useState(() => {
+    const carrinhoSalvo = localStorage.getItem("carrinho");
+    return carrinhoSalvo ? JSON.parse(carrinhoSalvo) : [];
+  });
+
+  // 🔹 Controle abrir/fechar
   const [aberto, setAberto] = useState(false);
 
-  // Adicionar produto
+  // 🔥 SALVAR SEMPRE QUE MUDAR
+  useEffect(() => {
+    localStorage.setItem("carrinho", JSON.stringify(carrinho));
+  }, [carrinho]);
+
+  // 🔥 ADICIONAR PRODUTO
   function adicionarAoCarrinho(produto) {
-  setCarrinho(prev => {
-    const existe = prev.find(p => p.id === produto.id);
-    if (existe) {
-      return prev.map(p => p.id === produto.id ? { ...p, quantidade: p.quantidade + 1 } : p);
-    }
-    return [...prev, { ...produto, quantidade: 1 }];
-  });
+    setCarrinho(prev => {
+
+      const id = Number(produto.id);
+      const existe = prev.find(p => p.id === id);
+
+      if (existe) {
+        return prev.map(p =>
+          p.id === id
+            ? { ...p, quantidade: p.quantidade + 1 }
+            : p
+        );
+      }
+
+      return [
+        ...prev,
+        {
+          ...produto,
+          id: id,
+          preco: Number(produto.preco),
+          quantidade: 1
+        }
+      ];
+    });
+
+    // 🔥 abre automaticamente (opcional, top demais)
+    setAberto(true);
   }
 
-  // Remover produto
+  // ❌ Remover item
   function removerDoCarrinho(id) {
-    setCarrinho((prev) => prev.filter((p) => p.id !== id));
+    setCarrinho(prev =>
+      prev.filter(p => p.id !== Number(id))
+    );
   }
 
-  // Aumentar quantidade
+  // ➕ Aumentar quantidade
   function aumentarQuantidade(id) {
-    setCarrinho((prev) =>
-      prev.map((p) =>
-        p.id === id ? { ...p, quantidade: p.quantidade + 1 } : p
+    setCarrinho(prev =>
+      prev.map(p =>
+        p.id === Number(id)
+          ? { ...p, quantidade: p.quantidade + 1 }
+          : p
       )
     );
   }
 
-  // Diminuir quantidade
+  // ➖ Diminuir quantidade
   function diminuirQuantidade(id) {
-    setCarrinho((prev) =>
+    setCarrinho(prev =>
       prev
-        .map((p) =>
-          p.id === id
+        .map(p =>
+          p.id === Number(id)
             ? { ...p, quantidade: p.quantidade - 1 }
             : p
         )
-        .filter((p) => p.quantidade > 0) // remove se chegar a 0
+        .filter(p => p.quantidade > 0)
     );
   }
 
-  // Abrir carrinho
+  // 🔓 Abrir carrinho
   function abrirCarrinho() {
     setAberto(true);
   }
 
-  // Fechar carrinho
+  // 🔒 Fechar carrinho
   function fecharCarrinho() {
     setAberto(false);
   }
 
-  // Alterna entre abrir/fechar
+  // 🔁 Toggle
   function toggleCarrinho() {
-    setAberto((prev) => !prev);
+    setAberto(prev => !prev);
   }
 
   return (
     <CarrinhoContext.Provider
       value={{
         carrinho,
-        setCarrinho,
         adicionarAoCarrinho,
         removerDoCarrinho,
         aumentarQuantidade,
         diminuirQuantidade,
         abrirCarrinho,
         fecharCarrinho,
-        toggleCarrinho, // ✅ aqui
+        toggleCarrinho,
         aberto,
       }}
     >
