@@ -1,76 +1,72 @@
-import { useEffect, useState } from "react";
+// src/pages/Perfil.jsx
+import { useEffect, useState, useContext } from "react";
 import { useNavigate } from "react-router-dom";
 import api from "../services/api";
+import { AuthContext } from "../context/AuthContext";
 import "./Perfil.css";
 
 export default function Perfil() {
-  const [usuario, setUsuario] = useState(null);
+  const [pedidos, setPedidos] = useState([]);
+  const { user, logout } = useContext(AuthContext); // Pega usuário logado
   const navigate = useNavigate();
 
+  // Carrega pedidos do usuário
   useEffect(() => {
-    async function carregarUsuario() {
-      const token = localStorage.getItem("token");
-
-      if (!token) {
+    async function carregarPedidos() {
+      if (!user) {
         navigate("/login");
         return;
       }
 
-      try {
-        const res = await api.get("/usuario", {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-        });
+      if (user.tipo === "admin") {
+        navigate("/admin");
+        return;
+      }
 
-        setUsuario(res.data);
+      try {
+        const resPedidos = await api.get("/meus-pedidos", {
+          headers: { Authorization: `Bearer ${localStorage.getItem("token")}` },
+        });
+        setPedidos(resPedidos.data);
       } catch (err) {
-        console.error(err);
-        navigate("/login");
+        console.error("Erro ao carregar pedidos:", err);
       }
     }
 
-    carregarUsuario();
-  }, []);
+    carregarPedidos();
+  }, [user]);
 
-  function sair() {
-    localStorage.removeItem("token");
-    navigate("/login");
-  }
-
-  if (!usuario) {
-    return <p className="loading">Carregando...</p>;
-  }
+  if (!user) return <p className="loading">Carregando...</p>;
 
   return (
     <div className="perfil-container">
-
       <div className="perfil-card">
-
         <div className="perfil-topo">
           <div className="avatar">👤</div>
-          <h2>{usuario.nome}</h2>
-          <p>{usuario.email}</p>
+          <h2>{user.nome}</h2>
+          <p>{user.email}</p>
         </div>
 
         <div className="perfil-acoes">
-
-          <button onClick={() => navigate("/meus-pedidos")}>
-            📦 Meus pedidos
-          </button>
-
-          <button onClick={() => navigate("/favoritos")}>
-            ❤️ Favoritos
-          </button>
-
-          <button onClick={sair} className="sair">
-            🚪 Sair
-          </button>
-
+          <h3>Meus Pedidos</h3>
+          {pedidos.length === 0 ? (
+            <p>Nenhum pedido encontrado.</p>
+          ) : (
+            <ul className="pedidos-lista">
+              {pedidos.map(p => (
+                <li key={p.id}>
+                  <span>Pedido #{p.id}</span>
+                  <span>Status: {p.status}</span>
+                  <span>Total: R$ {Number(p.total).toFixed(2)}</span>
+                  <span>Data: {new Date(p.data).toLocaleDateString()}</span>
+                </li>
+              ))}
+            </ul>
+          )}
+          <button onClick={() => navigate("/favoritos")}>❤️ Meus Favoritos</button>
+          <button onClick={logout} className="sair">🚪 Sair</button>
         </div>
-
       </div>
-
     </div>
   );
 }

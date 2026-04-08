@@ -1,5 +1,3 @@
-// server.js
-
 import dotenv from "dotenv";
 dotenv.config();
 
@@ -8,13 +6,13 @@ import cors from "cors";
 
 import db from "./config/database.js";
 
-// rotas
+// ✅ ROTAS CORRETAS
 import authRoutes from "./routes/authRoutes.js";
 import carrinhoRoutes from "./routes/carrinhoRoutes.js";
 import produtosRoutes from "./routes/products.routes.js";
 import pedidosRoutes from "./routes/pedidos.js";
 
-const app = express(); // ✅ criar app primeiro
+const app = express();
 
 // middlewares
 app.use(cors());
@@ -24,7 +22,7 @@ app.use(express.json());
 app.use("/auth", authRoutes);
 app.use("/carrinho", carrinhoRoutes);
 app.use("/produtos", produtosRoutes);
-app.use("/pedidos", pedidosRoutes); // ✅ agora funciona
+app.use("/pedidos", pedidosRoutes);
 
 // rota de teste
 app.get("/", (req, res) => {

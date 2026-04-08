@@ -10,43 +10,37 @@ export default function Cadastro() {
   const [loading, setLoading] = useState(false);
   const [erroEmail, setErroEmail] = useState(""); 
   const [toast, setToast] = useState({ show: false, msg: "", tipo: "success" });
+  const [reenviarEmail, setReenviarEmail] = useState(false); // ✅ estado para botão reenviar
   const navigate = useNavigate();
 
   const validarEmail = (email) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
 
-  // Função para mostrar notificação ou toast
   const mostrarNotificacao = (msg, tipo = "success") => {
     if ("Notification" in window && Notification.permission === "granted") {
-      new Notification(msg, {
-        body: tipo === "success" ? "✅ Sucesso" : "❌ Erro",
-      });
+      new Notification(msg, { body: tipo === "success" ? "✅ Sucesso" : "❌ Erro" });
     } else if ("Notification" in window && Notification.permission !== "denied") {
       Notification.requestPermission().then(permission => {
         if (permission === "granted") {
-          new Notification(msg, {
-            body: tipo === "success" ? "✅ Sucesso" : "❌ Erro",
-          });
+          new Notification(msg, { body: tipo === "success" ? "✅ Sucesso" : "❌ Erro" });
         } else {
-          // Toast interno para fallback
           setToast({ show: true, msg, tipo });
           setTimeout(() => setToast({ show: false, msg: "", tipo }), 4000);
         }
       });
     } else {
-      // Toast interno fallback
       setToast({ show: true, msg, tipo });
       setTimeout(() => setToast({ show: false, msg: "", tipo }), 4000);
     }
   };
 
+  // -------------------- CADASTRO --------------------
   async function handleCadastro(e) {
     e.preventDefault();
 
-    // Validação frontend do email
     if (!validarEmail(email)) {
       setErroEmail("Email inválido!");
       mostrarNotificacao("Email inválido! Por favor, use um email válido.", "error");
-      return; // não envia ao backend
+      return;
     } else {
       setErroEmail("");
     }
@@ -55,13 +49,33 @@ export default function Cadastro() {
 
     try {
       const res = await api.post("/auth/cadastro", { nome, email, senha });
-      mostrarNotificacao(res.data.success || "Cadastro realizado! Verifique seu email.", "success");
-      setTimeout(() => navigate("/login"), 2000);
+      mostrarNotificacao(res.data.mensagem || "Cadastro realizado! Verifique seu email.","success");
+
+      // ✅ Mostra botão de reenviar email após cadastro
+      setReenviarEmail(true);
+
+      setTimeout(() => { navigate("/verificar", { state: { email } }); }, 2000);
     } catch (err) {
       const errorMsg = err.response?.data?.error;
       mostrarNotificacao(errorMsg || "Erro ao cadastrar ❌", "error");
     } finally {
       setLoading(false);
+    }
+  }
+
+  // -------------------- REENVIAR EMAIL --------------------
+  async function handleReenviarEmail() {
+    if (!validarEmail(email)) {
+      mostrarNotificacao("Email inválido para reenviar!", "error");
+      return;
+    }
+
+    try {
+      const res = await api.post("/auth/reenviar-codigo", { email });
+      mostrarNotificacao(res.data.mensagem || "Email reenviado com sucesso!", "success");
+    } catch (err) {
+      const errorMsg = err.response?.data?.error || "Erro ao reenviar email";
+      mostrarNotificacao(errorMsg, "error");
     }
   }
 
@@ -115,6 +129,19 @@ export default function Cadastro() {
             Entrar
           </Link>
         </p>
+
+        {/* ✅ Botão de reenviar email */}
+        {reenviarEmail && (
+          <div className="mt-4 text-center">
+            <p>Não recebeu o email?</p>
+            <button
+              onClick={handleReenviarEmail}
+              className="px-4 py-2 mt-2 bg-yellow-400 text-black rounded-lg hover:bg-yellow-500 transition"
+            >
+              Reenviar email de confirmação
+            </button>
+          </div>
+        )}
       </div>
 
       {/* Toast interno animado */}
@@ -128,7 +155,6 @@ export default function Cadastro() {
         </div>
       )}
 
-      {/* CSS para animação */}
       <style>{`
         @keyframes fadeInOut {
           0% { opacity: 0; transform: translateY(-20px); }

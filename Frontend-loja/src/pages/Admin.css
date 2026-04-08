@@ -1,0 +1,152 @@
+/* Admin.css - Estilo Profissional */
+
+/* Container principal */
+.admin-container {
+  padding: 30px 20px;
+  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+  background-color: #f5f6fa;
+  min-height: 100vh;
+  color: #333333;
+}
+
+/* Títulos */
+.admin-container h1 {
+  text-align: center;
+  margin-bottom: 40px;
+  font-size: 32px;
+}
+
+.admin-container h2 {
+  font-size: 22px;
+  margin-bottom: 15px;
+  color: #222222;
+  border-bottom: 2px solid #e0e0e0;
+  padding-bottom: 5px;
+}
+
+/* Formulário de criação de produto */
+.admin-criar-produto {
+  background-color: #ffffff;
+  padding: 25px;
+  border-radius: 15px;
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.08);
+  margin-bottom: 40px;
+}
+
+.admin-criar-produto form {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 15px;
+}
+
+.admin-criar-produto input {
+  flex: 1 1 200px;
+  padding: 10px 15px;
+  border-radius: 10px;
+  border: 1px solid #ccc;
+  font-size: 14px;
+  transition: border 0.2s ease;
+}
+
+.admin-criar-produto input:focus {
+  border-color: #0088FE;
+  outline: none;
+}
+
+.admin-criar-produto button {
+  background-color: #0088FE;
+  color: #fff;
+  border: none;
+  padding: 10px 20px;
+  border-radius: 10px;
+  cursor: pointer;
+  font-size: 14px;
+  transition: background-color 0.2s ease;
+}
+
+.admin-criar-produto button:hover {
+  background-color: #006fcc;
+}
+
+/* Seção de gráficos */
+.admin-graficos {
+  margin-bottom: 40px;
+}
+
+.admin-graficos h2 {
+  margin-top: 30px;
+}
+
+/* Lista de produtos */
+.admin-produtos {
+  background-color: #ffffff;
+  padding: 20px;
+  border-radius: 15px;
+  box-shadow: 0 6px 15px rgba(0,0,0,0.08);
+  margin-bottom: 40px;
+}
+
+.admin-produtos ul {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.admin-produtos li {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px 15px;
+  border-bottom: 1px solid #eee;
+  transition: background-color 0.2s ease;
+}
+
+.admin-produtos li:hover {
+  background-color: #f0f4f8;
+}
+
+.admin-produtos button {
+  background-color: #ff4d4d;
+  color: #ffffff;
+  border: none;
+  padding: 6px 12px;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 13px;
+  transition: background-color 0.2s ease;
+}
+
+.admin-produtos button:hover {
+  background-color: #cc0000;
+}
+
+/* Botão sair */
+.admin-container .sair {
+  display: block;
+  margin: 0 auto;
+  background-color: #343a40;
+  color: #ffffff;
+  border: none;
+  padding: 10px 25px;
+  border-radius: 12px;
+  font-size: 14px;
+  cursor: pointer;
+  transition: background-color 0.2s ease;
+}
+
+.admin-container .sair:hover {
+  background-color: #1f2428;
+}
+
+/* Responsividade */
+@media (max-width: 768px) {
+  .admin-criar-produto form {
+    flex-direction: column;
+  }
+
+  .admin-produtos li {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 10px;
+  }
+}

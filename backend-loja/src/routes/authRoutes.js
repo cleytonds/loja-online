@@ -5,15 +5,15 @@ import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 import crypto from "crypto";
 import { enviarEmail } from "../utils/email.js";
+import { verificarToken } from "../middlewares/auth.js";
 
 const router = express.Router();
 
-// --------------------- CADASTRO ---------------------
+// ========================= CADASTRO =========================
 router.post("/cadastro", async (req, res) => {
   const { nome, email, senha } = req.body;
 
   try {
-    // verifica se já existe usuário
     const [usuarios] = await db.promise().query(
       "SELECT * FROM usuarios WHERE LOWER(TRIM(email)) = LOWER(TRIM(?))",
       [email]
@@ -22,49 +22,39 @@ router.post("/cadastro", async (req, res) => {
     if (usuarios.length)
       return res.status(400).json({ error: "Email já cadastrado" });
 
-    // criptografa senha
     const hashSenha = await bcrypt.hash(senha, 10);
 
-    // gera código de confirmação (6 dígitos)
     const codigo = Math.floor(100000 + Math.random() * 900000).toString();
-
-    // gera token de confirmação para o link
     const tokenConfirmacao = crypto.randomBytes(32).toString("hex");
 
-    // insere no banco com ativo = 0
     await db.promise().query(
-      "INSERT INTO usuarios (nome, email, senha, ativo, token_confirmacao, codigo_confirmacao) VALUES (?, ?, ?, 0, ?, ?)",
+      "INSERT INTO usuarios (nome, email, senha, ativo, token_confirmacao, codigo_confirmacao, tipo) VALUES (?, ?, ?, 0, ?, ?, 'cliente')",
       [nome, email, hashSenha, tokenConfirmacao, codigo]
     );
 
-    // link de confirmação ajustado para HashRouter
     const link = `${process.env.FRONT_URL}/#/confirmar/${tokenConfirmacao}`;
 
-    // envia email com link + código
     await enviarEmail(
       email,
       "Confirmação de cadastro - DLmodas",
       `
-      <div style="font-family: Arial, sans-serif; text-align: center; padding: 20px;">
+      <div style="text-align:center">
         <h2>Confirme seu cadastro</h2>
-        <p>Olá ${nome}!</p>
-        <p>Para ativar sua conta, clique no botão abaixo:</p>
-        <a href="${link}" style="padding:10px 20px; background:#fbbf24; color:black; text-decoration:none; border-radius:4px;">Confirmar cadastro</a>
-        <p>Ou utilize este código na tela de confirmação:</p>
-        <h2 style="color:#fbbf24;">${codigo}</h2>
-        <p>Se você não criou esta conta, ignore este email.</p>
+        <a href="${link}">Confirmar</a>
+        <h3>${codigo}</h3>
       </div>
       `
     );
 
-    res.json({ mensagem: "Cadastro realizado! Verifique seu email para ativar a conta." });
+    res.json({ mensagem: "Cadastro realizado! Verifique seu email." });
+
   } catch (err) {
-    console.error("Erro no cadastro:", err);
-    res.status(500).json({ error: "Erro interno ao cadastrar" });
+    console.error(err);
+    res.status(500).json({ error: "Erro no cadastro" });
   }
 });
 
-// --------------------- LOGIN ---------------------
+// ========================= LOGIN =========================
 router.post("/login", async (req, res) => {
   const { email, senha } = req.body;
 
@@ -74,42 +64,74 @@ router.post("/login", async (req, res) => {
       [email]
     );
 
-    if (!usuarios.length) return res.status(401).json({ error: "Email ou senha inválidos" });
+    if (!usuarios.length)
+      return res.status(401).json({ error: "Email ou senha inválidos" });
 
     const usuario = usuarios[0];
 
-    if (usuario.ativo !== 1) return res.status(401).json({ error: "Conta não ativada" });
+    if (usuario.ativo !== 1)
+      return res.status(401).json({ error: "Conta não ativada" });
 
     const senhaValida = await bcrypt.compare(senha, usuario.senha);
-    if (!senhaValida) return res.status(401).json({ error: "Email ou senha inválidos" });
+
+    if (!senhaValida)
+      return res.status(401).json({ error: "Email ou senha inválidos" });
 
     const token = jwt.sign(
-      { id: usuario.id, email: usuario.email },
-      process.env.JWT_SECRET || "SUA_CHAVE_SECRETA",
+      { id: usuario.id, tipo: usuario.tipo },
+      process.env.JWT_SECRET || "SUA_CHAVE",
       { expiresIn: "1d" }
     );
 
-    res.json({ token });
+    // 🔥 AGORA COMPATÍVEL COM SEU LOGIN.JSX
+    res.json({
+      token,
+      usuario: {
+        id: usuario.id,
+        nome: usuario.nome,
+        email: usuario.email,
+        tipo: usuario.tipo,
+        ativo: usuario.ativo
+      }
+    });
+
   } catch (err) {
-    console.error("Erro no login:", err);
-    res.status(500).json({ error: "Erro interno no login" });
+    console.error(err);
+    res.status(500).json({ error: "Erro no login" });
   }
 });
 
-router.post("/verificar-codigo", async (req, res) => {
+// ========================= /ME (MANTER LOGIN) =========================
+router.get("/me", verificarToken, async (req, res) => {
+  try {
+    const [usuarios] = await db.promise().query(
+      "SELECT id, nome, email, tipo, ativo FROM usuarios WHERE id = ?",
+      [req.user.id]
+    );
 
+    if (!usuarios.length)
+      return res.status(404).json({ error: "Usuário não encontrado" });
+
+    res.json(usuarios[0]);
+
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Erro ao buscar usuário" });
+  }
+});
+
+// ========================= VERIFICAR CÓDIGO =========================
+router.post("/verificar-codigo", async (req, res) => {
   const { token, codigo } = req.body;
 
   try {
-
     const [usuarios] = await db.promise().query(
       "SELECT * FROM usuarios WHERE token_confirmacao = ? AND codigo_confirmacao = ?",
       [token, codigo]
     );
 
-    if (!usuarios.length) {
+    if (!usuarios.length)
       return res.status(400).json({ error: "Código ou token inválido" });
-    }
 
     const usuario = usuarios[0];
 
@@ -118,8 +140,9 @@ router.post("/verificar-codigo", async (req, res) => {
       [usuario.id]
     );
 
+    // 🔥 opcional: já loga após confirmar
     const jwtToken = jwt.sign(
-      { id: usuario.id, email: usuario.email },
+      { id: usuario.id, tipo: usuario.tipo },
       process.env.JWT_SECRET || "SUA_CHAVE",
       { expiresIn: "1d" }
     );
@@ -130,19 +153,63 @@ router.post("/verificar-codigo", async (req, res) => {
     });
 
   } catch (err) {
-
     console.error(err);
     res.status(500).json({ error: "Erro interno" });
-
   }
-
 });
-// --------------------- SOLICITAR REDEFINIÇÃO ---------------------
+
+// ========================= REENVIAR CÓDIGO =========================
+router.post("/reenviar-codigo", async (req, res) => {
+  const { email } = req.body;
+
+  try {
+    const [usuarios] = await db.promise().query(
+      "SELECT * FROM usuarios WHERE LOWER(TRIM(email)) = LOWER(TRIM(?))",
+      [email]
+    );
+
+    if (!usuarios.length)
+      return res.status(404).json({ error: "Usuário não encontrado" });
+
+    const usuario = usuarios[0];
+
+    if (usuario.ativo === 1)
+      return res.status(400).json({ error: "Conta já ativada" });
+
+    const novoCodigo = Math.floor(100000 + Math.random() * 900000).toString();
+    const novoToken = crypto.randomBytes(32).toString("hex");
+
+    await db.promise().query(
+      "UPDATE usuarios SET codigo_confirmacao = ?, token_confirmacao = ? WHERE id = ?",
+      [novoCodigo, novoToken, usuario.id]
+    );
+
+    const link = `${process.env.FRONT_URL}/#/confirmar/${novoToken}`;
+
+    await enviarEmail(
+      usuario.email,
+      "Reenvio de código - DLmodas",
+      `
+      <div style="text-align:center">
+        <a href="${link}">Confirmar</a>
+        <h2>${novoCodigo}</h2>
+      </div>
+      `
+    );
+
+    res.json({ mensagem: "Código reenviado com sucesso!" });
+
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Erro interno" });
+  }
+});
+
+// ========================= SOLICITAR RECUPERAÇÃO =========================
 router.post("/solicitar-recuperacao", async (req, res) => {
   const { email } = req.body;
 
   try {
-
     const [usuarios] = await db.promise().query(
       "SELECT * FROM usuarios WHERE LOWER(TRIM(email)) = LOWER(TRIM(?))",
       [email]
@@ -164,26 +231,19 @@ router.post("/solicitar-recuperacao", async (req, res) => {
 
     await enviarEmail(
       email,
-      "Redefinição de senha - DLmodas",
-      `
-      <h2>Redefinir senha</h2>
-      <p>Clique no link abaixo para criar uma nova senha:</p>
-      <a href="${link}">Redefinir senha</a>
-      <p>Se você não solicitou, ignore este email.</p>
-      `
+      "Redefinição de senha",
+      `<a href="${link}">Redefinir senha</a>`
     );
 
-    res.json({ mensagem: "Email de recuperação enviado!" });
+    res.json({ mensagem: "Email enviado!" });
 
   } catch (err) {
-
-    console.error("Erro ao enviar email:", err);
+    console.error(err);
     res.status(500).json({ error: "Erro ao enviar e-mail" });
-
   }
 });
 
-// --------------------- REDEFINIR SENHA ---------------------
+// ========================= REDEFINIR SENHA =========================
 router.post("/redefinir-senha/:token", async (req, res) => {
   const { token } = req.params;
   const { novaSenha } = req.body;
@@ -194,7 +254,8 @@ router.post("/redefinir-senha/:token", async (req, res) => {
       [token]
     );
 
-    if (!usuarios.length) return res.status(400).json({ error: "Token inválido" });
+    if (!usuarios.length)
+      return res.status(400).json({ error: "Token inválido" });
 
     const hash = await bcrypt.hash(novaSenha, 10);
 
@@ -204,8 +265,9 @@ router.post("/redefinir-senha/:token", async (req, res) => {
     );
 
     res.json({ mensagem: "Senha redefinida com sucesso!" });
+
   } catch (err) {
-    console.error("Erro ao redefinir senha:", err);
+    console.error(err);
     res.status(500).json({ error: "Erro interno" });
   }
 });
