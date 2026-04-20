@@ -1,14 +1,18 @@
 import { useContext, useState } from "react";
 import { CarrinhoContext } from "../context/CarrinhoContext";
-import { useNavigate, Link } from "react-router-dom";
+import { AuthContext } from "../context/AuthContext"; // 👈 IMPORTANTE
+import { useNavigate, Link, useLocation } from "react-router-dom";
 import "./Header.css";
 import { FiShoppingCart, FiSearch, FiUser, FiHeart } from "react-icons/fi";
 
 export default function Header() {
   const { carrinho, toggleCarrinho } = useContext(CarrinhoContext);
+  const { user } = useContext(AuthContext); // 👈 pega usuário
   const navigate = useNavigate();
+  const location = useLocation();
 
   const [mostrarBusca, setMostrarBusca] = useState(false);
+  const [bloqueado, setBloqueado] = useState(false);
 
   const token = localStorage.getItem("token");
 
@@ -17,21 +21,32 @@ export default function Header() {
     navigate("/login");
   }
 
-  // ✅ Quantidade total de itens no carrinho
   const quantidadeTotal = carrinho.reduce((acc, item) => acc + item.quantidade, 0);
+
+  // 🔥 FUNÇÃO CORRIGIDA
+  const handlePerfilClick = () => {
+    if (bloqueado) return;
+
+    const destino = user?.tipo === "admin" ? "/admin" : "/perfil";
+
+    // evita navegar pra mesma rota
+    if (location.pathname === destino) return;
+
+    setBloqueado(true);
+    navigate(destino);
+
+    setTimeout(() => setBloqueado(false), 400);
+  };
 
   return (
     <header>
 
-      {/* TOPO */}
       <div className="header-container">
 
-        {/* LOGO */}
         <h1 className="logo" onClick={() => navigate("/")}>
           DLmodas
         </h1>
 
-        {/* BUSCA */}
         {mostrarBusca && (
           <input
             className="input-busca"
@@ -45,28 +60,24 @@ export default function Header() {
           />
         )}
 
-        {/* ÍCONES */}
         <div className="header-icons">
 
-          {/* 🔍 Busca */}
           <FiSearch
             className="icon"
             onClick={() => setMostrarBusca(!mostrarBusca)}
           />
 
-          {/* 👤 Perfil */}
+          {/* 👤 PERFIL CORRIGIDO */}
           <FiUser
             className="icon"
-            onClick={() => navigate("/perfil")}
+            onClick={handlePerfilClick}
           />
 
-          {/* ❤️ Favoritos */}
           <FiHeart
             className="icon"
             onClick={() => navigate("/favoritos")}
           />
 
-          {/* 🛒 Carrinho */}
           <div className="carrinho-icon" onClick={toggleCarrinho}>
             <FiShoppingCart className="icon" />
             {quantidadeTotal > 0 && (
@@ -77,10 +88,8 @@ export default function Header() {
           </div>
 
         </div>
-
       </div>
 
-      {/* MENU */}
       <div className="menu-preto">
         <nav className="menu-container">
           <Link to="/">Home</Link>

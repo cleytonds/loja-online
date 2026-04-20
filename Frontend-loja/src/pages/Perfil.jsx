@@ -7,65 +7,147 @@ import "./Perfil.css";
 
 export default function Perfil() {
   const [pedidos, setPedidos] = useState([]);
-  const { user, logout } = useContext(AuthContext); // Pega usuário logado
+  const [editando, setEditando] = useState(false);
+  const [nome, setNome] = useState("");
+  const [foto, setFoto] = useState("");
+
+  const { user, setUser, logout } = useContext(AuthContext);
   const navigate = useNavigate();
 
-  // Carrega pedidos do usuário
   useEffect(() => {
+    if (user) {
+      setNome(user.nome);
+      setFoto(user.foto || "");
+    }
+
     async function carregarPedidos() {
-      if (!user) {
-        navigate("/login");
-        return;
-      }
-
-      if (user.tipo === "admin") {
-        navigate("/admin");
-        return;
-      }
-
       try {
-        const resPedidos = await api.get("/meus-pedidos", {
-          headers: { Authorization: `Bearer ${localStorage.getItem("token")}` },
+        const res = await api.get("/meus-pedidos", {
+          headers: {
+            Authorization: `Bearer ${localStorage.getItem("token")}`,
+          },
         });
-        setPedidos(resPedidos.data);
+        setPedidos(res.data);
       } catch (err) {
-        console.error("Erro ao carregar pedidos:", err);
+        console.error(err);
       }
     }
 
-    carregarPedidos();
+    if (user && user.tipo !== "admin") {
+      carregarPedidos();
+    }
   }, [user]);
 
-  if (!user) return <p className="loading">Carregando...</p>;
+  async function salvarPerfil() {
+    try {
+      const res = await api.put(
+        "/usuarios/perfil",
+        { nome, foto },
+        {
+          headers: {
+            Authorization: `Bearer ${localStorage.getItem("token")}`,
+          },
+        }
+      );
+
+      setUser(res.data);
+      setEditando(false);
+    } catch (err) {
+      console.error("Erro ao salvar:", err);
+    }
+  }
+
+  if (!user) return <p>Carregando...</p>;
 
   return (
     <div className="perfil-container">
       <div className="perfil-card">
-        <div className="perfil-topo">
-          <div className="avatar">👤</div>
-          <h2>{user.nome}</h2>
-          <p>{user.email}</p>
+
+        {/* HEADER */}
+        <div className="perfil-header">
+
+          <div className="avatar">
+            {foto ? (
+              <img src={foto} alt="avatar" />
+            ) : (
+              "👤"
+            )}
+          </div>
+
+          {editando ? (
+            <>
+              <input
+                value={nome}
+                onChange={(e) => setNome(e.target.value)}
+                className="input"
+              />
+
+              <input
+                placeholder="URL da foto"
+                value={foto}
+                onChange={(e) => setFoto(e.target.value)}
+                className="input"
+              />
+
+              <button className="btn salvar" onClick={salvarPerfil}>
+                Salvar
+              </button>
+            </>
+          ) : (
+            <>
+              <h2>{user.nome}</h2>
+              <p>{user.email}</p>
+
+              <button
+                className="btn editar"
+                onClick={() => setEditando(true)}
+              >
+                ✏️ Editar Perfil
+              </button>
+            </>
+          )}
         </div>
 
-        <div className="perfil-acoes">
-          <h3>Meus Pedidos</h3>
+        <div className="divider"></div>
+
+        {/* PEDIDOS */}
+        <div className="perfil-section">
+          <h3>📦 Meus Pedidos</h3>
+
           {pedidos.length === 0 ? (
-            <p>Nenhum pedido encontrado.</p>
+            <p className="vazio">Nenhum pedido encontrado.</p>
           ) : (
             <ul className="pedidos-lista">
-              {pedidos.map(p => (
-                <li key={p.id}>
-                  <span>Pedido #{p.id}</span>
-                  <span>Status: {p.status}</span>
-                  <span>Total: R$ {Number(p.total).toFixed(2)}</span>
-                  <span>Data: {new Date(p.data).toLocaleDateString()}</span>
+              {pedidos.map((p) => (
+                <li key={p.id} className="pedido-card">
+                  <div>
+                    <strong>Pedido #{p.id}</strong>
+                    <span>{new Date(p.data).toLocaleDateString()}</span>
+                  </div>
+                  <div>
+                    <span>{p.status}</span>
+                    <strong>R$ {Number(p.total).toFixed(2)}</strong>
+                  </div>
                 </li>
               ))}
             </ul>
           )}
-          <button onClick={() => navigate("/favoritos")}>❤️ Meus Favoritos</button>
-          <button onClick={logout} className="sair">🚪 Sair</button>
         </div>
+
+        {/* AÇÕES */}
+        <div className="perfil-acoes">
+          <button
+            className="btn favorito"
+            onClick={() => navigate("/favoritos")}
+          >
+            ❤️ Favoritos
+          </button>
+
+          <button className="btn sair" onClick={logout}>
+            🚪 Sair
+          </button>
+        </div>
+
       </div>
     </div>
   );

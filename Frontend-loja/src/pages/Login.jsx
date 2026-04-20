@@ -12,7 +12,7 @@ export default function Login() {
   const [toast, setToast] = useState({ show: false, msg: "", tipo: "success" });
 
   const navigate = useNavigate();
-  const { login } = useContext(AuthContext); // 🔥 agora usa login()
+  const { login } = useContext(AuthContext); // ✅ CORRETO
 
   const mostrarNotificacao = (msg, tipo = "success") => {
     setToast({ show: true, msg, tipo });
@@ -21,6 +21,8 @@ export default function Login() {
 
   async function handleLogin(e) {
     e.preventDefault();
+
+    if (loading) return;
     setLoading(true);
 
     try {
@@ -29,45 +31,29 @@ export default function Login() {
         senha: senha.trim(),
       });
 
-      console.log("RESPOSTA LOGIN:", response.data);
+      console.log("RESPOSTA LOGIN:", response.data); // 🔥 DEBUG
 
-      const token = response.data.token;
-      const usuario = response.data.usuario;
+      const { token, usuario } = response.data;
 
-      if (!usuario) {
-        throw new Error("Usuário não veio do backend");
+      if (!token || !usuario) {
+        throw new Error("Resposta inválida do backend");
       }
 
-      const tipo = usuario.tipo;
-
-      // 🔥 LOGIN CENTRALIZADO (AuthContext faz tudo)
       login(usuario, token);
 
-      mostrarNotificacao("Login realizado com sucesso ✅", "success");
-
-      // 🔀 redirecionamento
-      if (tipo === "admin") {
+      if (usuario.tipo === "admin") {
         navigate("/admin");
       } else {
-        navigate("/perfil");
+        navigate("/");
       }
 
     } catch (err) {
+      console.log("ERRO LOGIN:", err);
+
       const mensagemErro =
-        err.response?.data?.error || err.message || "Erro no login";
+        err.response?.data?.error || "Erro no login";
 
-      console.log("ERRO COMPLETO:", err);
-      console.log("RESPOSTA BACKEND:", err.response?.data);
-
-      if (mensagemErro === "Conta não confirmada") {
-        mostrarNotificacao(
-          "Conta não ativada! Verifique seu email ou reenvie o código.",
-          "error"
-        );
-        navigate("/verificar", { state: { email } });
-      } else {
-        mostrarNotificacao(mensagemErro, "error");
-      }
+      mostrarNotificacao(mensagemErro, "error");
 
     } finally {
       setLoading(false);
@@ -87,7 +73,7 @@ export default function Login() {
             placeholder="Email"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
-            className="w-full p-3 rounded-lg border border-gray-300"
+            className="w-full p-3 rounded-lg border border-gray-300 focus:outline-none focus:ring-2 focus:ring-black"
             required
           />
 
@@ -96,29 +82,62 @@ export default function Login() {
             placeholder="Senha"
             value={senha}
             onChange={(e) => setSenha(e.target.value)}
-            className="w-full p-3 rounded-lg border border-gray-300"
+            className="w-full p-3 rounded-lg border border-gray-300 focus:outline-none focus:ring-2 focus:ring-black"
             required
           />
 
           <button
             type="submit"
             disabled={loading}
-            className="w-full py-3 rounded-lg bg-black text-white"
+            className="w-full py-3 rounded-lg bg-black text-white font-semibold hover:bg-gray-800 transition disabled:opacity-50"
           >
             {loading ? "Entrando..." : "Entrar"}
           </button>
         </form>
 
-        <p className="mt-4 text-center">
-          Não tem conta? <Link to="/cadastro">Cadastre-se</Link>
+        {/* ✅ ESQUECI SENHA (mantido) */}
+        <p className="mt-2 text-center text-gray-600">
+          Esqueceu a senha?{" "}
+          <Link
+            to="/esqueci-senha"
+            className="text-black font-semibold hover:underline"
+          >
+            Redefinir senha
+          </Link>
+        </p>
+
+        <p className="mt-4 text-center text-gray-600">
+          Não tem conta?{" "}
+          <Link
+            to="/cadastro"
+            className="text-black font-semibold hover:underline"
+          >
+            Cadastre-se
+          </Link>
         </p>
       </div>
 
       {toast.show && (
-        <div className="fixed top-6 left-1/2 transform -translate-x-1/2 bg-black text-white px-6 py-3 rounded">
-          {toast.msg}
+        <div
+          className={`fixed top-6 left-1/2 transform -translate-x-1/2 px-6 py-3 rounded-lg shadow-lg z-50 flex items-center space-x-2
+          ${toast.tipo === "success" ? "bg-green-500" : "bg-red-500"} text-white font-semibold animate-fadeInOut`}
+        >
+          <span className="text-lg">
+            {toast.tipo === "success" ? "✅" : "❌"}
+          </span>
+          <span>{toast.msg}</span>
         </div>
       )}
+
+      <style>{`
+        @keyframes fadeInOut {
+          0% { opacity: 0; transform: translateY(-20px); }
+          10% { opacity: 1; transform: translateY(0); }
+          90% { opacity: 1; transform: translateY(0); }
+          100% { opacity: 0; transform: translateY(-20px); }
+        }
+        .animate-fadeInOut { animation: fadeInOut 4s ease forwards; }
+      `}</style>
     </div>
   );
 }

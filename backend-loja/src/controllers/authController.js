@@ -7,57 +7,78 @@ import { enviarEmailConfirmacao } from "../services/mailer.js";
 const SECRET = process.env.JWT_SECRET;
 
 // =========================
-// 📌 CADASTRO
+// 📌 CADASTRO (PROFISSIONAL)
 // =========================
 export async function cadastro(req, res) {
   const { nome, email, senha } = req.body;
 
+  /**
+   * 🔒 Validação básica de email
+   */
   const regex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-
   if (!regex.test(email)) {
     return res.status(400).json({ error: "Email inválido" });
   }
 
-  Usuario.buscarPorEmail(email.trim().toLowerCase(), async (err, results) => {
-    if (err) return res.status(500).json({ error: "Erro servidor" });
+  /**
+   * 🔒 Normalização (evita duplicidade tipo: TESTE@email.com)
+   */
+  const emailNormalizado = email.trim().toLowerCase();
+
+  Usuario.buscarPorEmail(emailNormalizado, async (err, results) => {
+    if (err) {
+      console.error("ERRO MYSQL:", err);
+      return res.status(500).json({ error: "Erro servidor" });
+    }
 
     if (results.length > 0) {
       return res.status(400).json({ error: "Email já cadastrado" });
     }
 
     try {
+      /**
+       * 🔐 Hash da senha (custo 10 = seguro + performático)
+       */
       const hashSenha = await bcrypt.hash(senha, 10);
 
+      /**
+       * 🔑 Código + token de verificação
+       */
       const codigo = Math.floor(100000 + Math.random() * 900000).toString();
       const token = uuidv4();
 
       Usuario.criar(
         nome,
-        email.trim().toLowerCase(),
+        emailNormalizado,
         hashSenha,
         codigo,
         token,
         "cliente",
-        (err2) => {
+        async (err2) => { // ✅ AGORA É ASYNC
           if (err2) {
+            console.error("ERRO AO CRIAR USUARIO:", err2);
             return res.status(500).json({ error: "Erro ao cadastrar" });
           }
 
-          enviarEmailConfirmacao(email, token, codigo);
+          try {
+            await enviarEmailConfirmacao(emailNormalizado, token, codigo);
+          } catch (e) {
+            console.error("ERRO AO ENVIAR EMAIL:", e);
+          }
 
-          res.status(201).json({
+          return res.status(201).json({
             mensagem: "Cadastro realizado! Verifique seu email."
           });
         }
       );
     } catch (erro) {
-      res.status(500).json({
+      console.error("ERRO HASH:", erro);
+      return res.status(500).json({
         error: "Erro ao processar cadastro"
       });
     }
   });
 }
-
 // =========================
 // 📌 VERIFICAR CÓDIGO
 // =========================
@@ -151,55 +172,88 @@ export function reenviarCodigo(req, res) {
 }
 
 // =========================
-// 🔐 LOGIN (FINAL CORRIGIDO)
+// 🔐 LOGIN 
 // =========================
 export async function login(req, res) {
   const { email, senha } = req.body;
 
-  Usuario.buscarPorEmail(email.trim().toLowerCase(), async (err, results) => {
+  /**
+   * 🔒 Validação obrigatória
+   */
+  if (!email || !senha) {
+    return res.status(400).json({
+      error: "Email e senha são obrigatórios"
+    });
+  }
+
+  const emailNormalizado = email.trim().toLowerCase();
+
+  Usuario.buscarPorEmail(emailNormalizado, async (err, results) => {
+
     if (err) {
-      return res.status(500).json({ error: "Erro no login" });
+      console.error("ERRO MYSQL LOGIN:", err);
+      return res.status(500).json({ error: "Erro no banco de dados" });
     }
 
-    if (results.length === 0) {
+    if (!results || results.length === 0) {
       return res.status(400).json({ error: "Usuário não encontrado" });
     }
 
     const usuario = results[0];
 
+    /**
+     * 🔒 Conta precisa estar ativa
+     */
     if (usuario.ativo === 0) {
       return res.status(400).json({ error: "Conta não confirmada" });
     }
 
     try {
-      const senhaValida = await bcrypt.compare(senha.trim(), usuario.senha);
+      const senhaValida = await bcrypt.compare(
+        senha.toString(),
+        usuario.senha
+      );
 
       if (!senhaValida) {
-        return res.status(401).json({ error: "Email ou senha inválidos" });
+        return res.status(401).json({
+          error: "Email ou senha inválidos"
+        });
       }
 
+      /**
+       * 🔐 Geração do token JWT
+       * - inclui id e tipo (admin/cliente)
+       * - expiração curta por segurança
+       */
       const token = jwt.sign(
         {
           id: usuario.id,
           tipo: usuario.tipo
         },
         SECRET,
-        { expiresIn: "1h" }
+        {
+          expiresIn: "2h"
+        }
       );
 
+      /**
+       * 📦 Resposta limpa (não retorna senha nunca)
+       */
       return res.json({
         token,
         usuario: {
           id: usuario.id,
           nome: usuario.nome,
           email: usuario.email,
-          tipo: usuario.tipo,
-          ativo: usuario.ativo
+          tipo: usuario.tipo
         }
       });
 
-    } catch (error) {
-      return res.status(500).json({ error: "Erro ao validar senha" });
+    } catch (e) {
+      console.error("ERRO LOGIN:", e);
+      return res.status(500).json({
+        error: "Erro interno no login"
+      });
     }
   });
 }

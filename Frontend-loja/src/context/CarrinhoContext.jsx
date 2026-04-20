@@ -1,114 +1,149 @@
 import { createContext, useState, useEffect } from "react";
 
-// 🔹 Cria o contexto
+// 🔹 Cria o contexto do carrinho
 export const CarrinhoContext = createContext();
 
 export function CarrinhoProvider({ children }) {
 
-  // 🔥 CARREGAR DO LOCALSTORAGE
+  // 🔥 Estado principal do carrinho (vem do localStorage)
   const [carrinho, setCarrinho] = useState(() => {
-    const carrinhoSalvo = localStorage.getItem("carrinho");
-    return carrinhoSalvo ? JSON.parse(carrinhoSalvo) : [];
+    const salvo = localStorage.getItem("carrinho");
+    return salvo ? JSON.parse(salvo) : [];
   });
 
-  // 🔹 Controle abrir/fechar
+  // 🔹 controla abertura do carrinho lateral/modal
   const [aberto, setAberto] = useState(false);
 
-  // 🔥 SALVAR SEMPRE QUE MUDAR
+  // 💾 sempre salva o carrinho no navegador
   useEffect(() => {
     localStorage.setItem("carrinho", JSON.stringify(carrinho));
   }, [carrinho]);
 
-  // 🔥 ADICIONAR PRODUTO
-  function adicionarAoCarrinho(produto) {
+  // =========================
+  // ➕ ADICIONAR PRODUTO COM VARIAÇÃO
+  // =========================
+  function adicionarAoCarrinho(produto, variacao) {
+
     setCarrinho(prev => {
 
-      const id = Number(produto.id);
-      const existe = prev.find(p => p.id === id);
+      // 🔎 verifica se essa variação já existe no carrinho
+      const existe = prev.find(
+        item => item.variacao_id === variacao.id
+      );
 
+      // 🔁 se já existe, só aumenta quantidade
       if (existe) {
-        return prev.map(p =>
-          p.id === id
-            ? { ...p, quantidade: p.quantidade + 1 }
-            : p
+        return prev.map(item =>
+          item.variacao_id === variacao.id
+            ? { ...item, quantidade: item.quantidade + 1 }
+            : item
         );
       }
 
+      // 🆕 se não existe, adiciona novo item no carrinho
       return [
         ...prev,
         {
-          ...produto,
-          id: id,
-          preco: Number(produto.preco),
+          // IDs importantes para backend
+          produto_id: produto.id,
+          variacao_id: variacao.id,
+
+          // dados para exibir no front
+          nome: produto.nome,
+          imagem: produto.imagem,
+
+          // variação selecionada
+          tamanho: variacao.tamanho,
+          cor: variacao.cor,
+
+          // preço da variação (não do produto base)
+          preco: Number(variacao.preco),
+
+          // quantidade inicial
           quantidade: 1
         }
       ];
     });
 
-    // 🔥 abre automaticamente (opcional, top demais)
+    // 🔥 abre carrinho automaticamente
     setAberto(true);
   }
 
-  // ❌ Remover item
-  function removerDoCarrinho(id) {
+  // =========================
+  // ❌ REMOVER ITEM
+  // =========================
+  function removerDoCarrinho(variacao_id) {
     setCarrinho(prev =>
-      prev.filter(p => p.id !== Number(id))
+      prev.filter(item => item.variacao_id !== variacao_id)
     );
   }
 
-  // ➕ Aumentar quantidade
-  function aumentarQuantidade(id) {
+  // =========================
+  // ➕ AUMENTAR QUANTIDADE
+  // =========================
+  function aumentarQuantidade(variacao_id) {
     setCarrinho(prev =>
-      prev.map(p =>
-        p.id === Number(id)
-          ? { ...p, quantidade: p.quantidade + 1 }
-          : p
+      prev.map(item =>
+        item.variacao_id === variacao_id
+          ? { ...item, quantidade: item.quantidade + 1 }
+          : item
       )
     );
   }
 
-  // ➖ Diminuir quantidade
-  function diminuirQuantidade(id) {
+  // =========================
+  // ➖ DIMINUIR QUANTIDADE
+  // =========================
+  function diminuirQuantidade(variacao_id) {
     setCarrinho(prev =>
       prev
-        .map(p =>
-          p.id === Number(id)
-            ? { ...p, quantidade: p.quantidade - 1 }
-            : p
+        .map(item =>
+          item.variacao_id === variacao_id
+            ? { ...item, quantidade: item.quantidade - 1 }
+            : item
         )
-        .filter(p => p.quantidade > 0)
+        // ❌ remove se quantidade chegar a 0
+        .filter(item => item.quantidade > 0)
     );
   }
 
-  // 🔓 Abrir carrinho
+  // =========================
+  // 🔓 ABRIR CARRINHO
+  // =========================
   function abrirCarrinho() {
     setAberto(true);
   }
 
-  // 🔒 Fechar carrinho
+  // =========================
+  // 🔒 FECHAR CARRINHO
+  // =========================
   function fecharCarrinho() {
     setAberto(false);
   }
 
-  // 🔁 Toggle
+  // =========================
+  // 🔁 TOGGLE (abre/fecha)
+  // =========================
   function toggleCarrinho() {
     setAberto(prev => !prev);
   }
 
   return (
-    <CarrinhoContext.Provider
-      value={{
-        carrinho,
-        adicionarAoCarrinho,
-        removerDoCarrinho,
-        aumentarQuantidade,
-        diminuirQuantidade,
-        abrirCarrinho,
-        fecharCarrinho,
-        toggleCarrinho,
-        aberto,
-      }}
-    >
+    <CarrinhoContext.Provider value={{
+
+      carrinho,
+      adicionarAoCarrinho,
+      removerDoCarrinho,
+      aumentarQuantidade,
+      diminuirQuantidade,
+
+      abrirCarrinho,
+      fecharCarrinho,
+      toggleCarrinho,
+
+      aberto
+
+    }}>
       {children}
     </CarrinhoContext.Provider>
   );

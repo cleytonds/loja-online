@@ -1,4 +1,6 @@
-// src/routes/authRoutes.js
+// =========================
+// 📦 IMPORTAÇÕES
+// =========================
 import express from "express";
 import db from "../config/database.js";
 import bcrypt from "bcryptjs";
@@ -9,82 +11,111 @@ import { verificarToken } from "../middlewares/auth.js";
 
 const router = express.Router();
 
-// ========================= CADASTRO =========================
+// =========================
+// 📌 CADASTRO DE USUÁRIO
+// =========================
 router.post("/cadastro", async (req, res) => {
   const { nome, email, senha } = req.body;
 
   try {
-    const [usuarios] = await db.promise().query(
+    // 🔒 normaliza email
+    const emailNormalizado = email.trim().toLowerCase();
+
+    // 🔍 verifica se já existe
+    const [usuarios] = await db.query(
       "SELECT * FROM usuarios WHERE LOWER(TRIM(email)) = LOWER(TRIM(?))",
-      [email]
+      [emailNormalizado]
     );
 
-    if (usuarios.length)
+    if (usuarios.length > 0) {
       return res.status(400).json({ error: "Email já cadastrado" });
+    }
 
+    // 🔐 hash da senha
     const hashSenha = await bcrypt.hash(senha, 10);
 
+    // 🔑 código + token
     const codigo = Math.floor(100000 + Math.random() * 900000).toString();
     const tokenConfirmacao = crypto.randomBytes(32).toString("hex");
 
-    await db.promise().query(
-      "INSERT INTO usuarios (nome, email, senha, ativo, token_confirmacao, codigo_confirmacao, tipo) VALUES (?, ?, ?, 0, ?, ?, 'cliente')",
-      [nome, email, hashSenha, tokenConfirmacao, codigo]
+    // 💾 salva no banco
+    await db.query(
+      `INSERT INTO usuarios 
+      (nome, email, senha, ativo, token_confirmacao, codigo_confirmacao, tipo) 
+      VALUES (?, ?, ?, 0, ?, ?, 'cliente')`,
+      [nome, emailNormalizado, hashSenha, tokenConfirmacao, codigo]
     );
 
+    // 🔗 link de confirmação
     const link = `${process.env.FRONT_URL}/#/confirmar/${tokenConfirmacao}`;
 
-    await enviarEmail(
-      email,
-      "Confirmação de cadastro - DLmodas",
-      `
-      <div style="text-align:center">
-        <h2>Confirme seu cadastro</h2>
-        <a href="${link}">Confirmar</a>
-        <h3>${codigo}</h3>
-      </div>
-      `
-    );
+    // 📧 envio de email
+    try {
+      await enviarEmail(
+        emailNormalizado,
+        "Confirmação de cadastro - DLmodas",
+        `
+        <div style="text-align:center">
+          <h2>Confirme seu cadastro</h2>
+          <a href="${link}">Confirmar conta</a>
+          <h3>Código: ${codigo}</h3>
+        </div>
+        `
+      );
+    } catch (erroEmail) {
+      console.error("❌ ERRO AO ENVIAR EMAIL:", erroEmail);
+    }
 
-    res.json({ mensagem: "Cadastro realizado! Verifique seu email." });
+    return res.status(201).json({
+      mensagem: "Cadastro realizado! Verifique seu email."
+    });
 
   } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: "Erro no cadastro" });
+    console.error("❌ ERRO NO CADASTRO:", err);
+    return res.status(500).json({ error: "Erro no cadastro" });
   }
 });
 
-// ========================= LOGIN =========================
+// =========================
+// 🔐 LOGIN
+// =========================
 router.post("/login", async (req, res) => {
   const { email, senha } = req.body;
 
   try {
-    const [usuarios] = await db.promise().query(
+    const emailNormalizado = email.trim().toLowerCase();
+
+    const [usuarios] = await db.query(
       "SELECT * FROM usuarios WHERE LOWER(TRIM(email)) = LOWER(TRIM(?))",
-      [email]
+      [emailNormalizado]
     );
 
-    if (!usuarios.length)
+    if (!usuarios.length) {
       return res.status(401).json({ error: "Email ou senha inválidos" });
+    }
 
     const usuario = usuarios[0];
 
-    if (usuario.ativo !== 1)
+    // 🔒 verifica se ativou conta
+    if (usuario.ativo !== 1) {
       return res.status(401).json({ error: "Conta não ativada" });
+    }
 
+    // 🔐 valida senha
     const senhaValida = await bcrypt.compare(senha, usuario.senha);
 
-    if (!senhaValida)
+    if (!senhaValida) {
       return res.status(401).json({ error: "Email ou senha inválidos" });
+    }
 
+    // 🎟️ gera token
     const token = jwt.sign(
       { id: usuario.id, tipo: usuario.tipo },
-      process.env.JWT_SECRET || "SUA_CHAVE",
+      process.env.JWT_SECRET,
       { expiresIn: "1d" }
     );
 
-    // 🔥 AGORA COMPATÍVEL COM SEU LOGIN.JSX
-    res.json({
+    return res.json({
       token,
       usuario: {
         id: usuario.id,
@@ -96,90 +127,92 @@ router.post("/login", async (req, res) => {
     });
 
   } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: "Erro no login" });
+    console.error("❌ ERRO NO LOGIN:", err);
+    return res.status(500).json({ error: "Erro no login" });
   }
 });
 
-// ========================= /ME (MANTER LOGIN) =========================
+// =========================
+// 👤 PEGAR USUÁRIO LOGADO
+// =========================
 router.get("/me", verificarToken, async (req, res) => {
   try {
-    const [usuarios] = await db.promise().query(
+    const [usuarios] = await db.query(
       "SELECT id, nome, email, tipo, ativo FROM usuarios WHERE id = ?",
       [req.user.id]
     );
 
-    if (!usuarios.length)
+    if (!usuarios.length) {
       return res.status(404).json({ error: "Usuário não encontrado" });
+    }
 
-    res.json(usuarios[0]);
+    return res.json(usuarios[0]);
 
   } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: "Erro ao buscar usuário" });
+    console.error("❌ ERRO /ME:", err);
+    return res.status(500).json({ error: "Erro ao buscar usuário" });
   }
 });
 
-// ========================= VERIFICAR CÓDIGO =========================
+// =========================
+// ✅ CONFIRMAR CONTA
+// =========================
 router.post("/verificar-codigo", async (req, res) => {
   const { token, codigo } = req.body;
 
   try {
-    const [usuarios] = await db.promise().query(
+    const [usuarios] = await db.query(
       "SELECT * FROM usuarios WHERE token_confirmacao = ? AND codigo_confirmacao = ?",
       [token, codigo]
     );
 
-    if (!usuarios.length)
+    if (!usuarios.length) {
       return res.status(400).json({ error: "Código ou token inválido" });
+    }
 
     const usuario = usuarios[0];
 
-    await db.promise().query(
+    await db.query(
       "UPDATE usuarios SET ativo = 1, token_confirmacao = NULL, codigo_confirmacao = NULL WHERE id = ?",
       [usuario.id]
     );
 
-    // 🔥 opcional: já loga após confirmar
-    const jwtToken = jwt.sign(
-      { id: usuario.id, tipo: usuario.tipo },
-      process.env.JWT_SECRET || "SUA_CHAVE",
-      { expiresIn: "1d" }
-    );
-
-    res.json({
-      mensagem: "Conta confirmada",
-      token: jwtToken
-    });
+    return res.json({ mensagem: "Conta confirmada com sucesso!" });
 
   } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: "Erro interno" });
+    console.error("❌ ERRO CONFIRMAÇÃO:", err);
+    return res.status(500).json({ error: "Erro interno" });
   }
 });
 
-// ========================= REENVIAR CÓDIGO =========================
+// =========================
+// 🔁 REENVIAR CÓDIGO
+// =========================
 router.post("/reenviar-codigo", async (req, res) => {
   const { email } = req.body;
 
   try {
-    const [usuarios] = await db.promise().query(
-      "SELECT * FROM usuarios WHERE LOWER(TRIM(email)) = LOWER(TRIM(?))",
-      [email]
+    const emailNormalizado = email.trim().toLowerCase();
+
+    const [usuarios] = await db.query(
+      "SELECT * FROM usuarios WHERE email = ?",
+      [emailNormalizado]
     );
 
-    if (!usuarios.length)
+    if (!usuarios.length) {
       return res.status(404).json({ error: "Usuário não encontrado" });
+    }
 
     const usuario = usuarios[0];
 
-    if (usuario.ativo === 1)
+    if (usuario.ativo === 1) {
       return res.status(400).json({ error: "Conta já ativada" });
+    }
 
     const novoCodigo = Math.floor(100000 + Math.random() * 900000).toString();
     const novoToken = crypto.randomBytes(32).toString("hex");
 
-    await db.promise().query(
+    await db.query(
       "UPDATE usuarios SET codigo_confirmacao = ?, token_confirmacao = ? WHERE id = ?",
       [novoCodigo, novoToken, usuario.id]
     );
@@ -191,84 +224,17 @@ router.post("/reenviar-codigo", async (req, res) => {
       "Reenvio de código - DLmodas",
       `
       <div style="text-align:center">
-        <a href="${link}">Confirmar</a>
+        <a href="${link}">Confirmar conta</a>
         <h2>${novoCodigo}</h2>
       </div>
       `
     );
 
-    res.json({ mensagem: "Código reenviado com sucesso!" });
+    return res.json({ mensagem: "Código reenviado com sucesso!" });
 
   } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: "Erro interno" });
-  }
-});
-
-// ========================= SOLICITAR RECUPERAÇÃO =========================
-router.post("/solicitar-recuperacao", async (req, res) => {
-  const { email } = req.body;
-
-  try {
-    const [usuarios] = await db.promise().query(
-      "SELECT * FROM usuarios WHERE LOWER(TRIM(email)) = LOWER(TRIM(?))",
-      [email]
-    );
-
-    if (!usuarios.length)
-      return res.status(404).json({ error: "Email não cadastrado" });
-
-    const usuario = usuarios[0];
-
-    const token = crypto.randomBytes(32).toString("hex");
-
-    await db.promise().query(
-      "UPDATE usuarios SET token_confirmacao = ? WHERE id = ?",
-      [token, usuario.id]
-    );
-
-    const link = `${process.env.FRONT_URL}/#/redefinir-senha/${token}`;
-
-    await enviarEmail(
-      email,
-      "Redefinição de senha",
-      `<a href="${link}">Redefinir senha</a>`
-    );
-
-    res.json({ mensagem: "Email enviado!" });
-
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: "Erro ao enviar e-mail" });
-  }
-});
-
-// ========================= REDEFINIR SENHA =========================
-router.post("/redefinir-senha/:token", async (req, res) => {
-  const { token } = req.params;
-  const { novaSenha } = req.body;
-
-  try {
-    const [usuarios] = await db.promise().query(
-      "SELECT * FROM usuarios WHERE token_confirmacao = ?",
-      [token]
-    );
-
-    if (!usuarios.length)
-      return res.status(400).json({ error: "Token inválido" });
-
-    const hash = await bcrypt.hash(novaSenha, 10);
-
-    await db.promise().query(
-      "UPDATE usuarios SET senha = ?, token_confirmacao = NULL WHERE id = ?",
-      [hash, usuarios[0].id]
-    );
-
-    res.json({ mensagem: "Senha redefinida com sucesso!" });
-
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: "Erro interno" });
+    console.error("❌ ERRO REENVIO:", err);
+    return res.status(500).json({ error: "Erro interno" });
   }
 });
 

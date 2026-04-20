@@ -5,47 +5,50 @@ const Usuario = {
   // 🔍 Buscar por email
   buscarPorEmail: (email, callback) => {
     const sql = `
-    SELECT * 
-    FROM usuarios 
-    WHERE LOWER(TRIM(email)) = LOWER(TRIM(?))
-    LIMIT 1
+      SELECT * 
+      FROM usuarios 
+      WHERE LOWER(TRIM(email)) = LOWER(TRIM(?))
+      LIMIT 1
     `;
     db.query(sql, [email], callback);
   },
 
   // 🆕 Criar usuário
-  criar: (nome, email, senha, codigo, token, tipo = "cliente", callback) => {
+  criar(nome, email, senha, codigo, token, tipo, callback) {
     const sql = `
-      INSERT INTO usuarios
-      (nome, email, senha, tipo, ativo, codigo_confirmacao, token_confirmacao)
-      VALUES (?, ?, ?, ?, 0, ?, ?)
+      INSERT INTO usuarios 
+      (nome, email, senha, codigo, token, tipo, ativo)
+      VALUES (?, ?, ?, ?, ?, ?, 0)
     `;
-    db.query(sql, [nome, email, senha, tipo, codigo, token], callback);
+    db.query(sql, [nome, email, senha, codigo, token, tipo], callback);
   },
 
-  // 🔎 Buscar por TOKEN (botão do email)
+  // 🔎 Buscar por TOKEN
   buscarPorToken: (token, callback) => {
     const sql = `
       SELECT * FROM usuarios
-      WHERE token_confirmacao = ?
+      WHERE token = ?
+      LIMIT 1
     `;
     db.query(sql, [token], callback);
   },
 
   // 🔎 Buscar por EMAIL + CÓDIGO
-  buscarPorEmailECodigo: (email, codigo, callback) => {
+  buscarPorToken: (token, callback) => {
     const sql = `
       SELECT * FROM usuarios
-      WHERE email = ? AND codigo_confirmacao = ?
+      WHERE token = ?
+      LIMIT 1
     `;
-    db.query(sql, [email, codigo], callback);
+    db.query(sql, [token], callback);
   },
 
-  // 🔎 (opcional) token + código (você já tinha)
+  // 🔎 Token + código
   buscarPorTokenECodigo: (token, codigo, callback) => {
     const sql = `
       SELECT * FROM usuarios
-      WHERE token_confirmacao = ? AND codigo_confirmacao = ?
+      WHERE token = ? AND codigo = ?
+      LIMIT 1
     `;
     db.query(sql, [token, codigo], callback);
   },
@@ -55,32 +58,42 @@ const Usuario = {
     const sql = `
       UPDATE usuarios
       SET ativo = 1,
-          codigo_confirmacao = NULL,
-          token_confirmacao = NULL
+          codigo = NULL,
+          token = NULL
       WHERE id = ?
     `;
     db.query(sql, [id], callback);
   },
 
-  // 🔁 Atualizar código (reenviar)
+  // 🔁 Atualizar código
   atualizarCodigo: (id, codigo, callback) => {
     const sql = `
       UPDATE usuarios
-      SET codigo_confirmacao = ?
+      SET codigo = ?
       WHERE id = ?
     `;
     db.query(sql, [codigo, id], callback);
   },
 
-  // 🔁 Atualizar código + token (MAIS SEGURO 🔥)
+  // 🔁 Atualizar código + token
   atualizarCodigoEToken: (id, codigo, token, callback) => {
     const sql = `
       UPDATE usuarios
-      SET codigo_confirmacao = ?,
-          token_confirmacao = ?
+      SET codigo = ?,
+          token = ?
       WHERE id = ?
     `;
     db.query(sql, [codigo, token, id], callback);
+  },
+
+  // ✏️ Atualizar perfil
+  atualizarPerfil: (id, nome, foto, callback) => {
+    const sql = `
+      UPDATE usuarios
+      SET nome = ?, foto = ?
+      WHERE id = ?
+    `;
+    db.query(sql, [nome, foto, id], callback);
   }
 
 };

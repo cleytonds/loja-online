@@ -5,71 +5,86 @@ import api from "../services/api";
 import "./Carrinho.css";
 
 export default function Carrinho() {
-  const { carrinho, removerDoCarrinho } = useContext(CarrinhoContext);
+
+  // 🔥 pega dados do carrinho global
+  const {
+    carrinho,
+    removerDoCarrinho,
+    aumentarQuantidade,
+    diminuirQuantidade
+  } = useContext(CarrinhoContext);
+
   const navigate = useNavigate();
 
-  // formatar moeda
-  const formatarPreco = (valor) => {
-    return new Intl.NumberFormat("pt-BR", {
+  // 💰 formata preço em real
+  const formatarPreco = (valor) =>
+    new Intl.NumberFormat("pt-BR", {
       style: "currency",
       currency: "BRL",
     }).format(valor);
-  };
 
-  // total
-  const total = carrinho.reduce((acc, item) => {
-    return acc + Number(item.preco) * item.quantidade;
-  }, 0);
+  // 💰 calcula total do carrinho
+  const total = carrinho.reduce(
+    (acc, item) => acc + item.preco * item.quantidade,
+    0
+  );
 
-  // FINALIZAR COMPRA
+  // =========================
+  // 🧾 FINALIZAR COMPRA
+  // =========================
   async function finalizarCompra() {
+
+    // ❌ carrinho vazio
     if (carrinho.length === 0) {
-      alert("Seu carrinho está vazio");
+      alert("Carrinho vazio");
       return;
     }
 
     const token = localStorage.getItem("token");
 
+    // 🔐 usuário não logado
     if (!token) {
-      alert("Faça login para finalizar a compra 🔐");
       navigate("/login");
       return;
     }
 
     try {
-      const itensPedido = carrinho.map((item) => ({
-        produto_id: item.id,
-        quantidade: item.quantidade,
+
+      // 📦 monta pedido com variações
+      const itensPedido = carrinho.map(item => ({
+        produto_id: item.produto_id,
+        variacao_id: item.variacao_id,
+        quantidade: item.quantidade
       }));
 
+      // 📡 envia para backend
       await api.post(
         "/pedidos",
         { itens: itensPedido },
         {
           headers: {
-            Authorization: `Bearer ${token}`,
-          },
+            Authorization: `Bearer ${token}`
+          }
         }
       );
 
-      alert("Pedido realizado com sucesso 🛍️");
+      alert("Pedido realizado com sucesso 🚀");
 
       navigate("/");
-    } catch (error) {
-      console.error(error);
+
+    } catch (err) {
+      console.error(err);
       alert("Erro ao finalizar pedido");
     }
   }
 
-  // carrinho vazio
+  // =========================
+  // 🛒 CARRINHO VAZIO
+  // =========================
   if (carrinho.length === 0) {
     return (
-      <div className="carrinho-vazio">
+      <div>
         <h2>Seu carrinho está vazio 🛒</h2>
-
-        <button onClick={() => navigate("/produtos")}>
-          Ver produtos
-        </button>
       </div>
     );
   }
@@ -77,56 +92,61 @@ export default function Carrinho() {
   return (
     <div className="carrinho-container">
 
-      <h1 className="carrinho-titulo">
-        Carrinho de Compras
-      </h1>
+      <h1>Carrinho de Compras</h1>
 
-      {carrinho.map((item) => (
-        <div key={item.id} className="carrinho-item">
+      {/* 🔁 lista itens do carrinho */}
+      {carrinho.map(item => (
+        <div key={item.variacao_id} className="carrinho-item">
 
-          {/* ESQUERDA */}
-          <div className="item-info">
-            <img src={item.imagem} alt={item.nome} />
+          {/* 🖼 imagem do produto */}
+          <img src={item.imagem} alt={item.nome} />
 
-            <div>
-              <h2>{item.nome}</h2>
-              <p>{formatarPreco(item.preco)}</p>
-            </div>
+          <div>
+            <h3>{item.nome}</h3>
+
+            {/* 🎯 mostra variação */}
+            <p>
+              Tamanho: {item.tamanho} | Cor: {item.cor}
+            </p>
+
+            <p>{formatarPreco(item.preco)}</p>
           </div>
 
-          {/* QUANTIDADE */}
-          <div className="item-quantidade">
-            <span>x{item.quantidade}</span>
-          </div>
+          {/* ➕➖ quantidade */}
+          <div>
+            <button onClick={() => diminuirQuantidade(item.variacao_id)}>
+              -
+            </button>
 
-          {/* DIREITA */}
-          <div className="item-acoes">
-            <p>{formatarPreco(item.preco * item.quantidade)}</p>
+            <span>{item.quantidade}</span>
 
-            <button onClick={() => removerDoCarrinho(item.id)}>
-              Remover
+            <button onClick={() => aumentarQuantidade(item.variacao_id)}>
+              +
             </button>
           </div>
+
+          {/* 💰 total por item */}
+          <div>
+            {formatarPreco(item.preco * item.quantidade)}
+          </div>
+
+          {/* ❌ remover item */}
+          <button onClick={() =>
+            removerDoCarrinho(item.variacao_id)
+          }>
+            Remover
+          </button>
 
         </div>
       ))}
 
-      {/* RESUMO */}
-      <div className="carrinho-resumo">
+      {/* 💰 total geral */}
+      <h2>Total: {formatarPreco(total)}</h2>
 
-        <div className="resumo-linha">
-          <span>Total</span>
-          <span>{formatarPreco(total)}</span>
-        </div>
-
-        <button
-          onClick={finalizarCompra}
-          className="btn-finalizar"
-        >
-          Finalizar Compra
-        </button>
-
-      </div>
+      {/* 🧾 finalizar compra */}
+      <button onClick={finalizarCompra}>
+        Finalizar Compra
+      </button>
 
     </div>
   );

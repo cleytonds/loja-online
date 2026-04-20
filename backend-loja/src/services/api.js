@@ -1,7 +1,10 @@
 import axios from "axios";
 
+// pega a URL do backend do .env, se não tiver usa localhost
+const baseURL = import.meta.env.VITE_API_URL || "http://localhost:3000";
+
 const api = axios.create({
-  baseURL: "http://localhost:3000"
+  baseURL
 });
 
 // 🔥 INTERCEPTOR

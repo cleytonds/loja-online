@@ -12,33 +12,33 @@ export function AuthProvider({ children }) {
       const token = localStorage.getItem("token");
       const usuarioSalvo = localStorage.getItem("usuario");
 
-      // 🔥 Se não tem token → não está logado
       if (!token) {
         setLoading(false);
         return;
       }
 
-      // 🔥 Se já tem usuário salvo → usa ele primeiro (evita tela piscando)
+      // 🔥 evita piscar tela
       if (usuarioSalvo) {
         setUser(JSON.parse(usuarioSalvo));
       }
 
       try {
-        const response = await api.get("/auth/me", {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-        });
+        const response = await api.get("/auth/me");
 
-        // 🔥 Atualiza com dados reais do backend
         setUser(response.data);
         localStorage.setItem("usuario", JSON.stringify(response.data));
 
       } catch (err) {
         console.log("Token inválido ou expirado");
-        logout();
+
+        // 🔥 limpa tudo corretamente
+        localStorage.removeItem("token");
+        localStorage.removeItem("usuario");
+        localStorage.removeItem("tipoUsuario");
+
+        setUser(null);
       } finally {
-        setLoading(false);
+        setLoading(false); // 🔥 ESSENCIAL
       }
     }
 
@@ -46,12 +46,11 @@ export function AuthProvider({ children }) {
   }, []);
 
   function login(usuario, token) {
-    // 🔥 função padrão de login (opcional usar)
     localStorage.setItem("token", token);
     localStorage.setItem("usuario", JSON.stringify(usuario));
     localStorage.setItem("tipoUsuario", usuario.tipo);
 
-    setUser(usuario);
+    setUser(usuario); // 🔥 sem spread desnecessário
   }
 
   function logout() {
@@ -62,15 +61,7 @@ export function AuthProvider({ children }) {
   }
 
   return (
-    <AuthContext.Provider
-      value={{
-        user,
-        setUser,
-        login,   // 🔥 agora disponível globalmente
-        logout,
-        loading
-      }}
-    >
+    <AuthContext.Provider value={{ user, login, logout, loading }}>
       {children}
     </AuthContext.Provider>
   );

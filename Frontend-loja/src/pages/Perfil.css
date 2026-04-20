@@ -1,144 +1,135 @@
-/* Perfil.css */
-
-/* Container principal */
 .perfil-container {
+  min-height: 100vh;
+  background: linear-gradient(135deg, #eef2f7, #dfe6ee);
   display: flex;
   justify-content: center;
-  align-items: flex-start;
-  padding: 40px 20px;
-  background-color: #f5f6fa;
-  min-height: 100vh;
-  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-}
-
-/* Card do perfil */
-.perfil-card {
-  background-color: #ffffff;
-  border-radius: 15px;
-  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.1);
-  max-width: 500px;
-  width: 100%;
-  padding: 30px;
-  transition: transform 0.2s ease, box-shadow 0.2s ease;
-}
-
-.perfil-card:hover {
-  transform: translateY(-3px);
-  box-shadow: 0 12px 25px rgba(0, 0, 0, 0.15);
-}
-
-/* Topo do perfil */
-.perfil-topo {
-  display: flex;
-  flex-direction: column;
   align-items: center;
+}
+
+.perfil-card {
+  background: #fff;
+  padding: 30px;
+  border-radius: 16px;
+  width: 400px;
+  box-shadow: 0 15px 40px rgba(0,0,0,0.1);
+  animation: fadeIn 0.4s ease;
+}
+
+/* HEADER */
+.perfil-header {
   text-align: center;
-  margin-bottom: 30px;
 }
 
 .avatar {
-  font-size: 60px;
-  background-color: #e1e4f0;
-  width: 100px;
-  height: 100px;
+  width: 85px;
+  height: 85px;
   border-radius: 50%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  margin-bottom: 15px;
+  overflow: hidden;
+  margin: 0 auto 10px;
+  background: #eee;
 }
 
-.perfil-topo h2 {
-  margin: 0;
-  font-size: 24px;
-  color: #333333;
+.avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
 }
 
-.perfil-topo p {
-  margin: 5px 0 0;
-  color: #666666;
+.perfil-header h2 {
+  margin: 5px 0;
+}
+
+.perfil-header p {
+  color: #666;
   font-size: 14px;
 }
 
-/* Ações do perfil */
-.perfil-acoes h3 {
-  font-size: 20px;
-  color: #222222;
-  margin-bottom: 15px;
-  border-bottom: 1px solid #e0e0e0;
-  padding-bottom: 5px;
+/* INPUT */
+.input {
+  width: 100%;
+  padding: 8px;
+  margin-top: 8px;
+  border-radius: 6px;
+  border: 1px solid #ddd;
 }
 
+/* BOTÕES */
+.btn {
+  margin-top: 10px;
+  padding: 10px;
+  border-radius: 8px;
+  border: none;
+  cursor: pointer;
+  width: 100%;
+  transition: 0.2s;
+}
+
+.editar {
+  background: #4f46e5;
+  color: white;
+}
+
+.salvar {
+  background: #22c55e;
+  color: white;
+}
+
+.favorito {
+  background: #ff4d4f;
+  color: white;
+}
+
+.sair {
+  background: #333;
+  color: white;
+}
+
+.btn:hover {
+  transform: scale(1.03);
+}
+
+/* DIVISOR */
+.divider {
+  height: 1px;
+  background: #eee;
+  margin: 20px 0;
+}
+
+/* PEDIDOS */
 .pedidos-lista {
   list-style: none;
   padding: 0;
-  margin: 0 0 20px 0;
 }
 
-.pedidos-lista li {
-  display: grid;
-  grid-template-columns: repeat(2, 1fr);
-  gap: 8px;
-  background-color: #f9f9f9;
-  padding: 12px 15px;
+.pedido-card {
+  background: #f9fafb;
+  border-radius: 10px;
+  padding: 12px;
   margin-bottom: 10px;
-  border-radius: 8px;
+  display: flex;
+  justify-content: space-between;
   font-size: 14px;
-  color: #444444;
-  transition: background-color 0.2s;
 }
 
-.pedidos-lista li:hover {
-  background-color: #eef1f6;
+/* TEXTO */
+.vazio {
+  color: #888;
 }
 
-.pedidos-lista span {
-  display: block;
+/* AÇÕES */
+.perfil-acoes {
+  display: flex;
+  gap: 10px;
 }
 
-/* Botões */
-.perfil-acoes button {
-  cursor: pointer;
-  padding: 10px 15px;
-  margin-right: 10px;
-  margin-top: 10px;
-  font-size: 14px;
-  border-radius: 8px;
-  border: none;
-  transition: background-color 0.2s, color 0.2s;
-}
-
-.perfil-acoes button:hover {
-  opacity: 0.9;
-}
-
-/* Botão favoritos */
-.perfil-acoes button:nth-child(3) {
-  background-color: #ff6b6b;
-  color: #ffffff;
-}
-
-/* Botão sair */
-.perfil-acoes .sair {
-  background-color: #343a40;
-  color: #ffffff;
-}
-
-/* Estado carregando */
-.loading {
-  text-align: center;
-  font-size: 18px;
-  color: #666666;
-  margin-top: 50px;
-}
-
-/* Responsividade */
-@media (max-width: 600px) {
-  .perfil-card {
-    padding: 20px;
+/* ANIMAÇÃO */
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(15px);
   }
-
-  .pedidos-lista li {
-    grid-template-columns: 1fr;
+  to {
+    opacity: 1;
+    transform: translateY(0);
   }
 }

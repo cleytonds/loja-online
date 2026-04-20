@@ -4,193 +4,149 @@ import { useNavigate } from "react-router-dom";
 import api from "../services/api";
 import { CarrinhoContext } from "../context/CarrinhoContext";
 
-// 🔥 IMAGENS DE TESTE
-const imagensTeste = {
-  1: "https://via.placeholder.com/300x350.png?text=Vestido",
-  2: "https://via.placeholder.com/300x350.png?text=Blusa",
-  3: "https://via.placeholder.com/300x350.png?text=Saia",
-  4: "https://via.placeholder.com/300x350.png?text=Calca",
-};
-
-// 🔥 CATEGORIAS REAIS
-const categorias = [
-  "Todas",
-  "Blusas e Cropped",
-  "Short",
-  "Saia e Short saia",
-  "Macaquinho",
-  "Body",
-  "Conjuntos",
-  "Calças",
-  "Vestidos",
-  "Sandália, bolsa e acessórios"
-];
-
-// 🔥 MAPEAMENTO (id conforme sua tabela)
-const mapaCategorias = {
-  "Blusas e Cropped": 1,
-  "Short": 2,
-  "Saia e Short saia": 3,
-  "Macaquinho": 4,
-  "Body": 5,
-  "Conjuntos": 6,
-  "Calças": 7,
-  "Vestidos": 8,
-  "Sandália, bolsa e acessórios": 9
-};
-
 function Produtos() {
   const [produtos, setProdutos] = useState([]);
   const [categoriaSelecionada, setCategoriaSelecionada] = useState("Todas");
-  const [busca, setBusca] = useState(""); // 🔎 busca automática
-  const [menuAberto, setMenuAberto] = useState(false);
+  const [busca, setBusca] = useState("");
   const [loading, setLoading] = useState(true);
-  const [animando, setAnimando] = useState(false);
+
+  // 🔥 controle de variação selecionada por produto
+  const [variacaoSelecionada, setVariacaoSelecionada] = useState({});
 
   const navigate = useNavigate();
   const { adicionarAoCarrinho } = useContext(CarrinhoContext);
 
-  // 🔥 BUSCAR PRODUTOS DO BACKEND
+  // =========================
+  // CARREGAR PRODUTOS
+  // =========================
   useEffect(() => {
     async function fetchProdutos() {
       try {
-        const res = await api.get("/produtos", { params: { nome: busca } });
+        const res = await api.get("/produtos", {
+          params: { nome: busca }
+        });
 
-        if (Array.isArray(res.data)) {
-          const dadosCorrigidos = res.data.map(p => ({
-            ...p,
-            id: Number(p.id),
-            preco: Number(p.preco)
-          }));
-
-          setProdutos(dadosCorrigidos);
-        } else {
-          setProdutos([]);
-        }
+        setProdutos(res.data || []);
       } catch (err) {
-        console.error("Erro ao buscar produtos:", err);
-        setProdutos([]);
+        console.error(err);
       } finally {
         setLoading(false);
       }
     }
 
     fetchProdutos();
-  }, [busca]); // 🔄 busca automática ao digitar
+  }, [busca]);
 
-  // 🔥 ADICIONAR AO CARRINHO
+  // =========================
+  // ESCOLHER VARIAÇÃO
+  // =========================
+  function selecionarVariacao(produtoId, variacao) {
+    setVariacaoSelecionada(prev => ({
+      ...prev,
+      [produtoId]: variacao
+    }));
+  }
+
+  // =========================
+  // ADICIONAR AO CARRINHO
+  // =========================
   function handleAdicionar(produto) {
-    adicionarAoCarrinho(produto);
-    setAnimando(true);
-    setTimeout(() => setAnimando(false), 300);
+    const variacao = variacaoSelecionada[produto.id];
+
+    if (!variacao) {
+      alert("Selecione tamanho/cor primeiro");
+      return;
+    }
+
+    adicionarAoCarrinho(produto, variacao);
   }
 
   function comprarAgora(produto) {
-    adicionarAoCarrinho(produto);
+    const variacao = variacaoSelecionada[produto.id];
+
+    if (!variacao) {
+      alert("Selecione tamanho/cor primeiro");
+      return;
+    }
+
+    adicionarAoCarrinho(produto, variacao);
     navigate("/carrinho");
   }
 
-  // 🔥 LOADING
+  // =========================
+  // LOADING
+  // =========================
   if (loading) {
-    return (
-      <div className="grid-produtos">
-        {[1,2,3,4,5,6].map((i) => (
-          <div key={i} className="skeleton"></div>
-        ))}
-      </div>
-    );
+    return <h2>Carregando...</h2>;
   }
-
-  // 🔥 FILTRO POR CATEGORIA + BUSCA
-  const produtosFiltrados = produtos.filter(p => {
-    // Filtra por categoria
-    if (categoriaSelecionada !== "Todas") {
-      const categoriaId = mapaCategorias[categoriaSelecionada];
-      if (p.categoria_id !== categoriaId) return false;
-    }
-
-    // Filtra por busca (nome)
-    if (busca.trim() !== "") {
-      return p.nome.toLowerCase().includes(busca.toLowerCase());
-    }
-
-    return true;
-  });
 
   return (
     <div className="loja-container">
 
-      {/* 🔎 BUSCA */}
-      <div className="busca-container">
-        <input
-          type="text"
-          placeholder="Buscar produtos..."
-          value={busca}
-          onChange={(e) => setBusca(e.target.value)}
-          className="busca-input"
-        />
-      </div>
+      {/* BUSCA */}
+      <input
+        placeholder="Buscar produtos..."
+        value={busca}
+        onChange={(e) => setBusca(e.target.value)}
+      />
 
-      {/* MENU DE CATEGORIAS */}
-      <div className="menu-categorias">
-        <button
-          className="menu-btn"
-          onClick={() => setMenuAberto(!menuAberto)}
-        >
-          ☰ Categorias
-        </button>
-
-        {menuAberto && (
-          <div className="menu-dropdown">
-            {categorias.map((cat) => (
-              <div
-                key={cat}
-                className={`menu-item ${categoriaSelecionada === cat ? "ativo" : ""}`}
-                onClick={() => {
-                  setCategoriaSelecionada(cat);
-                  setMenuAberto(false);
-                }}
-              >
-                {cat}
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
-
-      {/* GRID DE PRODUTOS */}
+      {/* GRID */}
       <div className="produtos-grid">
-        {produtosFiltrados.map((produto) => (
+
+        {produtos.map(produto => (
           <div key={produto.id} className="produto-card">
 
+            {/* IMAGEM */}
             <img
-              src={produto.imagem || imagensTeste[produto.id] || "https://picsum.photos/300/350"}
+              src={produto.imagem}
               alt={produto.nome}
-              className="produto-img"
             />
 
-            <h2 className="produto-nome">{produto.nome}</h2>
-            <p className="produto-preco">R$ {produto.preco.toFixed(2)}</p>
+            <h2>{produto.nome}</h2>
 
-            <div className="produto-botoes">
-              <button
-                onClick={() => handleAdicionar(produto)}
-                className={`btn-carrinho ${animando ? "animar" : ""}`}
-              >
-                🛒
-              </button>
+            {/* =========================
+                VARIAÇÕES
+            ========================= */}
+            <div className="variacoes">
 
-              <button
-                onClick={() => comprarAgora(produto)}
-                className="btn-comprar"
-              >
-                COMPRAR
-              </button>
+              {produto.variacoes?.map(v => (
+                <button
+                  key={v.id}
+                  onClick={() => selecionarVariacao(produto.id, v)}
+                  className={
+                    variacaoSelecionada[produto.id]?.id === v.id
+                      ? "variacao ativo"
+                      : "variacao"
+                  }
+                >
+                  {v.tamanho} | {v.cor} | R$ {v.preco}
+                </button>
+              ))}
+
             </div>
+
+            {/* PREÇO DINÂMICO */}
+            <p className="preco">
+              R$ {
+                variacaoSelecionada[produto.id]?.preco ||
+                produto.variacoes?.[0]?.preco ||
+                0
+              }
+            </p>
+
+            {/* BOTÕES */}
+            <button onClick={() => handleAdicionar(produto)}>
+              🛒 Carrinho
+            </button>
+
+            <button onClick={() => comprarAgora(produto)}>
+              Comprar
+            </button>
+
           </div>
         ))}
-      </div>
 
+      </div>
     </div>
   );
 }

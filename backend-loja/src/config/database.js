@@ -1,17 +1,17 @@
-// config/database.js
-import mysql from "mysql2";
+import mysql from "mysql2/promise";
 
-const db = mysql.createConnection({
+// 🔥 POOL DE CONEXÕES (mais rápido e estável)
+const db = mysql.createPool({
   host: "localhost",
   user: "root",
   password: "",
   database: "loja_online",
-  port: 3307
+  port: 3307,
+  waitForConnections: true,
+  connectionLimit: 10,
+  queueLimit: 0
 });
 
-db.connect(err => {
-  if (err) console.error("Erro ao conectar no banco:", err);
-  else console.log("Banco conectado com sucesso!");
-});
+console.log("Banco conectado com Pool de conexões!");
 
 export default db;

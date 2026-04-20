@@ -1,4 +1,5 @@
 import { HashRouter as Router, Routes, Route } from "react-router-dom";
+
 import Home from "./pages/Home.jsx";
 import Produtos from "./pages/produtos.jsx";
 import Login from "./pages/Login.jsx";
@@ -11,8 +12,10 @@ import RedefinirSenha from "./pages/RedefinirSenha.jsx";
 import Busca from "./pages/Busca.jsx";
 import Perfil from "./pages/Perfil.jsx";
 import Favoritos from "./pages/Favoritos.jsx";
-import Admin from "./pages/AdminRoute.jsx";
-import ProtectedRoute from "./components/ProtectedRoute";
+import Admin from "./pages/Admin.jsx";
+
+import PrivateRoute from "./routes/PrivateRoute";
+import AdminRoute from "./routes/AdminRoute";
 
 import Header from "./components/Header";
 import MiniCarrinho from "./components/MiniCarrinho";
@@ -32,43 +35,45 @@ export default function App() {
 
           <main className="main-content">
             <Routes>
+
+              {/* PÁGINAS PÚBLICAS */}
               <Route path="/" element={<Home />} />
               <Route path="/produtos" element={<Produtos />} />
-              <Route path="/carrinho" element={<Carrinho />} />
               <Route path="/login" element={<Login />} />
               <Route path="/cadastro" element={<Cadastro />} />
+              <Route path="/carrinho" element={<Carrinho />} />
               <Route path="/confirmar/:token" element={<Confirmacao />} />
               <Route path="/meus-pedidos" element={<MeusPedidos />} />
               <Route path="/esqueci-senha" element={<EsqueciSenha />} />
               <Route path="/redefinir-senha/:token" element={<RedefinirSenha />} />
               <Route path="/busca" element={<Busca />} />
 
-              {/* 👤 USUÁRIO LOGADO */}
+              {/* USUÁRIO LOGADO */}
               <Route
                 path="/perfil"
                 element={
-                  <ProtectedRoute>
+                  <PrivateRoute>
                     <Perfil />
-                  </ProtectedRoute>
+                  </PrivateRoute>
                 }
               />
 
               <Route
                 path="/favoritos"
                 element={
-                  <ProtectedRoute>
+                  <PrivateRoute>
                     <Favoritos />
-                  </ProtectedRoute>
+                  </PrivateRoute>
                 }
               />
 
-              {/* 👑 SOMENTE ADMIN */}
+              {/* ADMIN (CORRETO E LIMPO) */}
               <Route
                 path="/admin"
                 element={
-                  <ProtectedRoute tipoPermitido="admin">
+                  <AdminRoute>
                     <Admin />
-                  </ProtectedRoute>
+                  </AdminRoute>
                 }
               />
 
