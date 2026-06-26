@@ -1,151 +1,248 @@
-import "./produtos.css";
-import { useEffect, useState, useContext } from "react";
-import { useNavigate } from "react-router-dom";
-import api from "../services/api";
-import { CarrinhoContext } from "../context/CarrinhoContext";
+// src/pages/Produtos.jsx
+
+import './produtos.css';
+
+import { useEffect, useState, useContext } from 'react';
+
+import { useNavigate } from 'react-router-dom';
+
+import api from '../services/api';
+
+import { CarrinhoContext } from '../context/CarrinhoContext';
 
 function Produtos() {
   const [produtos, setProdutos] = useState([]);
-  const [categoriaSelecionada, setCategoriaSelecionada] = useState("Todas");
-  const [busca, setBusca] = useState("");
+  const [categorias, setCategorias] = useState([]);
+  const [favoritos, setFavoritos] = useState([]);
+
+  const [categoriaSelecionada, setCategoriaSelecionada] = useState('Todas');
+
+  const [busca, setBusca] = useState('');
+
   const [loading, setLoading] = useState(true);
 
-  // 🔥 controle de variação selecionada por produto
-  const [variacaoSelecionada, setVariacaoSelecionada] = useState({});
-
   const navigate = useNavigate();
+
   const { adicionarAoCarrinho } = useContext(CarrinhoContext);
+
+  // =========================
+  // VERIFICAR FAVORITO
+  // =========================
+
+  function isFavorito(produtoId) {
+    return favoritos.some((fav) => fav.id === produtoId);
+  }
 
   // =========================
   // CARREGAR PRODUTOS
   // =========================
   useEffect(() => {
-    async function fetchProdutos() {
+    async function carregarProdutos() {
       try {
-        const res = await api.get("/produtos", {
-          params: { nome: busca }
+        const res = await api.get('/produtos', {
+          params: {
+            nome: busca,
+          },
         });
 
         setProdutos(res.data || []);
       } catch (err) {
-        console.error(err);
+        console.log(err);
       } finally {
         setLoading(false);
       }
     }
 
-    fetchProdutos();
+    carregarProdutos();
   }, [busca]);
 
   // =========================
-  // ESCOLHER VARIAÇÃO
+  // FAVORITOS
   // =========================
-  function selecionarVariacao(produtoId, variacao) {
-    setVariacaoSelecionada(prev => ({
-      ...prev,
-      [produtoId]: variacao
-    }));
+
+  useEffect(() => {
+    async function carregarFavoritos() {
+      const token = localStorage.getItem('token');
+
+      if (!token) return;
+
+      try {
+        const res = await api.get('/favoritos', {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        });
+
+        setFavoritos(res.data || []);
+      } catch (err) {
+        console.log(err);
+      }
+    }
+
+    carregarFavoritos();
+  }, []);
+
+  // =========================
+  // CATEGORIAS
+  // =========================
+
+  useEffect(() => {
+    async function carregarCategorias() {
+      try {
+        const res = await api.get('/produtos/categorias');
+
+        setCategorias(res.data || []);
+      } catch (err) {
+        console.log(err);
+      }
+    }
+
+    carregarCategorias();
+  }, []);
+
+  // =========================
+  // FILTRO
+  // =========================
+
+  const produtosFiltrados = produtos.filter((p) => {
+    const nome = p.nome?.toLowerCase().includes(busca.toLowerCase());
+
+    const categoria = categoriaSelecionada === 'Todas' || p.categoria_nome === categoriaSelecionada;
+
+    return nome && categoria;
+  });
+
+  // =========================
+  // FUNÇÕES FAVORITOS
+  // =========================
+  async function toggleFavorito(produtoId) {
+    const token = localStorage.getItem('token');
+
+    try {
+      await api.post(
+        `/favoritos/${produtoId}`,
+        {},
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        },
+      );
+
+      setFavoritos((prev) => {
+        const existe = prev.some((p) => p.id === produtoId);
+
+        if (existe) {
+          return prev.filter((p) => p.id !== produtoId);
+        }
+
+        const produto = produtos.find((p) => p.id === produtoId);
+        return [...prev, produto];
+      });
+    } catch (err) {
+      console.log(err);
+    }
   }
 
   // =========================
-  // ADICIONAR AO CARRINHO
+  // CARRINHO
   // =========================
-  function handleAdicionar(produto) {
-    const variacao = variacaoSelecionada[produto.id];
+
+  function adicionar(produto) {
+    const variacao = produto.variacoes?.[0];
 
     if (!variacao) {
-      alert("Selecione tamanho/cor primeiro");
+      alert('Produto sem variação');
+
       return;
     }
 
-    adicionarAoCarrinho(produto, variacao);
+    adicionarAoCarrinho(produto, {
+      ...variacao,
+      estoque: Number(variacao.estoque || produto.estoque || 0),
+    });
   }
 
-  function comprarAgora(produto) {
-    const variacao = variacaoSelecionada[produto.id];
-
-    if (!variacao) {
-      alert("Selecione tamanho/cor primeiro");
-      return;
-    }
-
-    adicionarAoCarrinho(produto, variacao);
-    navigate("/carrinho");
+  function abrirProduto(produto) {
+    navigate(`/produto/${produto.id}`);
   }
 
-  // =========================
-  // LOADING
-  // =========================
   if (loading) {
     return <h2>Carregando...</h2>;
   }
 
   return (
     <div className="loja-container">
-
       {/* BUSCA */}
+
       <input
+        className="busca-produto"
         placeholder="Buscar produtos..."
         value={busca}
         onChange={(e) => setBusca(e.target.value)}
       />
 
-      {/* GRID */}
+      {/* CATEGORIAS */}
+
+      <section className="categorias-produtos">
+        <button
+          className={categoriaSelecionada === 'Todas' ? 'ativa' : ''}
+          onClick={() => setCategoriaSelecionada('Todas')}
+        >
+          Todos
+        </button>
+
+        {categorias.map((cat) => (
+          <button
+            key={cat.id}
+            className={categoriaSelecionada === cat.nome ? 'ativa' : ''}
+            onClick={() => setCategoriaSelecionada(cat.nome)}
+          >
+            {cat.nome}
+          </button>
+        ))}
+      </section>
+
+      {/* PRODUTOS */}
+
       <div className="produtos-grid">
-
-        {produtos.map(produto => (
+        {produtosFiltrados.map((produto) => (
           <div key={produto.id} className="produto-card">
-
             {/* IMAGEM */}
-            <img
-              src={produto.imagem}
-              alt={produto.nome}
-            />
+            <div className="img-box" onClick={() => abrirProduto(produto)}>
+              <img src={`${api.defaults.baseURL}${produto.imagem_principal}`} alt={produto.nome} />
 
-            <h2>{produto.nome}</h2>
-
-            {/* =========================
-                VARIAÇÕES
-            ========================= */}
-            <div className="variacoes">
-
-              {produto.variacoes?.map(v => (
-                <button
-                  key={v.id}
-                  onClick={() => selecionarVariacao(produto.id, v)}
-                  className={
-                    variacaoSelecionada[produto.id]?.id === v.id
-                      ? "variacao ativo"
-                      : "variacao"
-                  }
-                >
-                  {v.tamanho} | {v.cor} | R$ {v.preco}
-                </button>
-              ))}
-
+              <button
+                className={`fav-btn ${isFavorito(produto.id) ? 'active' : ''}`}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  toggleFavorito(produto.id);
+                }}
+              >
+                {isFavorito(produto.id) ? '♥' : '♡'}
+              </button>
             </div>
 
-            {/* PREÇO DINÂMICO */}
-            <p className="preco">
-              R$ {
-                variacaoSelecionada[produto.id]?.preco ||
-                produto.variacoes?.[0]?.preco ||
-                0
-              }
-            </p>
+            {/* INFORMAÇÃO */}
+            <div className="produto-info-card">
+              <h3>{produto.nome}</h3>
 
-            {/* BOTÕES */}
-            <button onClick={() => handleAdicionar(produto)}>
-              🛒 Carrinho
-            </button>
+              <div className="preco-area">
+                <strong>R$ {produto.variacoes?.[0]?.preco || produto.preco || 0}</strong>
+              </div>
 
-            <button onClick={() => comprarAgora(produto)}>
-              Comprar
-            </button>
+              <div className="produto-acoes">
+                <button className="btn-carrinho-mini" onClick={() => adicionar(produto)}>
+                  🛒
+                </button>
 
+                <button className="btn-comprar-mini" onClick={() => abrirProduto(produto)}>
+                  Comprar
+                </button>
+              </div>
+            </div>
           </div>
         ))}
-
       </div>
     </div>
   );

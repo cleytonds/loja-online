@@ -1,25 +1,22 @@
-import express from "express";
-import Usuario from "../models/Usuario.js";
-import { verificarToken } from "../middlewares/auth.js";
+import express from 'express';
+import { verificarToken } from '../middlewares/auth.js';
+import {
+  getPerfil,
+  putPerfil,
+  putSenha,
+  getFavoritos,
+} from '../controllers/usuarioPerfilController.js';
 
 const router = express.Router();
 
-router.put("/perfil", verificarToken, (req, res) => {
-  const { nome, foto } = req.body;
-  const userId = req.user.id;
+// ✅ PERFIL (único endpoint /perfil, substitui implementação antiga sem duplicar rota)
+router.get('/perfil', verificarToken, getPerfil);
+router.put('/perfil', verificarToken, putPerfil);
 
-  if (!nome) {
-    return res.status(400).json({ error: "Nome obrigatório" });
-  }
+// ✅ SENHA
+router.put('/senha', verificarToken, putSenha);
 
-  Usuario.atualizarPerfil(userId, nome, foto, (err) => {
-    if (err) {
-      console.error(err);
-      return res.status(500).json({ error: "Erro ao atualizar perfil" });
-    }
-
-    res.json({ id: userId, nome, foto });
-  });
-});
+// ✅ FAVORITOS (leitura simples)
+router.get('/favoritos', verificarToken, getFavoritos);
 
 export default router;

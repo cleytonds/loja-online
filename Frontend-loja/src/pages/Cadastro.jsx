@@ -1,171 +1,192 @@
-import { useState } from "react";
-import { useNavigate, Link } from "react-router-dom";
-import api from "../services/api"; 
-import "./login.css";
+// src/pages/Carrinho.jsx
 
-export default function Cadastro() {
-  const [nome, setNome] = useState("");
-  const [email, setEmail] = useState("");
-  const [senha, setSenha] = useState("");
-  const [loading, setLoading] = useState(false);
-  const [erroEmail, setErroEmail] = useState(""); 
-  const [toast, setToast] = useState({ show: false, msg: "", tipo: "success" });
-  const [reenviarEmail, setReenviarEmail] = useState(false); // ✅ estado para botão reenviar
+// ===============================
+// IMPORTAÇÕES
+// ===============================
+import { useContext } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { CarrinhoContext } from '../context/CarrinhoContext';
+import api from '../services/api';
+import './Carrinho.css';
+
+// ===============================
+// COMPONENTE PRINCIPAL
+// ===============================
+export default function Carrinho() {
+  // ===============================
+  // CONTEXTO DO CARRINHO
+  // ===============================
+
+  const { carrinho, removerDoCarrinho, aumentarQuantidade, diminuirQuantidade } =
+    useContext(CarrinhoContext);
+
+  // ===============================
+  // NAVEGAÇÃO
+  // ===============================
+
   const navigate = useNavigate();
 
-  const validarEmail = (email) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+  // ===============================
+  // FORMATAÇÃO DE MOEDA
+  // ===============================
 
-  const mostrarNotificacao = (msg, tipo = "success") => {
-    if ("Notification" in window && Notification.permission === "granted") {
-      new Notification(msg, { body: tipo === "success" ? "✅ Sucesso" : "❌ Erro" });
-    } else if ("Notification" in window && Notification.permission !== "denied") {
-      Notification.requestPermission().then(permission => {
-        if (permission === "granted") {
-          new Notification(msg, { body: tipo === "success" ? "✅ Sucesso" : "❌ Erro" });
-        } else {
-          setToast({ show: true, msg, tipo });
-          setTimeout(() => setToast({ show: false, msg: "", tipo }), 4000);
-        }
-      });
-    } else {
-      setToast({ show: true, msg, tipo });
-      setTimeout(() => setToast({ show: false, msg: "", tipo }), 4000);
-    }
-  };
+  const formatarPreco = (valor) =>
+    new Intl.NumberFormat('pt-BR', {
+      style: 'currency',
+      currency: 'BRL',
+    }).format(valor);
 
-  // -------------------- CADASTRO --------------------
-  async function handleCadastro(e) {
-    e.preventDefault();
+  // ===============================
+  // CALCULA TOTAL DA COMPRA
+  // ===============================
 
-    if (!validarEmail(email)) {
-      setErroEmail("Email inválido!");
-      mostrarNotificacao("Email inválido! Por favor, use um email válido.", "error");
+  const total = carrinho.reduce(
+    (acc, item) => acc + item.preco * item.quantidade,
+
+    0,
+  );
+
+  // ===============================
+  // FINALIZAR PEDIDO
+  // ===============================
+
+  async function finalizarCompra() {
+    // verifica carrinho vazio
+
+    if (carrinho.length === 0) {
+      alert('Carrinho vazio');
+
       return;
-    } else {
-      setErroEmail("");
     }
 
-    setLoading(true);
+    // verifica autenticação
 
-    try {
-      const res = await api.post("/auth/cadastro", { nome, email, senha });
-      mostrarNotificacao(res.data.mensagem || "Cadastro realizado! Verifique seu email.","success");
+    const token = localStorage.getItem('token');
 
-      // ✅ Mostra botão de reenviar email após cadastro
-      setReenviarEmail(true);
+    if (!token) {
+      navigate('/login');
 
-      setTimeout(() => { navigate("/verificar", { state: { email } }); }, 2000);
-    } catch (err) {
-      const errorMsg = err.response?.data?.error;
-      mostrarNotificacao(errorMsg || "Erro ao cadastrar ❌", "error");
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  // -------------------- REENVIAR EMAIL --------------------
-  async function handleReenviarEmail() {
-    if (!validarEmail(email)) {
-      mostrarNotificacao("Email inválido para reenviar!", "error");
       return;
     }
 
     try {
-      const res = await api.post("/auth/reenviar-codigo", { email });
-      mostrarNotificacao(res.data.mensagem || "Email reenviado com sucesso!", "success");
+      // monta itens enviados para API
+
+      const itensPedido = carrinho.map((item) => ({
+        produto_id: item.produto_id,
+
+        variacao_id: item.variacao_id,
+
+        quantidade: item.quantidade,
+      }));
+
+      // envia pedido para backend
+
+      await api.post(
+        '/pedidos',
+
+        {
+          itens: itensPedido,
+        },
+
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        },
+      );
+
+      alert('Pedido criado com sucesso 🚀');
+
+      navigate('/');
     } catch (err) {
-      const errorMsg = err.response?.data?.error || "Erro ao reenviar email";
-      mostrarNotificacao(errorMsg, "error");
+      // captura erro do servidor
+
+      console.log(err);
+
+      alert('Erro ao finalizar compra');
     }
   }
+
+  // ===============================
+  // CARRINHO VAZIO
+  // ===============================
+
+  if (carrinho.length === 0) {
+    return (
+      <div className="carrinho-vazio">
+        <h2>Seu carrinho está vazio 🛒</h2>
+
+        <button onClick={() => navigate('/')}>Continuar comprando</button>
+      </div>
+    );
+  }
+
+  // ===============================
+  // TELA DO CARRINHO
+  // ===============================
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-100 p-6 relative">
-      <div className="bg-white p-10 rounded-2xl shadow-xl w-full max-w-md">
-        <h1 className="text-3xl font-bold text-center mb-6 text-gray-800">Cadastro</h1>
+    <div className="carrinho-container">
+      {/* Título */}
 
-        <form onSubmit={handleCadastro} className="space-y-4">
-          <input
-            type="text"
-            placeholder="Nome"
-            value={nome}
-            onChange={(e) => setNome(e.target.value)}
-            required
-            className="w-full p-3 rounded-lg border border-gray-300 focus:outline-none focus:ring-2 focus:ring-black"
-          />
+      <h1 className="carrinho-titulo">Carrinho de compras</h1>
 
-          <input
-            type="email"
-            placeholder="Email"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            required
-            className={`w-full p-3 rounded-lg border ${
-              erroEmail ? "border-red-500" : "border-gray-300"
-            } focus:outline-none focus:ring-2 focus:ring-black`}
-          />
+      {/* Lista dos produtos */}
 
-          <input
-            type="password"
-            placeholder="Senha"
-            value={senha}
-            onChange={(e) => setSenha(e.target.value)}
-            required
-            className="w-full p-3 rounded-lg border border-gray-300 focus:outline-none focus:ring-2 focus:ring-black"
-          />
+      {carrinho.map((item) => (
+        <div key={item.variacao_id} className="carrinho-item">
+          {/* Informações do produto */}
 
-          <button
-            type="submit"
-            disabled={loading}
-            className="w-full py-3 rounded-lg bg-black text-white font-semibold hover:bg-gray-800 transition disabled:opacity-50"
-          >
-            {loading ? "Cadastrando..." : "Cadastrar"}
-          </button>
-        </form>
+          <div className="item-info">
+            <img src={item.imagem} alt={item.nome} />
 
-        <p className="mt-4 text-center text-gray-600">
-          Já tem conta?{" "}
-          <Link to="/login" className="text-black font-semibold hover:underline">
-            Entrar
-          </Link>
-        </p>
+            <div>
+              <h2>{item.nome}</h2>
 
-        {/* ✅ Botão de reenviar email */}
-        {reenviarEmail && (
-          <div className="mt-4 text-center">
-            <p>Não recebeu o email?</p>
-            <button
-              onClick={handleReenviarEmail}
-              className="px-4 py-2 mt-2 bg-yellow-400 text-black rounded-lg hover:bg-yellow-500 transition"
-            >
-              Reenviar email de confirmação
-            </button>
+              <p>
+                {item.tamanho} • {item.cor}
+              </p>
+
+              <strong>{formatarPreco(item.preco)}</strong>
+            </div>
           </div>
-        )}
-      </div>
 
-      {/* Toast interno animado */}
-      {toast.show && (
-        <div
-          className={`fixed top-6 left-1/2 transform -translate-x-1/2 px-6 py-3 rounded-lg shadow-lg z-50 flex items-center space-x-2
-          ${toast.tipo === "success" ? "bg-green-500" : "bg-red-500"} text-white font-semibold animate-fadeInOut`}
-        >
-          <span className="text-lg">{toast.tipo === "success" ? "✅" : "❌"}</span>
-          <span>{toast.msg}</span>
+          {/* Controle de quantidade */}
+
+          <div className="item-quantidade">
+            <button onClick={() => diminuirQuantidade(item.variacao_id)}>-</button>
+
+            <span>{item.quantidade}</span>
+
+            <button onClick={() => aumentarQuantidade(item.variacao_id)}>+</button>
+          </div>
+
+          {/* Valores e remoção */}
+
+          <div className="item-acoes">
+            <strong>{formatarPreco(item.preco * item.quantidade)}</strong>
+
+            <button onClick={() => removerDoCarrinho(item.variacao_id)}>Remover</button>
+          </div>
         </div>
-      )}
+      ))}
 
-      <style>{`
-        @keyframes fadeInOut {
-          0% { opacity: 0; transform: translateY(-20px); }
-          10% { opacity: 1; transform: translateY(0); }
-          90% { opacity: 1; transform: translateY(0); }
-          100% { opacity: 0; transform: translateY(-20px); }
-        }
-        .animate-fadeInOut {
-          animation: fadeInOut 4s ease forwards;
-        }
-      `}</style>
+      {/* Resumo da compra */}
+
+      <div className="carrinho-resumo">
+        <div className="resumo-linha">
+          <span>Total</span>
+
+          <span>{formatarPreco(total)}</span>
+        </div>
+
+        {/* Botão pagamento */}
+
+        <button className="btn-finalizar" onClick={finalizarCompra}>
+          Finalizar compra
+        </button>
+      </div>
     </div>
   );
 }

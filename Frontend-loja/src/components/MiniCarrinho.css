@@ -1,13 +1,17 @@
-/* 🔹 OVERLAY ESCURO */
+/* =========================
+   BACKDROP PREMIUM
+========================= */
 .overlay {
   position: fixed;
   inset: 0;
-  background: rgba(0,0,0,0.4);
+  background: rgba(10, 10, 10, 0.55);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
   z-index: 999;
 
   opacity: 0;
   pointer-events: none;
-  transition: 0.3s;
+  transition: opacity 0.35s ease;
 }
 
 .overlay.ativo {
@@ -15,202 +19,262 @@
   pointer-events: all;
 }
 
-/* 🔹 DRAWER LATERAL */
+/* =========================
+   DRAWER LUXO
+========================= */
 .drawer {
   position: fixed;
   top: 0;
   right: 0;
-  width: 360px;
-  max-width: 90%;
-  height: 100%;
-  background: #fff;
+  width: 380px;
+  max-width: 92%;
+  height: 100vh;
+
+  background: linear-gradient(180deg, #ffffff 0%, #fafafa 100%);
+  box-shadow: -20px 0 60px rgba(0, 0, 0, 0.25);
+
   display: flex;
   flex-direction: column;
-  box-shadow: -2px 0 10px rgba(0,0,0,0.2);
+
+  transform: translateX(110%);
+  transition: transform 0.4s cubic-bezier(0.22, 1, 0.36, 1);
+
   z-index: 1000;
-
-  transform: translateX(100%);
-  transition: transform 0.3s ease;
-
-  font-family: 'Segoe UI', sans-serif;
+  font-family: 'Inter', 'Segoe UI', sans-serif;
 }
 
 .drawer.ativo {
   transform: translateX(0);
 }
 
-/* 🔹 HEADER */
+/* =========================
+   HEADER LUXO
+========================= */
 .drawer-header {
+  padding: 18px 20px;
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 16px;
-  font-weight: bold;
-  font-size: 18px;
-  border-bottom: 1px solid #eee;
+
+  border-bottom: 1px solid rgba(0, 0, 0, 0.06);
+  background: rgba(255, 255, 255, 0.8);
+  backdrop-filter: blur(10px);
+}
+
+.drawer-header p {
+  font-size: 17px;
+  font-weight: 600;
+  letter-spacing: 0.2px;
 }
 
 .drawer-header span {
   cursor: pointer;
-  font-size: 22px;
-  color: #999;
-  transition: color 0.2s;
+  font-size: 20px;
+  color: #666;
+  transition: all 0.2s ease;
 }
 
 .drawer-header span:hover {
-  color: #ff4d4f;
+  color: #e11d48;
+  transform: scale(1.1);
 }
 
-/* 🔹 BODY */
+/* =========================
+   BODY
+========================= */
 .drawer-body {
   flex: 1;
   overflow-y: auto;
-  padding: 12px;
+  padding: 14px 16px;
 }
 
-/* 🔹 ITEM */
+/* scrollbar premium */
+.drawer-body::-webkit-scrollbar {
+  width: 5px;
+}
+
+.drawer-body::-webkit-scrollbar-thumb {
+  background: rgba(0, 0, 0, 0.15);
+  border-radius: 10px;
+}
+
+/* =========================
+   ITEM CARD LUXO
+========================= */
 .item {
   display: flex;
   gap: 12px;
-  margin-bottom: 16px;
+  padding: 12px;
+  margin-bottom: 12px;
+
+  border-radius: 14px;
+  background: #fff;
+  border: 1px solid rgba(0, 0, 0, 0.06);
+
   position: relative;
-  border-bottom: 1px solid #f0f0f0;
-  padding-bottom: 12px;
+  transition: all 0.25s ease;
+}
+
+.item:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.08);
 }
 
 .item img {
-  width: 70px;
-  height: 70px;
-  border-radius: 8px;
+  width: 68px;
+  height: 68px;
+  border-radius: 12px;
   object-fit: cover;
+  background: #f3f3f3;
 }
 
-/* 🔹 INFORMAÇÕES DO ITEM */
+/* =========================
+   INFO
+========================= */
 .info {
   flex: 1;
   display: flex;
   flex-direction: column;
+  gap: 3px;
 }
 
 .nome {
-  font-size: 15px;
+  font-size: 14px;
   font-weight: 600;
-  margin-bottom: 4px;
-}
-
-.detalhes {
-  font-size: 13px;
-  color: #666;
-  margin-bottom: 6px;
+  color: #111;
 }
 
 .preco {
-  color: #3483fa;
-  font-weight: bold;
-  margin-bottom: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  color: #2563eb;
 }
 
-/* 🔹 CONTROLE DE QUANTIDADE */
+/* =========================
+   QUANTIDADE PREMIUM
+========================= */
 .qtd-controle {
   display: flex;
   align-items: center;
   gap: 8px;
+  margin-top: 6px;
 }
 
 .qtd-controle button {
   width: 28px;
   height: 28px;
-  border: none;
-  background: #eee;
-  border-radius: 4px;
+
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  background: #fff;
+
+  border-radius: 8px;
   cursor: pointer;
+
   font-weight: bold;
-  transition: background 0.2s;
+  transition: all 0.2s ease;
 }
 
 .qtd-controle button:hover {
-  background: #ddd;
+  background: #111;
+  color: #fff;
+  transform: scale(1.05);
 }
 
 .qtd-controle span {
   min-width: 20px;
   text-align: center;
+  font-weight: 500;
 }
 
-/* 🔹 BOTÃO REMOVER */
+/* =========================
+   REMOVER BOTÃO
+========================= */
 .btn-remover {
   position: absolute;
-  right: 0;
-  top: 0;
-  background: none;
+  top: 8px;
+  right: 10px;
+
   border: none;
+  background: transparent;
+
   font-size: 16px;
   cursor: pointer;
-  color: #999;
-  transition: color 0.2s;
+  color: #aaa;
+
+  transition: all 0.2s ease;
 }
 
 .btn-remover:hover {
-  color: #ff4d4f;
+  color: #ef4444;
+  transform: scale(1.2);
 }
 
-/* 🔹 FOOTER */
+/* =========================
+   FOOTER PREMIUM
+========================= */
 .drawer-footer {
   padding: 16px;
-  border-top: 1px solid #eee;
+  border-top: 1px solid rgba(0, 0, 0, 0.06);
+
+  background: rgba(255, 255, 255, 0.9);
+  backdrop-filter: blur(10px);
+
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 10px;
 }
 
 .total {
   display: flex;
   justify-content: space-between;
-  font-weight: bold;
-  font-size: 16px;
+  font-size: 15px;
+  font-weight: 600;
 }
 
-/* 🔹 BOTÕES */
-.drawer-footer button {
+/* =========================
+   BOTÕES LUXO
+========================= */
+.btn-continuar,
+.btn-ver-carrinho {
   width: 100%;
   padding: 12px;
-  border: none;
-  border-radius: 6px;
-  font-weight: bold;
+
+  border-radius: 10px;
+  font-weight: 600;
   cursor: pointer;
-  transition: all 0.2s;
+
+  transition: all 0.25s ease;
 }
 
-/* 🔹 Continuar comprando */
+/* primário preto luxo */
 .btn-continuar {
   background: #111;
   color: #fff;
+  border: 1px solid #111;
 }
 
 .btn-continuar:hover {
   background: #000;
+  transform: translateY(-1px);
 }
 
-/* 🔹 Ver carrinho */
-.drawer-footer button:not(.btn-continuar) {
-  background: #3483fa;
+/* azul premium */
+.btn-ver-carrinho {
+  background: linear-gradient(135deg, #2563eb, #1d4ed8);
   color: #fff;
+  border: none;
 }
 
-.drawer-footer button:not(.btn-continuar):hover {
-  background: #2968c8;
+.btn-ver-carrinho:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 10px 20px rgba(37, 99, 235, 0.25);
 }
 
-/* 🔹 SCROLL BAR */
-.drawer-body::-webkit-scrollbar {
-  width: 6px;
-}
-
-.drawer-body::-webkit-scrollbar-thumb {
-  background: rgba(0,0,0,0.2);
-  border-radius: 3px;
-}
-
-.drawer-body::-webkit-scrollbar-track {
-  background: transparent;
+/* =========================
+   EMPTY STATE
+========================= */
+.carrinho-vazio {
+  text-align: center;
+  padding: 40px 10px;
+  color: #888;
 }

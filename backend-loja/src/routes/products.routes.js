@@ -1,18 +1,30 @@
-import express from "express";
-import db from "../config/database.js";
-import { verificarToken } from "../middlewares/auth.js";
-import { isAdmin } from "../middlewares/isAdmin.js";
-import upload from "../config/upload.js";
+import express from 'express';
+import db from '../config/database.js';
+import { verificarToken } from '../middlewares/auth.js';
+import { isAdmin } from '../middlewares/isAdmin.js';
+import upload from '../config/upload.js';
+import fs from 'fs';
+import path from 'path';
 
 const router = express.Router();
 
+// ===============================
+// 🔓 CATEGORIAS
+// ===============================
+router.get('/categorias', async (req, res) => {
+  try {
+    const [results] = await db.query('SELECT * FROM categorias');
+    res.json(results);
+  } catch (err) {
+    res.status(500).json({ error: 'Erro ao buscar categorias' });
+  }
+});
 
 // ===============================
 // 🔓 LISTAR PRODUTOS (COMPLETO)
 // ===============================
-router.get("/", async (req, res) => {
+router.get('/', async (req, res) => {
   try {
-
     const [produtos] = await db.query(`
       SELECT 
         p.*,
@@ -25,152 +37,347 @@ router.get("/", async (req, res) => {
       WHERE p.ativo = 1
     `);
 
-    res.json(produtos);
+    const [variacoes] = await db.query(`
+      SELECT id, produto_id, tamanho, cor, preco, estoque
+      FROM produto_variacoes
+    `);
 
+    const mapa = variacoes.reduce((acc, v) => {
+      if (!acc[v.produto_id]) acc[v.produto_id] = [];
+      acc[v.produto_id].push(v);
+      return acc;
+    }, {});
+
+    produtos.forEach((p) => {
+      p.variacoes = mapa[p.id] || [];
+    });
+
+    res.json(produtos);
   } catch (err) {
     console.error(err);
-    res.status(500).json({ error: "Erro ao buscar produtos" });
+    res.status(500).json({ error: 'Erro ao buscar produtos' });
   }
 });
 
+// ===============================
+// 🔓 DETALHE DO PRODUTO
+// ===============================
 
-// ===============================
-// 🔓 CATEGORIAS
-// ===============================
-router.get("/categorias", async (req, res) => {
+router.get('/:id', async (req, res) => {
   try {
-    const [results] = await db.query("SELECT * FROM categorias");
-    res.json(results);
+    const { id } = req.params;
+    const [produto] = await db.query(
+      `
+
+      SELECT 
+      p.*,
+      c.nome AS categoria_nome
+      FROM produtos p
+      LEFT JOIN categorias c
+      ON c.id=p.categoria_id
+      WHERE p.id=?
+
+    `,
+      [id],
+    );
+
+    if (!produto.length) {
+      return res.status(404).json({
+        erro: 'Produto não encontrado',
+      });
+    }
+
+    const [imagens] = await db.query(
+      `
+
+      SELECT *
+      FROM produto_imagens
+      WHERE produto_id=?
+
+    `,
+      [id],
+    );
+
+    const [variacoes] = await db.query(
+      `
+
+      SELECT *
+      FROM produto_variacoes
+      WHERE produto_id=?
+
+    `,
+      [id],
+    );
+
+    res.json({
+      ...produto[0],
+      imagens,
+      variacoes,
+    });
   } catch (err) {
-    res.status(500).json({ error: "Erro ao buscar categorias" });
+    console.log(err);
+    res.status(500).json({
+      erro: 'Erro detalhe produto',
+    });
   }
 });
 
+// ===============================
+// 🔓 ESTOQUE VARIAÇÕES
+// ===============================
+
+router.get('/estoque', async (req, res) => {
+  try {
+    const [rows] = await db.query(`
+      SELECT 
+        p.nome AS produto,
+        pv.tamanho,
+        pv.cor,
+        pv.estoque
+      FROM produto_variacoes pv
+      INNER JOIN produtos p 
+      ON p.id = pv.produto_id
+      ORDER BY p.nome
+    `);
+
+    res.json(rows);
+  } catch (err) {
+    console.log(err);
+
+    res.status(500).json({
+      error: 'Erro estoque',
+    });
+  }
+});
 
 // ===============================
 // 🔒 CRIAR PRODUTO (COMPLETO)
 // ===============================
-router.post(
-  "/",
-  verificarToken,
-  isAdmin,
-  upload.array("imagens"),
-  async (req, res) => {
-
-    const conn = await db.getConnection();
-
-    try {
-      await conn.beginTransaction();
-
-      const { nome, descricao, categoria, variacoes } = req.body;
-
-      // 1. produto
-      const [result] = await conn.query(
-        `INSERT INTO produtos (nome, descricao, categoria_id, ativo)
-         VALUES (?, ?, ?, 1)`,
-        [nome, descricao, categoria]
-      );
-
-      const produtoId = result.insertId;
-
-      // 2. imagens
-      if (req.files?.length > 0) {
-        for (let i = 0; i < req.files.length; i++) {
-          const file = req.files[i];
-
-          await conn.query(
-            `INSERT INTO produto_imagens 
-            (produto_id, url, ordem, is_principal)
-            VALUES (?, ?, ?, ?)`,
-            [
-              produtoId,
-              `/uploads/${file.filename}`,
-              i,
-              i === 0
-            ]
-          );
-        }
-      }
-
-      // 3. variações
-      const lista = JSON.parse(variacoes);
-
-      for (let v of lista) {
-        await conn.query(
-          `INSERT INTO produto_variacoes
-          (produto_id, tamanho, cor, preco, estoque)
-          VALUES (?, ?, ?, ?, ?)`,
-          [
-            produtoId,
-            v.tamanho,
-            v.cor,
-            v.preco,
-            v.estoque
-          ]
-        );
-      }
-
-      await conn.commit();
-
-      res.json({
-        mensagem: "Produto criado com sucesso 🚀",
-        produtoId
-      });
-
-    } catch (err) {
-      await conn.rollback();
-      console.error(err);
-
-      res.status(500).json({
-        error: "Erro ao criar produto"
-      });
-
-    } finally {
-      conn.release();
-    }
-  }
-);
-
-
-// ===============================
-// 🔒 ATUALIZAR PRODUTO
-// ===============================
-router.put("/:id", verificarToken, isAdmin, async (req, res) => {
-  const { nome, descricao, categoria } = req.body;
-
+router.post('/', verificarToken, isAdmin, upload.array('imagens'), async (req, res) => {
   try {
-    await db.query(
-      `UPDATE produtos 
-       SET nome = ?, descricao = ?, categoria_id = ?
-       WHERE id = ?`,
-      [nome, descricao, categoria, req.params.id]
+    const { nome, preco, descricao, categoria } = req.body;
+
+    const variacoes = req.body.variacoes ? JSON.parse(req.body.variacoes) : [];
+    if (!Array.isArray(variacoes) || variacoes.length === 0) {
+      return res.status(400).json({
+        error: 'Produto precisa de pelo menos uma variação',
+      });
+    }
+    const [result] = await db.query(
+      `
+      INSERT INTO produtos (nome, preco_base, descricao, categoria_id)
+      VALUES (?, ?, ?, ?)
+    `,
+      [nome, preco, descricao, categoria],
     );
 
-    res.json({ mensagem: "Produto atualizado" });
+    const produtoId = result.insertId;
 
+    // imagens
+    if (req.files?.length) {
+      for (let i = 0; i < req.files.length; i++) {
+        await db.query(
+          `
+          INSERT INTO produto_imagens
+          (produto_id, url, is_principal)
+          VALUES (?, ?, ?)
+        `,
+          [produtoId, `/uploads/${req.files[i].filename}`, i === 0 ? 1 : 0],
+        );
+      }
+    }
+
+    // variações
+    for (let v of variacoes) {
+      await db.query(
+        `
+        INSERT INTO produto_variacoes
+        (produto_id, tamanho, cor, preco, estoque)
+        VALUES (?, ?, ?, ?, ?)
+      `,
+        [produtoId, v.tamanho, v.cor, v.preco, v.estoque],
+      );
+    }
+
+    res.json({ message: 'Produto criado com sucesso' });
   } catch (err) {
-    res.status(500).json({ error: "Erro ao atualizar" });
+    console.error('ERRO BACKEND:', err);
+    res.status(500).json({ error: err.message });
   }
 });
 
+// ===============================
+
+// 🔒 ATUALIZAR PRODUTO COMPLETO
+
+// ===============================
+
+router.put('/:id', verificarToken, isAdmin, upload.array('imagens'), async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    const {
+      nome,
+
+      descricao,
+
+      categoria,
+
+      variacoes,
+    } = req.body;
+
+    // ===============================
+
+    // ATUALIZA DADOS PRINCIPAIS
+
+    // ===============================
+
+    await db.query(
+      `
+
+      UPDATE produtos
+
+      SET nome = ?,
+
+          descricao = ?,
+
+          categoria_id = ?
+
+      WHERE id = ?
+
+      `,
+
+      [nome, descricao, categoria, id],
+    );
+
+    // ===============================
+
+    // ATUALIZA VARIAÇÕES
+
+    // ===============================
+
+    if (variacoes) {
+      const lista = JSON.parse(variacoes);
+
+      await db.query(
+        `
+
+        DELETE FROM produto_variacoes
+
+        WHERE produto_id = ?
+
+        `,
+
+        [id],
+      );
+
+      for (let v of lista) {
+        await db.query(
+          `
+
+          INSERT INTO produto_variacoes
+
+          (
+
+            produto_id,
+
+            tamanho,
+
+            cor,
+
+            preco,
+
+            estoque
+
+          )
+
+          VALUES (?,?,?,?,?)
+
+          `,
+
+          [id, v.tamanho, v.cor, v.preco, v.estoque],
+        );
+      }
+    }
+
+    // ===============================
+    // ATUALIZAÇÃO DAS IMAGENS
+    // REMOVE ANTIGAS E SALVA NOVAS
+    // ===============================
+
+    if (req.files?.length) {
+      // busca imagens antigas
+
+      const [imagensAntigas] = await db.query(
+        `
+    SELECT url
+    FROM produto_imagens
+    WHERE produto_id=?
+    `,
+        [id],
+      );
+
+      // apaga arquivos físicos
+
+      imagensAntigas.forEach((img) => {
+        const caminho = path.join(process.cwd(), img.url);
+
+        if (fs.existsSync(caminho)) {
+          fs.unlinkSync(caminho);
+        }
+      });
+
+      // remove do banco
+
+      await db.query(
+        `
+    DELETE FROM produto_imagens
+    WHERE produto_id=?
+    `,
+        [id],
+      );
+
+      // salva novas imagens
+
+      for (let i = 0; i < req.files.length; i++) {
+        await db.query(
+          `
+      INSERT INTO produto_imagens
+      (
+        produto_id,
+        url,
+        is_principal
+      )
+      VALUES (?,?,?)
+      `,
+          [id, `/uploads/${req.files[i].filename}`, i === 0 ? 1 : 0],
+        );
+      }
+    }
+
+    res.json({
+      mensagem: 'Produto atualizado com sucesso',
+    });
+  } catch (err) {
+    console.log(err);
+
+    res.status(500).json({
+      error: 'Erro ao atualizar produto',
+    });
+  }
+});
 
 // ===============================
 // 🔒 DELETAR PRODUTO
 // ===============================
-router.delete("/:id", verificarToken, isAdmin, async (req, res) => {
+router.delete('/:id', verificarToken, isAdmin, async (req, res) => {
   try {
+    await db.query('UPDATE produtos SET ativo = 0 WHERE id = ?', [req.params.id]);
 
-    await db.query(
-      "UPDATE produtos SET ativo = 0 WHERE id = ?",
-      [req.params.id]
-    );
-
-    res.json({ mensagem: "Produto desativado" });
-
+    res.json({ mensagem: 'Produto desativado' });
   } catch (err) {
-    res.status(500).json({ error: "Erro ao remover produto" });
+    res.status(500).json({ error: 'Erro ao remover produto' });
   }
 });
-
 
 export default router;

@@ -2,9 +2,10 @@
 import express from "express";
 import db from "../config/database.js";
 import jwt from "jsonwebtoken";
+import { verificarToken } from "../middlewares/auth.js";
 
 const router = express.Router();
-const SECRET = "segredo123";
+
 
 // Middleware para verificar token
 function auth(req, res, next) {
@@ -27,25 +28,25 @@ function auth(req, res, next) {
     console.log("USER ID:", req.userId);
     console.log("BODY:", req.body);
 
-    const { produto_id, quantidade } = req.body;
+    const {produto_id,variacao_id,quantidade} = req.body;
 
   // Primeiro, verifica se tem estoque
-  const sqlProduto = "SELECT quantidade FROM produtos WHERE id = ?";
+  const sqlProduto = "SELECT estoque FROM produto_variacoes WHERE id = ?";
   db.query(sqlProduto, [produto_id], (err, results) => {
     if (err) return res.status(500).json({ error: "Erro ao verificar produto" });
     if (results.length === 0) return res.status(404).json({ error: "Produto não encontrado" });
 
-    if (results[0].quantidade < quantidade) {
+    if (results[0].estoque < quantidade) {
       return res.status(400).json({ error: "Estoque insuficiente" });
     }
 
     // Inserir no carrinho
-    const sqlCarrinho = "INSERT INTO carrinho (usuario_id, produto_id, quantidade) VALUES (?, ?, ?)";
-    db.query(sqlCarrinho, [req.userId, produto_id, quantidade], (err2, result2) => {
+    const sqlCarrinho = "INSERT INTO carrinho(usuario_id, produto_id, variacao_id, quantidade) VALUES (?, ?, ?, ?)";
+    db.query(sqlCarrinho, [req.userId, produto_id, variacao_id, quantidade], (err2, result2) => {
       if (err2) return res.status(500).json({ error: "Erro ao adicionar ao carrinho" });
 
       // Atualiza estoque do produto
-      const sqlAtualiza = "UPDATE produtos SET quantidade = quantidade - ? WHERE id = ?";
+      const sqlAtualiza = "UPDATE produto_variacoes SET estoque = estoque - ? WHERE id = ?";
       db.query(sqlAtualiza, [quantidade, produto_id], (err3) => {
         if (err3) return res.status(500).json({ error: "Erro ao atualizar estoque" });
 

@@ -1,78 +1,168 @@
-// src/pages/Home.jsx
-import "./home.css";
-import { Link } from "react-router-dom";
-import { useEffect, useState, useContext } from "react";
-import api from "../services/api";
-import { CarrinhoContext } from "../context/CarrinhoContext";
+import './home.css';
+
+import { Link } from 'react-router-dom';
+
+import { useEffect, useState } from 'react';
+
+import { FaChevronLeft, FaChevronRight } from 'react-icons/fa';
+
+import api from '../services/api';
 
 export default function Home() {
   const [produtos, setProdutos] = useState([]);
-  const { adicionarAoCarrinho } = useContext(CarrinhoContext); // 🔹 useContext
+
+  const [slide, setSlide] = useState(0);
+
+  const banners = [
+    {
+      imagem: '/banner1.jpg',
+      titulo: 'Coleção Verão 2026',
+      texto: 'Estilo e elegância em cada peça',
+      link: '/produtos',
+    },
+    {
+      imagem: '/banner2.jpg',
+      titulo: 'Promoções exclusivas',
+      texto: 'Até 50% OFF por tempo limitado',
+      link: '/produtos',
+    },
+    {
+      imagem: '/banner3.jpg',
+      titulo: 'Novidades da semana',
+      texto: 'Lançamentos incríveis para você',
+      link: '/produtos',
+    },
+  ];
+
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    async function carregarProdutos() {
+    async function carregar() {
       try {
-        const res = await api.get("/produtos");
-        setProdutos(res.data.slice(0, 4));
+        const res = await api.get('/produtos');
+
+        setProdutos(res.data);
+
+        setLoading(false);
       } catch (err) {
-        console.error(err);
+        console.log(err);
+
+        setLoading(false);
       }
     }
 
-    carregarProdutos();
+    carregar();
   }, []);
+
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setSlide((old) => (old + 1) % banners.length);
+    }, 6000);
+
+    return () => clearInterval(timer);
+  }, [banners.length]);
+
+  const maisVendidos = produtos.slice(0, 4);
+
+  const novidades = produtos.slice(-4);
+
+  function ProdutoCard({ produto }) {
+    return (
+      <Link className="card-produto" to={`/produto/${produto.id}`}>
+        <img src={`${api.defaults.baseURL}${produto.imagem_principal}`} alt={produto.nome} />
+
+        <h3>{produto.nome}</h3>
+
+        <span>Ver produto</span>
+      </Link>
+    );
+  }
 
   return (
     <div>
-      {/* BANNER */}
-      <section className="banner">
-        <h1>Bem-vindo à DLmodas</h1>
-        <p>Moda feminina com estilo e preço justo</p>
-        <Link to="/produtos">
-          <button>Ver Produtos</button>
-        </Link>
+      {/* =====================
+      BANNER
+      ===================== */}
+      <section
+        className="banner-premium"
+        style={{
+          backgroundImage: `linear-gradient(
+      rgba(0, 0, 0, 0.45),
+      rgba(0, 0, 0, 0.45)
+    ), url('/banner-fashion.jpg')`,
+        }}
+      >
+        <div className="banner-premium-content">
+          <h1>Seu novo look está a um clique</h1>
+          <p>Moda premium, estilo único e entrega rápida para você</p>
+        </div>
       </section>
 
-      {/* PRODUTOS */}
-      <section className="produtos">
-        <h2>Produtos em Destaque</h2>
-        <div className="grid-produtos">
-          {produtos.map((produto) => (
-            <div key={produto.id} className="card-produto">
-              <img
-                src={produto.imagem || "https://via.placeholder.com/300x350"}
-                alt={produto.nome}
-              />
-              <h3>{produto.nome}</h3>
-              <p className="preco">R$ {produto.preco}</p>
-              <div className="botoes">
-                <button
-                  className="btn-carrinho"
-                  onClick={() => adicionarAoCarrinho(produto)}
-                >
-                  Carrinho
-                </button>
+      <Link
+        to={banners[slide].link}
+        className="hero"
+        style={{
+          backgroundImage: `
+      url(${banners[slide].imagem})
+    `,
+        }}
+      >
+        <button
+          className="arrow left"
+          onClick={(e) => {
+            e.preventDefault();
+            setSlide((slide - 1 + banners.length) % banners.length);
+          }}
+        >
+          ◀
+        </button>
 
-                <Link to="/carrinho">
-                  <button
-                    className="btn-comprar"
-                    onClick={() => adicionarAoCarrinho(produto)}
-                  >
-                    Comprar
-                  </button>
-                </Link>
-              </div>
-            </div>
+        <button
+          className="arrow right"
+          onClick={(e) => {
+            e.preventDefault();
+            setSlide((slide + 1) % banners.length);
+          }}
+        >
+          ▶
+        </button>
+      </Link>
+
+      {/* =====================
+      MAIS VENDIDOS
+      ===================== */}
+
+      {loading ? (
+        <p>Carregando produtos...</p>
+      ) : (
+        <div className="grid-produtos">
+          {maisVendidos.map((produto) => (
+            <ProdutoCard key={produto.id} produto={produto} />
+          ))}
+        </div>
+      )}
+
+      {/* =====================
+      NOVIDADES
+      ===================== */}
+
+      <section className="secao">
+        <h2></h2>
+
+        <div className="grid-produtos">
+          {novidades.map((produto) => (
+            <ProdutoCard key={produto.id} produto={produto} />
           ))}
         </div>
       </section>
 
-      {/* CTA FINAL */}
       <section className="cta">
         <h2>Novas coleções toda semana</h2>
-        <p>Descubra roupas incríveis para qualquer ocasião</p>
+
+        <p>Descubra peças incríveis</p>
+
         <Link to="/produtos">
-          <button>Explorar Loja</button>
+          <button>Explorar loja</button>
         </Link>
       </section>
     </div>

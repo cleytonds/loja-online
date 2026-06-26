@@ -13,6 +13,8 @@ import Busca from "./pages/Busca.jsx";
 import Perfil from "./pages/Perfil.jsx";
 import Favoritos from "./pages/Favoritos.jsx";
 import Admin from "./pages/Admin.jsx";
+import ProdutoDetalhe from "./pages/ProdutoDetalhe";
+import EditarProduto from "./pages/EditarProduto";
 
 import PrivateRoute from "./routes/PrivateRoute";
 import AdminRoute from "./routes/AdminRoute";
@@ -47,6 +49,8 @@ export default function App() {
               <Route path="/esqueci-senha" element={<EsqueciSenha />} />
               <Route path="/redefinir-senha/:token" element={<RedefinirSenha />} />
               <Route path="/busca" element={<Busca />} />
+              <Route path="/produto/:id"element={<ProdutoDetalhe/>}/>
+              <Route path="/admin/produto/:id"element={<EditarProduto />}/>
 
               {/* USUÁRIO LOGADO */}
               <Route
