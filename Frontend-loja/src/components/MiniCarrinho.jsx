@@ -2,6 +2,7 @@ import { useContext } from 'react';
 import { CarrinhoContext } from '../context/CarrinhoContext';
 import { useNavigate } from 'react-router-dom';
 import './MiniCarrinho.css';
+import api from '../services/api';
 
 export default function MiniCarrinho() {
   const {
@@ -50,8 +51,10 @@ export default function MiniCarrinho() {
             const nome = item.nome;
 
             const imagem =
-              typeof item.imagem === 'string' && item.imagem.startsWith('http')
-                ? item.imagem
+              typeof item.imagem === 'string'
+                ? item.imagem.startsWith('http')
+                  ? item.imagem
+                  : `${api.defaults.baseURL}${item.imagem}`
                 : 'https://via.placeholder.com/60';
 
             const preco = Number(item.preco) || 0;
@@ -69,10 +72,19 @@ export default function MiniCarrinho() {
                 <div className="info">
                   <p className="nome">{nome}</p>
 
+                  <p className="variacao">
+                    {item.cor || 'Sem cor'}
+                    {' • '}
+                    {item.tamanho || 'Sem tamanho'}
+                  </p>
+
                   <p className="preco">R$ {preco.toFixed(2)}</p>
 
-                  {/* ESTOQUE */}
-                  <small className="estoque">Disponível: {estoque}</small>
+                  <small className="estoque">
+                    {estoque <= 5
+                      ? ` Últimas ${estoque} unidades`
+                      : `${estoque} unidades disponíveis`}
+                  </small>
 
                   {/* CONTROLE */}
                   <div className="qtd-controle">

@@ -256,47 +256,63 @@ router.put('/:id', verificarToken, isAdmin, upload.array('imagens'), async (req,
 
     // ===============================
 
+    // ===============================
+    // ATUALIZA VARIAÇÕES SEM QUEBRAR PEDIDOS
+    // ===============================
+
     if (variacoes) {
       const lista = JSON.parse(variacoes);
 
-      await db.query(
+      // busca variações atuais
+
+      const [atuais] = await db.query(
         `
-
-        DELETE FROM produto_variacoes
-
-        WHERE produto_id = ?
-
-        `,
-
+    SELECT id
+    FROM produto_variacoes
+    WHERE produto_id=?
+    `,
         [id],
       );
 
-      for (let v of lista) {
-        await db.query(
-          `
+      for (const v of lista) {
+        // se já existe atualiza
 
-          INSERT INTO produto_variacoes
+        if (v.id) {
+          await db.query(
+            `
+        UPDATE produto_variacoes
 
-          (
+        SET
+          tamanho=?,
+          cor=?,
+          preco=?,
+          estoque=?
 
-            produto_id,
+        WHERE id=?
 
-            tamanho,
+        `,
+            [v.tamanho, v.cor, v.preco, v.estoque, v.id],
+          );
+        } else {
+          // nova variação
 
-            cor,
+          await db.query(
+            `
+        INSERT INTO produto_variacoes
+        (
+          produto_id,
+          tamanho,
+          cor,
+          preco,
+          estoque
+        )
 
-            preco,
+        VALUES (?,?,?,?,?)
 
-            estoque
-
-          )
-
-          VALUES (?,?,?,?,?)
-
-          `,
-
-          [id, v.tamanho, v.cor, v.preco, v.estoque],
-        );
+        `,
+            [id, v.tamanho, v.cor, v.preco, v.estoque],
+          );
+        }
       }
     }
 

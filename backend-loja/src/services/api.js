@@ -1,15 +1,15 @@
-import axios from "axios";
+import axios from 'axios';
 
 // pega a URL do backend do .env, se não tiver usa localhost
-const baseURL = import.meta.env.VITE_API_URL || "http://localhost:3000";
+const baseURL = import.meta.env.VITE_API_URL || 'http://localhost:3000';
 
 const api = axios.create({
-  baseURL
+  baseURL,
 });
 
-// 🔥 INTERCEPTOR
+//  INTERCEPTOR
 api.interceptors.request.use((config) => {
-  const token = localStorage.getItem("token");
+  const token = localStorage.getItem('token');
 
   if (token) {
     config.headers.Authorization = `Bearer ${token}`;

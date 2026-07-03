@@ -1,294 +1,325 @@
 /* =========================
-   BASE PREMIUM
+   LOJA PREMIUM
 ========================= */
 
 .loja-container {
-  width: 100%;
-  max-width: 1280px;
+  max-width: 1400px;
+
   margin: auto;
 
-  padding: 40px 20px;
+  padding: 30px 40px;
 
   background: #fafafa;
 
-  font-family:
-    system-ui,
-    -apple-system,
-    sans-serif;
+  min-height: 100vh;
 }
 
-/* =========================
-   BUSCA (MINIMALISTA)
-========================= */
+/* BUSCA */
 
 .busca-produto {
   width: 100%;
-  padding: 14px 16px;
 
-  border: none;
-  border-bottom: 1px solid #ddd;
+  height: 50px;
 
-  background: transparent;
+  border-radius: 16px;
+
+  border: 1px solid #ddd;
+
+  padding: 0 20px;
 
   font-size: 15px;
+
   outline: none;
+
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.06);
+
+  transition: 0.3s;
 }
 
 .busca-produto:focus {
-  border-bottom: 1px solid #111;
+  border-color: #111;
 }
 
-/* =========================
-   CATEGORIAS (LUXO SIMPLES)
-========================= */
+/* CATEGORIAS */
 
 .categorias-produtos {
   display: flex;
-  gap: 14px;
-  flex-wrap: wrap;
+
+  gap: 12px;
 
   margin: 25px 0;
+
+  overflow-x: auto;
+
+  padding-bottom: 10px;
 }
 
 .categorias-produtos button {
-  background: transparent;
   border: none;
 
-  font-size: 14px;
-  font-weight: 500;
+  background: white;
 
-  color: #666;
+  padding: 12px 22px;
+
+  border-radius: 30px;
 
   cursor: pointer;
 
-  transition: 0.2s;
+  font-weight: 600;
+
+  box-shadow: 0 5px 15px rgba(0, 0, 0, 0.08);
+
+  transition: 0.3s;
+
+  white-space: nowrap;
 }
 
 .categorias-produtos button:hover {
-  color: #111;
+  transform: translateY(-3px);
 }
 
 .categorias-produtos .ativa {
-  color: #111;
-  font-weight: 600;
+  background: #111;
+
+  color: white;
 }
 
-/* =========================
-   GRID PREMIUM
-========================= */
+/* GRID */
 
 .produtos-grid {
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  gap: 22px;
+
+  grid-template-columns: repeat(auto-fill, minmax(230px, 1fr));
+
+  gap: 25px;
 }
 
-/* =========================
-   IMAGEM (FOCO TOTAL NO PRODUTO)
-========================= */
+/* CARD */
+
+.produto-card {
+  background: white;
+
+  border-radius: 25px;
+
+  overflow: hidden;
+
+  box-shadow: 0 15px 40px rgba(0, 0, 0, 0.08);
+
+  transition: 0.3s;
+}
+
+.produto-card:hover {
+  transform: translateY(-8px);
+
+  box-shadow: 0 25px 60px rgba(0, 0, 0, 0.15);
+}
+
+/* IMAGEM */
 
 .img-box {
+  height: 330px;
+
   position: relative;
-  width: 100%;
-  aspect-ratio: 1 / 1;
+
   overflow: hidden;
-  border-radius: 0; /* remove bordas */
-  background: transparent;
+
+  cursor: pointer;
+
+  background: #eee;
 }
 
 .img-box img {
   width: 100%;
+
   height: 100%;
-  object-fit: cover; /* ESSENCIAL: preenche tudo */
-  display: block;
-  transition: 0.3s ease;
+
+  object-fit: cover;
+
+  transition: 0.4s;
 }
 
-/* =========================
-   FAVORITO (LUXO DISCRETO)
-========================= */
+.produto-card:hover img {
+  transform: scale(1.08);
+}
+
+/* FAVORITO */
 
 .fav-btn {
   position: absolute;
-  top: 14px;
-  right: 14px;
 
-  background: rgba(255, 255, 255, 0.85);
-  backdrop-filter: blur(6px);
+  top: 12px;
+  right: 12px;
 
-  border: none;
+  width: 32px;
+  height: 32px;
+
   border-radius: 50%;
 
-  width: 36px;
-  height: 36px;
+  border: none;
 
-  font-size: 18px;
+  background: rgba(255, 255, 255, 0.85);
 
   display: flex;
   align-items: center;
   justify-content: center;
 
+  font-size: 18px;
+
   cursor: pointer;
 
-  transition: 0.25s ease;
+  color: #0f0d0f;
 
-  color: #333;
+  box-shadow: 0 5px 15px rgba(0, 0, 0, 0.12);
+
+  transition: 0.25s;
+
+  padding: 0;
 }
+/* INFO */
 
-.fav-btn:hover {
-  transform: scale(1.1);
+.produto-info-card {
+  padding: 18px;
 }
-
-.fav-btn.active {
-  color: #ff3b7a;
-}
-
-/* =========================
-   INFO DO PRODUTO
-========================= */
 
 .produto-info-card h3 {
-  font-size: 14px;
-  font-weight: 400;
+  font-size: 15px;
 
-  color: #111;
+  margin: 0 0 10px;
 
-  margin: 8px 0 6px;
-}
+  height: 40px;
 
-/* PREÇO PREMIUM */
-.preco-area {
-  margin-top: 6px;
+  overflow: hidden;
 }
 
 .preco-area strong {
-  font-size: 18px;
-  font-weight: 700;
-  letter-spacing: 0.5px;
+  font-size: 22px;
 
   color: #111;
-  position: relative;
-  display: inline-block;
 }
 
-/* etiqueta fina acima do preço */
-.preco-area strong::before {
-  content: 'PREÇO';
-  display: block;
-
-  font-size: 10px;
-  font-weight: 500;
-  letter-spacing: 2px;
-
-  color: #999;
-
-  margin-bottom: 2px;
-}
-
-/* =========================
-   AÇÕES MINIMALISTAS
-========================= */
+/* BOTÕES */
 
 .produto-acoes {
   display: flex;
+
   gap: 10px;
 
-  margin-top: 10px;
+  margin-top: 15px;
 }
 
 .btn-carrinho-mini {
-  width: 42px;
-  height: 40px;
+  width: 45px;
 
-  border-radius: 10px;
-  border: 1px solid #e5e5e5;
+  border: none;
 
-  background: white;
+  border-radius: 12px;
+
+  background: #eee;
 
   cursor: pointer;
-
-  transition: 0.2s;
-}
-
-.btn-carrinho-mini:hover {
-  border-color: #111;
-  transform: scale(1.05);
 }
 
 .btn-comprar-mini {
   flex: 1;
-  height: 40px;
 
   border: none;
-  border-radius: 10px;
 
-  background: linear-gradient(135deg, #111, #2a2a2a);
+  border-radius: 12px;
+
+  background: #111;
+
   color: white;
-
-  font-weight: 600;
-  font-size: 13px;
-  letter-spacing: 0.5px;
 
   cursor: pointer;
 
-  transition: all 0.25s ease;
-
-  position: relative;
-  overflow: hidden;
+  font-weight: 700;
 }
 
-/* efeito hover marketplace premium */
-.btn-comprar-mini:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 8px 18px rgba(0, 0, 0, 0.25);
-}
-
-/* efeito brilho passando */
-.btn-comprar-mini::after {
-  content: '';
-  position: absolute;
-  top: 0;
-  left: -120%;
-
-  width: 100%;
-  height: 100%;
-
-  background: linear-gradient(120deg, transparent, rgba(255, 255, 255, 0.25), transparent);
-
-  transition: 0.5s;
-}
-
-.btn-comprar-mini:hover::after {
-  left: 120%;
-}
 /* =========================
-   RESPONSIVO
+   MOBILE - 2 PRODUTOS LADO A LADO
 ========================= */
 
-.produtos-grid {
-  display: grid;
-  grid-template-columns: repeat(5, 1fr);
-  gap: 18px;
-}
-
-/* TABLET */
-@media (max-width: 1024px) {
-  .produtos-grid {
-    grid-template-columns: repeat(3, 1fr);
-  }
-}
-
-/* CELULAR */
 @media (max-width: 768px) {
+  .loja-container {
+    padding: 15px;
+  }
+
   .produtos-grid {
-    grid-template-columns: repeat(2, 1fr);
+    display: grid;
+
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+
     gap: 12px;
   }
+
+  /* CARD */
+
+  .produto-card {
+    border-radius: 18px;
+  }
+
+  /* IMAGEM */
+
+  .img-box {
+    height: 230px;
+  }
+
+  .img-box img {
+    object-fit: contain;
+    background: #f5f5f5;
+  }
+
+  /* FAVORITO */
+
+  .fav-btn {
+    width: 32px;
+
+    height: 32px;
+
+    font-size: 16px;
+
+    top: 10px;
+
+    right: 10px;
+  }
+
+  /* TEXTO */
+
+  .produto-info-card {
+    padding: 10px;
+  }
+
+  .produto-info-card h3 {
+    font-size: 13px;
+
+    height: 35px;
+  }
+
+  .preco-area strong {
+    font-size: 16px;
+  }
+
+  /* BOTÕES */
+
+  .produto-acoes {
+    gap: 6px;
+  }
+
+  .btn-carrinho-mini {
+    width: 38px;
+
+    height: 35px;
+  }
+
+  .btn-comprar-mini {
+    font-size: 12px;
+
+    height: 35px;
+  }
 }
 
-/* CELULAR PEQUENO */
 @media (max-width: 380px) {
-  .produtos-grid {
-    grid-template-columns: repeat(2, 1fr);
+  .img-box {
+    height: 200px;
   }
 }

@@ -23,7 +23,8 @@ app.use((req, res, next) => {
 // CORS
 app.use(
   cors({
-    origin: ['http://localhost:5173', 'http://192.168.0.107:5173'],
+    origin: process.env.CORS_ORIGINS?.split(','),
+    credentials: true,
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization'],
@@ -48,6 +49,10 @@ app.get('/', (req, res) => {
 });
 
 const PORT = process.env.PORT || 3000;
+
+if (!process.env.JWT_SECRET) {
+  throw new Error('JWT_SECRET não definido no .env');
+}
 
 app.listen(3000, '0.0.0.0', () => {
   console.log('API rodando');

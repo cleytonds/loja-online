@@ -1,12 +1,12 @@
-import React, { useEffect, useState } from "react";
-import "./MeusPedidos.css";
-import api from "../services/api";
+import React, { useEffect, useState } from 'react';
+import './MeusPedidos.css';
+import api from '../services/api';
 
 export default function MeusPedidos({ usuario_id }) {
   const [pedidos, setPedidos] = useState([]);
   const [modalPedido, setModalPedido] = useState(null);
-  const [filtroStatus, setFiltroStatus] = useState("todos");
-  const [ordenarData, setOrdenarData] = useState("desc");
+  const [filtroStatus, setFiltroStatus] = useState('todos');
+  const [ordenarData, setOrdenarData] = useState('desc');
 
   useEffect(() => {
     async function carregarPedidos() {
@@ -40,7 +40,7 @@ export default function MeusPedidos({ usuario_id }) {
   let pedidosArray = Object.values(pedidosAgrupados);
 
   // Filtro por status
-  if (filtroStatus !== "todos") {
+  if (filtroStatus !== 'todos') {
     pedidosArray = pedidosArray.filter((p) => p.status === filtroStatus);
   }
 
@@ -48,19 +48,17 @@ export default function MeusPedidos({ usuario_id }) {
   pedidosArray.sort((a, b) => {
     const dateA = new Date(a.criado_em).getTime();
     const dateB = new Date(b.criado_em).getTime();
-    return ordenarData === "asc" ? dateA - dateB : dateB - dateA;
+    return ordenarData === 'asc' ? dateA - dateB : dateB - dateA;
   });
 
   const cancelarPedido = async (pedido_id) => {
     try {
       await api.put(`/pedidos/cancelar/${pedido_id}`);
       setPedidos((prev) =>
-        prev.map((p) =>
-          p.pedido_id === pedido_id ? { ...p, status: "cancelado" } : p
-        )
+        prev.map((p) => (p.pedido_id === pedido_id ? { ...p, status: 'cancelado' } : p)),
       );
     } catch {
-      alert("Erro ao cancelar pedido");
+      alert('Erro ao cancelar pedido');
     }
   };
 
@@ -71,9 +69,23 @@ export default function MeusPedidos({ usuario_id }) {
       const resPedidos = await api.get(`/pedidos/meus/${usuario_id}`);
       setPedidos(resPedidos.data);
     } catch {
-      alert("Erro ao repetir pedido");
+      alert('Erro ao repetir pedido');
     }
   };
+
+  const mensagem =
+    `🛒 NOVO PEDIDO DL MODAS\n\n` +
+    `Pedido: #${pedidoId}\n` +
+    `Total: ${formatarPreco(total)}\n\n` +
+    `Itens:\n` +
+    itensSnapshot
+      .map(
+        (i) =>
+          `- ${i.nome || 'Produto'} (${i.tamanho || '-'} / ${i.cor || '-'}) x${i.quantidade} = ${formatarPreco(
+            i.preco * i.quantidade,
+          )}`,
+      )
+      .join('\n');
 
   const abrirModal = (pedido) => setModalPedido(pedido);
   const fecharModal = () => setModalPedido(null);
@@ -84,20 +96,14 @@ export default function MeusPedidos({ usuario_id }) {
 
       {/* Filtros e ordenação */}
       <div className="filtros">
-        <select
-          value={filtroStatus}
-          onChange={(e) => setFiltroStatus(e.target.value)}
-        >
+        <select value={filtroStatus} onChange={(e) => setFiltroStatus(e.target.value)}>
           <option value="todos">Todos</option>
           <option value="pendente">Pendente</option>
           <option value="concluido">Concluído</option>
           <option value="cancelado">Cancelado</option>
         </select>
 
-        <select
-          value={ordenarData}
-          onChange={(e) => setOrdenarData(e.target.value)}
-        >
+        <select value={ordenarData} onChange={(e) => setOrdenarData(e.target.value)}>
           <option value="desc">Mais recentes</option>
           <option value="asc">Mais antigos</option>
         </select>
@@ -110,14 +116,11 @@ export default function MeusPedidos({ usuario_id }) {
           <div key={pedido.pedido_id} className="pedido-card">
             <h2>Pedido #{pedido.pedido_id}</h2>
             <p>
-              Total: R${" "}
-              {pedido.itens
-                .reduce((sum, i) => sum + i.preco * i.quantidade, 0)
-                .toFixed(2)}
+              Total: R${' '}
+              {pedido.itens.reduce((sum, i) => sum + i.preco * i.quantidade, 0).toFixed(2)}
             </p>
             <p>
-              Status:{" "}
-              <span className={`status-${pedido.status}`}>{pedido.status}</span>
+              Status: <span className={`status-${pedido.status}`}>{pedido.status}</span>
             </p>
             <p>Criado em: {new Date(pedido.criado_em).toLocaleString()}</p>
             <p>Total de itens: {pedido.itens.length}</p>
@@ -135,22 +138,13 @@ export default function MeusPedidos({ usuario_id }) {
             </div>
 
             <div className="pedido-acoes">
-              <button
-                className="btn-detalhes"
-                onClick={() => abrirModal(pedido)}
-              >
+              <button className="btn-detalhes" onClick={() => abrirModal(pedido)}>
                 Detalhes
               </button>
-              <button
-                className="btn-repetir"
-                onClick={() => repetirPedido(pedido.pedido_id)}
-              >
+              <button className="btn-repetir" onClick={() => repetirPedido(pedido.pedido_id)}>
                 Repetir
               </button>
-              <button
-                className="btn-cancelar"
-                onClick={() => cancelarPedido(pedido.pedido_id)}
-              >
+              <button className="btn-cancelar" onClick={() => cancelarPedido(pedido.pedido_id)}>
                 Cancelar
               </button>
             </div>
@@ -164,16 +158,11 @@ export default function MeusPedidos({ usuario_id }) {
           <div className="modal-content" onClick={(e) => e.stopPropagation()}>
             <h2>Detalhes do Pedido #{modalPedido.pedido_id}</h2>
             <p>
-              Total: R${" "}
-              {modalPedido.itens
-                .reduce((sum, i) => sum + i.preco * i.quantidade, 0)
-                .toFixed(2)}
+              Total: R${' '}
+              {modalPedido.itens.reduce((sum, i) => sum + i.preco * i.quantidade, 0).toFixed(2)}
             </p>
             <p>
-              Status:{" "}
-              <span className={`status-${modalPedido.status}`}>
-                {modalPedido.status}
-              </span>
+              Status: <span className={`status-${modalPedido.status}`}>{modalPedido.status}</span>
             </p>
             <p>Criado em: {new Date(modalPedido.criado_em).toLocaleString()}</p>
             <p>Total de itens: {modalPedido.itens.length}</p>

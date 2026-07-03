@@ -14,7 +14,27 @@ export async function getPerfil(req, res) {
     if (!userId) return res.status(401).json(padronizarErro('Não autorizado'));
 
     const [rows] = await db.query(
-      'SELECT id, nome, email, foto, tipo, ativo FROM usuarios WHERE id = ?',
+      `
+      SELECT 
+        id,
+        nome,
+        email,
+        foto,
+
+        celular,
+        rua,
+        numero,
+        bairro,
+        cidade,
+        estado,
+        cep,
+
+        tipo,
+        ativo
+
+      FROM usuarios
+      WHERE id = ?
+      `,
       [userId],
     );
 
@@ -31,21 +51,43 @@ export async function getPerfil(req, res) {
 export async function putPerfil(req, res) {
   try {
     const userId = getUsuarioIdLogado(req);
-    if (!userId) return res.status(401).json(padronizarErro('Não autorizado'));
 
-    const { nome, email, foto } = req.body ?? {};
-
-    // compatível: não exige campos; apenas atualiza o que vier
-    if (nome == null && email == null && foto == null) {
-      return res
-        .status(400)
-        .json(padronizarErro('Informe ao menos um campo para atualizar: nome, email ou foto'));
+    if (!userId) {
+      return res.status(401).json(padronizarErro('Não autorizado'));
     }
 
-    // validações mínimas
+    const {
+      nome,
+      email,
+      foto,
+
+      celular,
+      rua,
+      numero,
+      bairro,
+      cidade,
+      estado,
+      cep,
+    } = req.body ?? {};
+
+    if (
+      nome == null &&
+      email == null &&
+      foto == null &&
+      celular == null &&
+      rua == null &&
+      numero == null &&
+      bairro == null &&
+      cidade == null &&
+      estado == null &&
+      cep == null
+    ) {
+      return res.status(400).json(padronizarErro('Informe algum dado para atualizar'));
+    }
+
     const emailNormalizado = typeof email === 'string' ? email.trim().toLowerCase() : null;
+
     const nomeNormalizado = typeof nome === 'string' ? nome.trim() : null;
-    const fotoNormalizada = foto == null ? null : foto;
 
     if (nomeNormalizado !== null && nomeNormalizado.length === 0) {
       return res.status(400).json(padronizarErro('Nome inválido'));
@@ -53,52 +95,104 @@ export async function putPerfil(req, res) {
 
     if (emailNormalizado !== null) {
       const regex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-      if (!regex.test(emailNormalizado))
+
+      if (!regex.test(emailNormalizado)) {
         return res.status(400).json(padronizarErro('Email inválido'));
+      }
 
       const [existsRows] = await db.query(
-        'SELECT id FROM usuarios WHERE LOWER(TRIM(email)) = LOWER(TRIM(?)) AND id <> ? LIMIT 1',
+        `
+        SELECT id 
+        FROM usuarios
+        WHERE email = ?
+        AND id <> ?
+        LIMIT 1
+        `,
         [emailNormalizado, userId],
       );
-      if (existsRows?.length) return res.status(400).json(padronizarErro('Email já cadastrado'));
+
+      if (existsRows.length) {
+        return res.status(400).json(padronizarErro('Email já cadastrado'));
+      }
     }
 
     const updates = [];
     const params = [];
 
-    if (nomeNormalizado !== null) {
-      updates.push('nome = ?');
-      params.push(nomeNormalizado);
-    }
+    const campos = {
+      nome: nomeNormalizado,
 
-    if (emailNormalizado !== null) {
-      updates.push('email = ?');
-      params.push(emailNormalizado);
-    }
+      email: emailNormalizado,
 
-    if (fotoNormalizada !== null) {
-      updates.push('foto = ?');
-      params.push(fotoNormalizada);
-    }
+      foto,
 
-    // monta query dinâmica
-    const sql = `UPDATE usuarios SET ${updates.join(', ')} WHERE id = ?`;
+      celular,
+
+      rua,
+
+      numero,
+
+      bairro,
+
+      cidade,
+
+      estado,
+
+      cep,
+    };
+
+    Object.entries(campos).forEach(([campo, valor]) => {
+      if (valor !== null && valor !== undefined) {
+        updates.push(`${campo} = ?`);
+
+        params.push(valor);
+      }
+    });
+
+    const sql = `
+      UPDATE usuarios
+      SET ${updates.join(', ')}
+      WHERE id = ?
+    `;
+
     params.push(userId);
 
     await db.query(sql, params);
 
     const [rows] = await db.query(
-      'SELECT id, nome, email, foto, tipo, ativo FROM usuarios WHERE id = ?',
+      `
+      SELECT
+
+      id,
+      nome,
+      email,
+      foto,
+
+      celular,
+      rua,
+      numero,
+      bairro,
+      cidade,
+      estado,
+      cep,
+
+      tipo,
+      ativo
+
+      FROM usuarios
+      WHERE id = ?
+
+      `,
       [userId],
     );
 
     return res.json(rows[0]);
   } catch (err) {
     console.error('ERRO PUT /usuarios/perfil:', err);
+
     return res.status(500).json(padronizarErro('Erro ao atualizar perfil'));
   }
 }
-
 export async function putSenha(req, res) {
   try {
     const userId = getUsuarioIdLogado(req);

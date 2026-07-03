@@ -207,7 +207,7 @@ export default function ProdutoDetalhe() {
         </div>
 
         <p>
-          Estoque disponível: <strong>{estoque}</strong>
+          Últimas unidades: <strong>{estoque}</strong>
         </p>
 
         <div className="quantidade">
@@ -221,11 +221,20 @@ export default function ProdutoDetalhe() {
 
           <span>{quantidade}</span>
 
-          <button onClick={aumentarQuantidade}>+</button>
+          <button
+            onClick={() => {
+              if (quantidade < estoque) {
+                setQuantidade(quantidade + 1);
+              }
+            }}
+            disabled={quantidade >= estoque}
+          >
+            +
+          </button>
         </div>
 
         <button className="btn-carrinho" onClick={adicionar}>
-          🛒 Adicionar ao carrinho
+          Adicionar ao carrinho
         </button>
 
         <button className="btn-comprar" onClick={comprarAgora}>

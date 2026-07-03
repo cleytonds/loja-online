@@ -1,31 +1,32 @@
-import { HashRouter as Router, Routes, Route } from "react-router-dom";
+import { HashRouter as Router, Routes, Route } from 'react-router-dom';
 
-import Home from "./pages/Home.jsx";
-import Produtos from "./pages/produtos.jsx";
-import Login from "./pages/Login.jsx";
-import Cadastro from "./pages/Cadastro.jsx";
-import Carrinho from "./pages/Carrinho.jsx";
-import Confirmacao from "./pages/Confirmacao.jsx";
-import MeusPedidos from "./pages/MeusPedidos.jsx";
-import EsqueciSenha from "./pages/EsqueciSenha.jsx";
-import RedefinirSenha from "./pages/RedefinirSenha.jsx";
-import Busca from "./pages/Busca.jsx";
-import Perfil from "./pages/Perfil.jsx";
-import Favoritos from "./pages/Favoritos.jsx";
-import Admin from "./pages/Admin.jsx";
-import ProdutoDetalhe from "./pages/ProdutoDetalhe";
-import EditarProduto from "./pages/EditarProduto";
+import Home from './pages/Home.jsx';
+import Produtos from './pages/produtos.jsx';
+import Login from './pages/Login.jsx';
+import Cadastro from './pages/Cadastro.jsx';
+import Carrinho from './pages/Carrinho.jsx';
+import Confirmacao from './pages/Confirmacao.jsx';
+import MeusPedidos from './pages/MeusPedidos.jsx';
+import EsqueciSenha from './pages/EsqueciSenha.jsx';
+import RedefinirSenha from './pages/RedefinirSenha.jsx';
+import Busca from './pages/Busca.jsx';
+import Perfil from './pages/Perfil.jsx';
+import Favoritos from './pages/Favoritos.jsx';
+import Admin from './pages/Admin.jsx';
+import ProdutoDetalhe from './pages/ProdutoDetalhe';
+import EditarProduto from './pages/EditarProduto';
 
-import PrivateRoute from "./routes/PrivateRoute";
-import AdminRoute from "./routes/AdminRoute";
+import PrivateRoute from './routes/PrivateRoute';
+import AdminRoute from './routes/AdminRoute';
 
-import Header from "./components/Header";
-import MiniCarrinho from "./components/MiniCarrinho";
+import Header from './components/Header';
+import MiniCarrinho from './components/MiniCarrinho';
 
-import { CarrinhoProvider } from "./context/CarrinhoContext";
-import { AuthProvider } from "./context/AuthContext";
+import { CarrinhoProvider } from './context/CarrinhoContext';
+import { AuthProvider } from './context/AuthContext';
+import Pagamento from './pages/Pagamento';
 
-import "./App.css";
+import './App.css';
 
 export default function App() {
   return (
@@ -37,7 +38,6 @@ export default function App() {
 
           <main className="main-content">
             <Routes>
-
               {/* PÁGINAS PÚBLICAS */}
               <Route path="/" element={<Home />} />
               <Route path="/produtos" element={<Produtos />} />
@@ -49,8 +49,9 @@ export default function App() {
               <Route path="/esqueci-senha" element={<EsqueciSenha />} />
               <Route path="/redefinir-senha/:token" element={<RedefinirSenha />} />
               <Route path="/busca" element={<Busca />} />
-              <Route path="/produto/:id"element={<ProdutoDetalhe/>}/>
-              <Route path="/admin/produto/:id"element={<EditarProduto />}/>
+              <Route path="/produto/:id" element={<ProdutoDetalhe />} />
+              <Route path="/admin/produto/:id" element={<EditarProduto />} />
+              <Route path="/pagamento" element={<Pagamento />} />
 
               {/* USUÁRIO LOGADO */}
               <Route
@@ -80,13 +81,10 @@ export default function App() {
                   </AdminRoute>
                 }
               />
-
             </Routes>
           </main>
 
-          <footer className="footer">
-            © {new Date().getFullYear()} DLmodas
-          </footer>
+          <footer className="footer">© {new Date().getFullYear()} DLmodas</footer>
         </CarrinhoProvider>
       </AuthProvider>
     </Router>

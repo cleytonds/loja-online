@@ -1,28 +1,46 @@
-import { useContext } from 'react';
+import { useContext, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+
 import { CarrinhoContext } from '../context/CarrinhoContext';
 import api from '../services/api';
+
 import './Carrinho.css';
 
 export default function Carrinho() {
-  const { carrinho, removerDoCarrinho, aumentarQuantidade, diminuirQuantidade } =
+  const { carrinho, removerDoCarrinho, aumentarQuantidade, diminuirQuantidade, limparCarrinho } =
     useContext(CarrinhoContext);
 
   const navigate = useNavigate();
+  const [finalizando, setFinalizando] = useState(false);
 
   const formatarPreco = (valor) =>
     new Intl.NumberFormat('pt-BR', {
       style: 'currency',
       currency: 'BRL',
-    }).format(valor);
+    }).format(Number(valor || 0));
 
-  const total = carrinho.reduce((acc, item) => acc + item.preco * item.quantidade, 0);
+  const total = carrinho.reduce(
+    (acc, item) => acc + Number(item.preco || 0) * Number(item.quantidade || 0),
+    0,
+  );
 
-  async function finalizarCompra() {
-    if (carrinho.length === 0) {
+  async function finalizarCompra(metodo) {
+    if (finalizando) return;
+
+    if (!carrinho.length) {
       alert('Carrinho vazio');
       return;
     }
+    const itensSnapshot = carrinho.map((item) => ({
+      produto_id: item.produto_id,
+      variacao_id: item.variacao_id,
+      quantidade: item.quantidade,
+      preco: Number(item.preco),
+
+      nome: item.nome,
+      cor: item.cor,
+      tamanho: item.tamanho,
+    }));
 
     const token = localStorage.getItem('token');
 
@@ -31,16 +49,26 @@ export default function Carrinho() {
       return;
     }
 
+    setFinalizando(true);
+
     try {
-      const itensPedido = carrinho.map((item) => ({
+      // snapshot seguro (evita mutação e bugs de estado)
+      const itensSnapshot = carrinho.map((item) => ({
         produto_id: item.produto_id,
         variacao_id: item.variacao_id,
-        quantidade: item.quantidade,
+        quantidade: Number(item.quantidade),
+        preco: Number(item.preco),
+        nome: item.nome,
+        cor: item.cor,
+        tamanho: item.tamanho,
       }));
 
-      await api.post(
+      const res = await api.post(
         '/pedidos',
-        { itens: itensPedido },
+        {
+          itens: itensSnapshot,
+          pagamento: metodo,
+        },
         {
           headers: {
             Authorization: `Bearer ${token}`,
@@ -48,21 +76,67 @@ export default function Carrinho() {
         },
       );
 
-      alert('Pedido realizado ');
+      const pedidoId = res.data?.pedido_id;
 
-      navigate('/');
+      if (!pedidoId) {
+        throw new Error('Pedido não retornou ID');
+      }
+
+      // =========================
+      // PIX
+      // =========================
+      if (metodo === 'pix') {
+        sessionStorage.setItem(
+          'pedido_pagamento',
+          JSON.stringify({
+            id: pedidoId,
+            total: res.data.total,
+          }),
+        );
+
+        limparCarrinho();
+        navigate('/pagamento');
+        return;
+      }
+
+      // =========================
+      // WHATSAPP
+      // =========================
+      if (metodo === 'whatsapp') {
+        const mensagem =
+          `🛒 NOVO PEDIDO DL MODAS\n\n` +
+          `Pedido: #${pedidoId}\n` +
+          `Total: ${formatarPreco(total)}\n\n` +
+          `Itens:\n` +
+          itensSnapshot
+            .map(
+              (i) =>
+                `- ${i.nome} (${i.tamanho || '-'} / ${i.cor || '-'}) x${i.quantidade} = ${formatarPreco(
+                  i.preco * i.quantidade,
+                )}`,
+            )
+            .join('\n');
+
+        //  LIMPA PRIMEIRO
+        limparCarrinho();
+
+        //  DEPOIS ABRE WHATSAPP
+        window.open(`https://wa.me/5581993563122?text=${encodeURIComponent(mensagem)}`, '_blank');
+
+        return;
+      }
     } catch (err) {
-      console.log(err);
-
-      alert('Erro ao finalizar');
+      console.error('ERRO CHECKOUT:', err);
+      alert('Erro ao criar pedido');
+    } finally {
+      setFinalizando(false);
     }
   }
 
-  if (carrinho.length === 0) {
+  if (!carrinho.length) {
     return (
       <div className="carrinho-vazio">
-        <h2>Seu carrinho está vazio </h2>
-
+        <h2>Carrinho vazio</h2>
         <button onClick={() => navigate('/')}>Continuar comprando</button>
       </div>
     );
@@ -76,7 +150,10 @@ export default function Carrinho() {
         {carrinho.map((item) => (
           <div className="carrinho-item" key={item.variacao_id}>
             <div className="item-info">
-              <img src={`${api.defaults.baseURL}${item.imagem}`} alt={item.nome} />
+              <img
+                src={item.imagem ? `${api.defaults.baseURL}${item.imagem}` : '/placeholder.png'}
+                alt={item.nome}
+              />
 
               <div>
                 <h2>{item.nome}</h2>
@@ -109,12 +186,15 @@ export default function Carrinho() {
       <div className="carrinho-resumo">
         <div className="resumo-linha">
           <span>Total</span>
-
           <span>{formatarPreco(total)}</span>
         </div>
 
-        <button className="btn-finalizar" onClick={finalizarCompra}>
-          Finalizar compra
+        <button disabled={finalizando} onClick={() => finalizarCompra('pix')}>
+          {finalizando ? 'Processando...' : 'Finalizar com PIX'}
+        </button>
+
+        <button disabled={finalizando} onClick={() => finalizarCompra('whatsapp')}>
+          Finalizar no WhatsApp
         </button>
       </div>
     </div>

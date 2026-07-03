@@ -1,339 +1,405 @@
 /* =========================
-   BASE
+   HOME PREMIUM LUXO
 ========================= */
-body {
-  margin: 0;
-  font-family:
-    system-ui,
-    -apple-system,
-    Segoe UI,
-    sans-serif;
-  background: #f7f7f7;
-  color: #111;
+
+.home {
+  background: #fafafa;
+  width: 100%;
+  overflow-x: hidden;
 }
 
 /* =========================
-   HERO BANNER
+   BANNER PRINCIPAL
 ========================= */
-.hero {
-  height: 70vh;
-  position: relative;
 
-  display: flex;
-  align-items: center;
-  justify-content: center;
+.banner-premium {
+  width: 100%;
 
-  color: white;
+  min-height: 520px;
 
   background-size: cover;
   background-position: center;
 
-  transition: all 0.5s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
-.hero::after {
-  background: rgba(0, 0, 0, 0.15);
-}
-.hero-content {
-  position: relative;
+.banner-premium-content {
   text-align: center;
-  z-index: 2;
-  max-width: 700px;
-}
-
-.hero-content h1 {
-  font-size: 42px;
-  font-weight: 700;
-  letter-spacing: 1px;
-}
-
-.hero-content p {
-  font-size: 16px;
-  opacity: 0.85;
-  margin-top: 10px;
-}
-
-.hero-content button {
-  margin-top: 20px;
-  padding: 12px 26px;
-
-  border: none;
-  border-radius: 8px;
-
-  background: white;
-  color: black;
-
-  font-weight: 600;
-  cursor: pointer;
-
-  transition: 0.3s;
-}
-
-.hero-content button:hover {
-  transform: translateY(-2px);
-  background: #eaeaea;
-}
-
-/* =========================
-   ARROWS
-========================= */
-.arrow {
-  position: absolute;
-  top: 50%;
-  transform: translateY(-50%);
-
-  background: rgba(255, 255, 255, 0.15);
-  border: 1px solid rgba(255, 255, 255, 0.3);
 
   color: white;
 
+  padding: 20px;
+}
+
+.banner-premium-content h1 {
+  font-size: clamp(28px, 5vw, 55px);
+
+  font-weight: 700;
+
+  margin-bottom: 15px;
+}
+
+.banner-premium-content p {
+  font-size: clamp(15px, 2vw, 22px);
+}
+
+/* =========================
+   CARROSSEL
+========================= */
+
+.hero {
+  width: 100%;
+
+  height: 500px;
+
+  background-size: cover;
+
+  background-position: center;
+
+  background-repeat: no-repeat;
+
+  position: relative;
+
+  display: flex;
+
+  align-items: center;
+
+  justify-content: space-between;
+}
+
+.arrow {
+  position: absolute;
+
+  top: 50%;
+
+  transform: translateY(-50%);
+
   width: 45px;
+
   height: 45px;
 
   border-radius: 50%;
 
-  display: flex;
-  align-items: center;
-  justify-content: center;
+  border: none;
 
   cursor: pointer;
 
-  z-index: 3;
+  background: white;
 
-  transition: 0.3s;
-}
+  box-shadow: 0 10px 30px #0003;
 
-.arrow:hover {
-  background: rgba(255, 255, 255, 0.3);
+  z-index: 5;
 }
 
 .arrow.left {
-  left: 20px;
+  left: 25px;
 }
 
 .arrow.right {
-  right: 20px;
+  right: 25px;
 }
 
 /* =========================
-   DOTS
+   PRODUTOS
 ========================= */
-.dots {
-  position: absolute;
-  bottom: 20px;
 
-  display: flex;
-  gap: 8px;
-  z-index: 3;
-}
-
-.dots div {
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-
-  background: rgba(255, 255, 255, 0.4);
-}
-
-.active-dot {
-  background: white !important;
-}
-
-/* =========================
-   SEÇÕES
-========================= */
-.secao {
-  width: 100%;
-  max-width: 100%;
-  padding: 60px 40px;
-  box-sizing: border-box;
-}
-
-.secao h2 {
-  font-size: 20px;
-  font-weight: 600;
-  margin-bottom: 20px;
-}
-
-/* =========================
-   GRID PRODUTOS
-========================= */
 .grid-produtos {
+  width: 100%;
+
+  max-width: 1400px;
+
+  margin: 60px auto;
+
+  padding: 0 25px;
+
   display: grid !important;
+
   grid-template-columns: repeat(4, minmax(0, 1fr)) !important;
 
-  gap: 24px;
-  width: 100%;
-  box-sizing: border-box;
+  gap: 25px;
 }
 
-/* =========================
-   CARD PRODUTO (LUXO CLEAN)
-========================= */
+/* CARD */
+
 .card-produto {
-  display: block;
+  background: white;
+
+  border-radius: 22px;
+
+  overflow: hidden;
+
   text-decoration: none;
+
   color: #111;
 
-  background: transparent;
-  border: none;
-  box-shadow: none;
+  box-shadow: 0 15px 45px rgba(0, 0, 0, 0.08);
 
-  transition: transform 0.25s ease;
+  transition: 0.3s;
+
+  display: block;
 }
 
 .card-produto:hover {
-  transform: translateY(-4px);
+  transform: translateY(-8px);
+
+  box-shadow: 0 25px 60px rgba(0, 0, 0, 0.15);
 }
 
-/* IMAGEM LUXO */
 .card-produto img {
   width: 100%;
-  aspect-ratio: 3 / 4;
+
+  height: 330px;
+
   object-fit: cover;
 
   display: block;
-  transition: filter 0.3s ease;
 }
 
-.card-produto:hover img {
-  filter: brightness(0.92);
-}
-
-/* NOME LIMPO (estilo Zara) */
 .card-produto h3 {
-  font-size: 14px;
-  font-weight: 400;
+  padding: 15px;
 
-  margin: 10px 0 0 0;
-  padding: 0;
+  margin: 0;
 
-  letter-spacing: 0.3px;
-  color: #111;
+  font-size: 18px;
 }
 
-/* REMOVE QUALQUER “SPAN” VISUAL PESADO */
 .card-produto span {
-  display: none;
+  display: block;
+
+  padding: 0 15px 20px;
+
+  color: #777;
 }
 
 /* =========================
-   CTA FINAL
+   CTA
 ========================= */
+
 .cta {
-  text-align: center;
-  padding: 80px 20px;
+  margin-top: 80px;
+
   background: #111;
+
   color: white;
+
+  text-align: center;
+
+  padding: 80px 20px;
 }
 
 .cta h2 {
-  font-size: 28px;
-}
-
-.cta p {
-  opacity: 0.7;
-  margin-top: 10px;
+  font-size: 40px;
 }
 
 .cta button {
   margin-top: 20px;
-  padding: 12px 24px;
+
+  padding: 15px 45px;
+
+  border-radius: 40px;
 
   border: none;
-  border-radius: 8px;
-
-  background: white;
-  color: black;
-
-  font-weight: 600;
 
   cursor: pointer;
-  transition: 0.3s;
-}
 
-.cta button:hover {
-  transform: scale(1.05);
+  font-weight: bold;
 }
 
 /* =========================
-   RESPONSIVO
+   TABLET
 ========================= */
 
-/* tablet */
-@media (max-width: 1024px) {
+@media (max-width: 900px) {
+  .grid-produtos {
+    grid-template-columns: repeat(3, 1fr) !important;
+  }
+
+  .hero {
+    height: 350px;
+  }
+
+  .card-produto img {
+    height: 260px;
+  }
+}
+
+/* =========================
+   CELULAR
+========================= */
+
+@media (max-width: 600px) {
+  .banner-premium {
+    min-height: 260px;
+  }
+
+  .hero {
+    height: 230px;
+  }
+
+  .arrow {
+    width: 35px;
+
+    height: 35px;
+  }
+
+  .grid-produtos {
+    grid-template-columns: repeat(2, 1fr) !important;
+
+    gap: 12px;
+
+    padding: 12px;
+
+    margin: 30px auto;
+  }
+
+  .card-produto {
+    border-radius: 15px;
+  }
+
+  .card-produto img {
+    height: 190px;
+  }
+
+  .card-produto h3 {
+    font-size: 14px;
+
+    padding: 10px;
+  }
+
+  .card-produto span {
+    font-size: 12px;
+
+    padding: 0 10px 12px;
+  }
+}
+
+/* CELULAR PEQUENO */
+
+@media (max-width: 380px) {
+  .grid-produtos {
+    grid-template-columns: repeat(2, 1fr) !important;
+
+    gap: 8px;
+  }
+
+  .card-produto img {
+    height: 160px;
+  }
+}
+/* =========================
+   AJUSTE FINAL RESPONSIVO
+========================= */
+
+/* PRODUTOS DESKTOP */
+
+.grid-produtos {
+  display: grid;
+
+  grid-template-columns: repeat(4, 1fr);
+
+  gap: 25px;
+
+  width: 100%;
+
+  max-width: 1400px;
+
+  margin: 50px auto;
+
+  padding: 0 25px;
+}
+
+.card-produto {
+  width: 100%;
+}
+
+/* =========================
+   TABLET
+========================= */
+
+@media (max-width: 900px) {
   .grid-produtos {
     grid-template-columns: repeat(3, 1fr);
   }
 }
 
-/* celular (SEU PEDIDO: 2 produtos) */
-@media (max-width: 768px) {
+/* =========================
+   CELULAR
+========================= */
+
+@media (max-width: 600px) {
+  /* BANNER PRINCIPAL */
+
+  .banner-premium {
+    min-height: 230px;
+
+    background-size: cover;
+
+    background-position: center;
+  }
+
+  /* TEXTO */
+
+  .banner-premium-content h1 {
+    font-size: 26px;
+  }
+
+  .banner-premium-content p {
+    font-size: 14px;
+  }
+
+  /* CARROSSEL */
+
+  .hero {
+    height: 220px;
+
+    background-size: cover;
+
+    background-position: center;
+  }
+
+  /* SETAS */
+
+  .arrow {
+    width: 35px;
+
+    height: 35px;
+
+    font-size: 12px;
+  }
+
+  /* PRODUTOS LADO A LADO */
+
   .grid-produtos {
-    grid-template-columns: repeat(2, 1fr);
-    gap: 16px;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+
+    gap: 12px;
+
+    padding: 12px;
+  }
+
+  .card-produto img {
+    width: 100%;
+
+    height: 180px;
+
+    object-fit: cover;
+  }
+
+  .card-produto h3 {
+    font-size: 14px;
   }
 }
 
-.banner-premium {
-  width: 100%;
-  height: 100%;
+/* CELULAR PEQUENO */
 
-  background-size: cover;
-  background-position: center;
+@media (max-width: 380px) {
+  .grid-produtos {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
 
-  display: flex;
-  align-items: center;
-  justify-content: center;
-
-  position: relative;
-
-  color: white;
-}
-
-.banner-premium-content {
-  text-align: center;
-  z-index: 2;
-
-  max-width: 700px;
-  padding: 20px;
-}
-
-.banner-premium-content h1 {
-  font-size: 40px;
-  font-weight: 700;
-  letter-spacing: 1px;
-}
-
-.banner-premium-content p {
-  margin-top: 10px;
-  font-size: 16px;
-  opacity: 0.85;
-}
-
-/* botão */
-.banner-premium-content button {
-  margin-top: 20px;
-
-  padding: 12px 26px;
-
-  border: none;
-  border-radius: 10px;
-
-  background: white;
-  color: black;
-
-  font-weight: 100;
-  cursor: pointer;
-
-  transition: 0.3s;
-}
-
-.banner-premium-content button:hover {
-  transform: translateY(-2px);
-}
-
-/* overlay escuro */
-.banner-premium::after {
-  background: rgba(0, 0, 0, 0.15);
+  .card-produto img {
+    height: 150px;
+  }
 }
