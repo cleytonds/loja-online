@@ -2,7 +2,7 @@ import express from 'express';
 import db from '../config/database.js';
 import { verificarToken } from '../middlewares/auth.js';
 import { isAdmin } from '../middlewares/isAdmin.js';
-import upload from '../config/upload.js';
+import uploadProduto from '../middlewares/uploadProduto.js';
 import fs from 'fs';
 import path from 'path';
 
@@ -153,7 +153,7 @@ router.get('/estoque', async (req, res) => {
 // ===============================
 // 🔒 CRIAR PRODUTO (COMPLETO)
 // ===============================
-router.post('/', verificarToken, isAdmin, upload.array('imagens'), async (req, res) => {
+router.post('/', verificarToken, isAdmin, uploadProduto.array('imagens'), async (req, res) => {
   try {
     const { nome, preco, descricao, categoria } = req.body;
 
@@ -182,7 +182,7 @@ router.post('/', verificarToken, isAdmin, upload.array('imagens'), async (req, r
           (produto_id, url, is_principal)
           VALUES (?, ?, ?)
         `,
-          [produtoId, `/uploads/${req.files[i].filename}`, i === 0 ? 1 : 0],
+          [produtoId, `/uploads/produtos/${req.files[i].filename}`, i === 0 ? 1 : 0],
         );
       }
     }
@@ -212,7 +212,7 @@ router.post('/', verificarToken, isAdmin, upload.array('imagens'), async (req, r
 
 // ===============================
 
-router.put('/:id', verificarToken, isAdmin, upload.array('imagens'), async (req, res) => {
+router.put('/:id', verificarToken, isAdmin, uploadProduto.array('imagens'), async (req, res) => {
   try {
     const { id } = req.params;
 
@@ -336,7 +336,7 @@ router.put('/:id', verificarToken, isAdmin, upload.array('imagens'), async (req,
       // apaga arquivos físicos
 
       imagensAntigas.forEach((img) => {
-        const caminho = path.join(process.cwd(), img.url);
+        const caminho = path.join(process.cwd(), img.url.replace(/^\//, ''));
 
         if (fs.existsSync(caminho)) {
           fs.unlinkSync(caminho);
@@ -366,7 +366,7 @@ router.put('/:id', verificarToken, isAdmin, upload.array('imagens'), async (req,
       )
       VALUES (?,?,?)
       `,
-          [id, `/uploads/${req.files[i].filename}`, i === 0 ? 1 : 0],
+          [id, `/uploads/produtos/${req.files[i].filename}`, i === 0 ? 1 : 0],
         );
       }
     }
@@ -384,7 +384,7 @@ router.put('/:id', verificarToken, isAdmin, upload.array('imagens'), async (req,
 });
 
 // ===============================
-// 🔒 DELETAR PRODUTO
+//  DELETAR PRODUTO
 // ===============================
 router.delete('/:id', verificarToken, isAdmin, async (req, res) => {
   try {

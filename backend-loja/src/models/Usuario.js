@@ -1,8 +1,7 @@
-import db from "../config/database.js";
+import db from '../config/database.js';
 
 const Usuario = {
-
-  // 🔍 Buscar por email
+  //  Buscar por email
   buscarPorEmail: (email, callback) => {
     const sql = `
       SELECT * 
@@ -13,7 +12,7 @@ const Usuario = {
     db.query(sql, [email], callback);
   },
 
-  // 🆕 Criar usuário
+  //  Criar usuário
   criar(nome, email, senha, codigo, token, tipo, callback) {
     const sql = `
       INSERT INTO usuarios 
@@ -23,7 +22,7 @@ const Usuario = {
     db.query(sql, [nome, email, senha, codigo, token, tipo], callback);
   },
 
-  // 🔎 Buscar por TOKEN
+  //  Buscar por TOKEN
   buscarPorToken: (token, callback) => {
     const sql = `
       SELECT * FROM usuarios
@@ -33,7 +32,7 @@ const Usuario = {
     db.query(sql, [token], callback);
   },
 
-  // 🔎 Buscar por EMAIL + CÓDIGO
+  //  Buscar por EMAIL + CÓDIGO
   buscarPorToken: (token, callback) => {
     const sql = `
       SELECT * FROM usuarios
@@ -43,7 +42,7 @@ const Usuario = {
     db.query(sql, [token], callback);
   },
 
-  // 🔎 Token + código
+  //  Token + código
   buscarPorTokenECodigo: (token, codigo, callback) => {
     const sql = `
       SELECT * FROM usuarios
@@ -53,7 +52,7 @@ const Usuario = {
     db.query(sql, [token, codigo], callback);
   },
 
-  // ✅ Ativar usuário
+  //  Ativar usuário
   ativarUsuario: (id, callback) => {
     const sql = `
       UPDATE usuarios
@@ -65,7 +64,7 @@ const Usuario = {
     db.query(sql, [id], callback);
   },
 
-  // 🔁 Atualizar código
+  //  Atualizar código
   atualizarCodigo: (id, codigo, callback) => {
     const sql = `
       UPDATE usuarios
@@ -75,7 +74,7 @@ const Usuario = {
     db.query(sql, [codigo, id], callback);
   },
 
-  // 🔁 Atualizar código + token
+  //  Atualizar código + token
   atualizarCodigoEToken: (id, codigo, token, callback) => {
     const sql = `
       UPDATE usuarios
@@ -86,7 +85,7 @@ const Usuario = {
     db.query(sql, [codigo, token, id], callback);
   },
 
-  // ✏️ Atualizar perfil
+  //  Atualizar perfil
   atualizarPerfil: (id, nome, foto, callback) => {
     const sql = `
       UPDATE usuarios
@@ -94,8 +93,7 @@ const Usuario = {
       WHERE id = ?
     `;
     db.query(sql, [nome, foto, id], callback);
-  }
-
+  },
 };
 
 export default Usuario;

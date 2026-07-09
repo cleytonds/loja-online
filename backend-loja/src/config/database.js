@@ -1,17 +1,20 @@
 import mysql from 'mysql2/promise';
+import dotenv from 'dotenv';
 
-//  POOL DE CONEXÕES (mais rápido e estável)
+dotenv.config();
+
 const db = mysql.createPool({
-  host: 'localhost',
-  user: 'root',
-  password: 'root123',
-  database: 'loja_online',
-  port: 3307,
+  host: process.env.DB_HOST,
+  user: process.env.DB_USER,
+  password: process.env.DB_PASSWORD,
+  database: process.env.DB_NAME,
+  port: Number(process.env.DB_PORT),
+
   waitForConnections: true,
   connectionLimit: 10,
   queueLimit: 0,
 });
 
-console.log('Banco conectado com Pool de conexões!');
+console.log('Pool MySQL carregado');
 
 export default db;

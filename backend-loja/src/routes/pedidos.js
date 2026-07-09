@@ -1,6 +1,6 @@
 import express from 'express';
 import db from '../config/database.js';
-import upload from '../config/upload.js';
+import uploadComprovante from '../middlewares/uploadComprovante.js';
 import path from 'path';
 
 import { verificarToken } from '../middlewares/auth.js';
@@ -460,7 +460,7 @@ router.get('/:id/pix', verificarToken, async (req, res) => {
 router.post(
   '/:id/pix/comprovante',
   verificarToken,
-  upload.single('comprovante'),
+  uploadComprovante.single('comprovante'),
   async (req, res) => {
     try {
       requirePixKey(req, res);
@@ -509,7 +509,7 @@ router.post(
         return res.status(400).json({ erro: 'Tipo de arquivo inválido' });
       }
 
-      const comprovantePath = `uploads/${req.file.filename}`;
+      const comprovantePath = `uploads/comprovantes/${req.file.filename}`;
 
       await db.query(
         `
