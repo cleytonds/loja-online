@@ -110,6 +110,34 @@ export default function Perfil() {
     }
   }
 
+  function finalizarWhatsApp(pedido) {
+    const itensTexto = pedido.itens
+      .map(
+        (item) =>
+          `- ${item.nome || 'Produto'} (${item.tamanho || '-'} / ${item.cor || '-'}) x${item.quantidade} = R$ ${(
+            Number(item.preco) * Number(item.quantidade)
+          ).toFixed(2)}`,
+      )
+      .join('\n');
+
+    const mensagem =
+      ` NOVO PEDIDO FINALIZAR WHATSAPP - DL MODAS\n\n` +
+      `Pedido: #${pedido.id}\n\n` +
+      `Valor:\n` +
+      `R$ ${Number(pedido.total || 0).toFixed(2)}\n\n` +
+      ` PRODUTOS:\n` +
+      `${itensTexto}\n\n` +
+      ` Status:\n` +
+      `Aguardando confirmação\n\n` +
+      ` Cliente Aguardando para finalizar o pagamento via Whatsapp.`;
+
+    const numero = '5581993563122';
+
+    const url = `https://wa.me/${numero}?text=${encodeURIComponent(mensagem)}`;
+
+    window.open(url, '_blank');
+  }
+
   // =========================
   // ALTERAR SENHA
   // =========================
@@ -224,20 +252,43 @@ export default function Perfil() {
               </div>
             )}
 
-            {pedidos.map((p) => (
-              <div className="order-card" key={p.id}>
-                <div className="order-header">
-                  <strong>Pedido #{p.id}</strong>
-                  <span className={`status ${p.status}`}>{p.status}</span>
+            {pedidos.map((p) => {
+              const status = String(p.status || '')
+                .trim()
+                .toLowerCase();
+
+              return (
+                <div className="order-card" key={p.id}>
+                  <div className="order-header">
+                    <strong>Pedido #{p.id}</strong>
+                    <span className={`status ${status}`}>{status}</span>
+                  </div>
+
+                  {status === 'pendente' && (
+                    <div className="acoes-pedido">
+                      <button
+                        className="btn-pagamento"
+                        onClick={() =>
+                          navigate(`/pagamento/${p.id}`, {
+                            state: p,
+                          })
+                        }
+                      >
+                        Pagar com PIX
+                      </button>
+
+                      <button className="btn-whatsapp" onClick={() => finalizarWhatsApp(p)}>
+                        Finalizar compra via WhatsApp
+                      </button>
+                    </div>
+                  )}
+
+                  <p>Data: {new Date(p.created_at).toLocaleString('pt-BR')}</p>
+                  <p>Pagamento: {p.pagamento}</p>
+                  <h3>R$ {Number(p.total || 0).toFixed(2)}</h3>
                 </div>
-
-                <p>Data: {new Date(p.created_at).toLocaleString('pt-BR')}</p>
-
-                <p>Pagamento: {p.pagamento}</p>
-
-                <h3>R$ {Number(p.total || 0).toFixed(2)}</h3>
-              </div>
-            ))}
+              );
+            })}
           </div>
         )}
 

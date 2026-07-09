@@ -86,16 +86,21 @@ export default function Carrinho() {
       // PIX
       // =========================
       if (metodo === 'pix') {
-        sessionStorage.setItem(
-          'pedido_pagamento',
-          JSON.stringify({
-            id: pedidoId,
-            total: res.data.total,
-          }),
-        );
+        const pedidoPagamento = {
+          id: pedidoId,
+          pedido_id: pedidoId,
+          total: Number(res.data.total),
+          status: 'pendente',
+        };
+
+        sessionStorage.setItem('pedido_pagamento', JSON.stringify(pedidoPagamento));
 
         limparCarrinho();
-        navigate('/pagamento');
+
+        navigate(`/pagamento/${pedidoId}`, {
+          state: pedidoPagamento,
+        });
+
         return;
       }
 
@@ -103,19 +108,22 @@ export default function Carrinho() {
       // WHATSAPP
       // =========================
       if (metodo === 'whatsapp') {
+        const itensTexto = itensSnapshot
+          .map(
+            (i) =>
+              `- ${i.nome} (${i.tamanho || '-'} / ${i.cor || '-'}) x${i.quantidade} = ${formatarPreco(
+                i.preco * i.quantidade,
+              )}`,
+          )
+          .join('\n');
+
         const mensagem =
-          `🛒 NOVO PEDIDO DL MODAS\n\n` +
-          `Pedido: #${pedidoId}\n` +
-          `Total: ${formatarPreco(total)}\n\n` +
-          `Itens:\n` +
-          itensSnapshot
-            .map(
-              (i) =>
-                `- ${i.nome} (${i.tamanho || '-'} / ${i.cor || '-'}) x${i.quantidade} = ${formatarPreco(
-                  i.preco * i.quantidade,
-                )}`,
-            )
-            .join('\n');
+          ` NOVO PEDIDO FINALIZAR WHATSAPP - DL MODAS\n\n` +
+          `Pedido: #${pedidoId}\n\n` +
+          `Valor:\n${formatarPreco(total)}\n\n` +
+          ` PRODUTOS:\n${itensTexto}\n\n` +
+          ` Status:\nAguardando confirmação\n\n` +
+          `Cliente aguardando para finalizar o pagamento via WhatsApp.`;
 
         //  LIMPA PRIMEIRO
         limparCarrinho();

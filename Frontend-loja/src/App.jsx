@@ -51,7 +51,7 @@ export default function App() {
               <Route path="/busca" element={<Busca />} />
               <Route path="/produto/:id" element={<ProdutoDetalhe />} />
               <Route path="/admin/produto/:id" element={<EditarProduto />} />
-              <Route path="/pagamento" element={<Pagamento />} />
+              <Route path="/pagamento/:id" element={<Pagamento />} />
 
               {/* USUÁRIO LOGADO */}
               <Route

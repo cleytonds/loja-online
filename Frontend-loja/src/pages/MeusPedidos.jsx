@@ -1,43 +1,35 @@
 import React, { useEffect, useState } from 'react';
 import './MeusPedidos.css';
 import api from '../services/api';
+import { useNavigate } from 'react-router-dom';
 
 export default function MeusPedidos({ usuario_id }) {
   const [pedidos, setPedidos] = useState([]);
   const [modalPedido, setModalPedido] = useState(null);
   const [filtroStatus, setFiltroStatus] = useState('todos');
   const [ordenarData, setOrdenarData] = useState('desc');
+  const navigate = useNavigate();
 
-  useEffect(() => {
+  uuseEffect(() => {
     async function carregarPedidos() {
       try {
-        const res = await api.get(`/pedidos/meus/${usuario_id}`);
+        const res = await api.get('/pedidos/meus');
         setPedidos(res.data);
       } catch (err) {
         console.error(err);
       }
     }
-    if (usuario_id) carregarPedidos();
-  }, [usuario_id]);
 
-  const pedidosAgrupados = pedidos.reduce((acc, item) => {
-    if (!acc[item.pedido_id])
-      acc[item.pedido_id] = {
-        pedido_id: item.pedido_id,
-        total: item.total,
-        status: item.status,
-        criado_em: item.criado_em,
-        itens: [],
-      };
-    acc[item.pedido_id].itens.push({
-      nome: item.nome,
-      preco: item.preco,
-      quantidade: item.quantidade,
-    });
-    return acc;
-  }, {});
+    carregarPedidos();
+  }, []);
 
-  let pedidosArray = Object.values(pedidosAgrupados);
+  const pedidosArray = pedidos.map((pedido) => ({
+    pedido_id: pedido.id,
+    total: Number(pedido.total),
+    status: pedido.status,
+    criado_em: pedido.created_at,
+    itens: pedido.itens || [],
+  }));
 
   // Filtro por status
   if (filtroStatus !== 'todos') {
@@ -64,7 +56,7 @@ export default function MeusPedidos({ usuario_id }) {
 
   const repetirPedido = async (pedido_id) => {
     try {
-      const res = await api.post(`/pedidos/repetir/${pedido_id}`);
+      const res = await api.get(`/pedidos/meus`);
       alert(res.data.mensagem);
       const resPedidos = await api.get(`/pedidos/meus/${usuario_id}`);
       setPedidos(resPedidos.data);
@@ -73,22 +65,34 @@ export default function MeusPedidos({ usuario_id }) {
     }
   };
 
-  const mensagem =
-    `🛒 NOVO PEDIDO DL MODAS\n\n` +
-    `Pedido: #${pedidoId}\n` +
-    `Total: ${formatarPreco(total)}\n\n` +
-    `Itens:\n` +
-    itensSnapshot
+  const abrirModal = (pedido) => setModalPedido(pedido);
+  const fecharModal = () => setModalPedido(null);
+
+  const finalizarWhatsApp = (pedido) => {
+    const itensTexto = pedido.itens
       .map(
-        (i) =>
-          `- ${i.nome || 'Produto'} (${i.tamanho || '-'} / ${i.cor || '-'}) x${i.quantidade} = ${formatarPreco(
-            i.preco * i.quantidade,
-          )}`,
+        (item) =>
+          `- ${item.nome || 'Produto'} (${item.tamanho || '-'} / ${item.cor || '-'}) x${item.quantidade} = R$ ${(Number(item.preco) * Number(item.quantidade)).toFixed(2)}`,
       )
       .join('\n');
 
-  const abrirModal = (pedido) => setModalPedido(pedido);
-  const fecharModal = () => setModalPedido(null);
+    const mensagem =
+      ` NOVO PEDIDO FINALIZAR WHATSAPP - DL MODAS\n\n` +
+      `Pedido: #${pedidoAtual.id}\n\n` +
+      `Valor:\n${Number(pedidoAtual.total).toLocaleString('pt-BR', {
+        style: 'currency',
+        currency: 'BRL',
+      })}\n\n` +
+      ` PRODUTOS:\n${itensTexto}\n\n` +
+      ` Status:\nAguardando confirmação\n\n` +
+      `Cliente aguardando para finalizar o pagamento via WhatsApp.`;
+
+    const numero = '5581993563122';
+
+    const url = `https://wa.me/${numero}?text=${encodeURIComponent(mensagem)}`;
+
+    window.open(url, '_blank');
+  };
 
   return (
     <div className="meus-pedidos-container">
@@ -141,9 +145,30 @@ export default function MeusPedidos({ usuario_id }) {
               <button className="btn-detalhes" onClick={() => abrirModal(pedido)}>
                 Detalhes
               </button>
+
+              {pedido.status === 'pendente' && (
+                <>
+                  <button
+                    className="btn-pagamento"
+                    onClick={() =>
+                      navigate(`/pagamento/${pedido.pedido_id}`, {
+                        state: pedido,
+                      })
+                    }
+                  >
+                    Pagar com PIX
+                  </button>
+
+                  <button className="btn-whatsapp" onClick={() => finalizarWhatsApp(pedido)}>
+                    Finalizar via WhatsApp
+                  </button>
+                </>
+              )}
+
               <button className="btn-repetir" onClick={() => repetirPedido(pedido.pedido_id)}>
                 Repetir
               </button>
+
               <button className="btn-cancelar" onClick={() => cancelarPedido(pedido.pedido_id)}>
                 Cancelar
               </button>

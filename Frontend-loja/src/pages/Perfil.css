@@ -295,3 +295,12 @@
     padding: 15px;
   }
 }
+.btn-pagamento {
+  margin-top: 6px;
+  padding: 8px 12px;
+  background: #25d366;
+  color: white;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+}

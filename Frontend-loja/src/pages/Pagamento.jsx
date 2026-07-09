@@ -1,14 +1,18 @@
 import { useLocation, useNavigate } from 'react-router-dom';
 import api from '../services/api';
 import './Pagamento.css';
+import { useParams } from 'react-router-dom';
 
 export default function Pagamento() {
+  const { id } = useParams();
   const location = useLocation();
   const navigate = useNavigate();
 
   const salvo = sessionStorage.getItem('pedido_pagamento');
-
   const pedido = location.state || (salvo ? JSON.parse(salvo) : null);
+  const pedidoId = pedido?.pedido_id || pedido?.id;
+
+  console.log('PEDIDO RECEBIDO:', pedido);
 
   if (!pedido) {
     return (
@@ -24,7 +28,7 @@ export default function Pagamento() {
       const token = localStorage.getItem('token');
 
       // ==========================
-      // BUSCA PEDIDO COMPLETO
+      // BUSCA DADOS REAIS DO PEDIDO
       // ==========================
       const res = await api.get('/pedidos/meus', {
         headers: {
@@ -32,7 +36,9 @@ export default function Pagamento() {
         },
       });
 
-      const pedidoAtual = res.data.find((p) => Number(p.id) === Number(pedido.id));
+      const idPedido = Number(pedido.id || pedido.pedido_id);
+
+      const pedidoAtual = res.data.find((p) => Number(p.id || p.pedido_id) === idPedido);
 
       if (!pedidoAtual) {
         alert('Pedido não encontrado');
@@ -43,28 +49,17 @@ export default function Pagamento() {
         alert('Este pedido expirou. Faça um novo pedido.');
 
         sessionStorage.removeItem('pedido_pagamento');
-
         navigate('/');
         return;
       }
 
-      // ==========================
-      // ATUALIZA STATUS
-      // ==========================
-      await api.put(
-        `/pedidos/${pedido.id}/status`,
-        { status: 'Pendente' },
-        {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-        },
-      );
+      //  REMOVIDO COMPLETAMENTE:
+      // NÃO atualiza status aqui mais
 
       sessionStorage.removeItem('pedido_pagamento');
 
       // ==========================
-      // MONTA ITENS DO PEDIDO
+      // MONTA ITENS
       // ==========================
       const itensTexto = (pedidoAtual.itens || [])
         .map(
@@ -79,15 +74,15 @@ export default function Pagamento() {
       const numeroWhats = '81993563122';
 
       const mensagem =
-        `💰 NOVO COMPROVANTE PIX - DL MODAS\n\n` +
+        ` NOVO PEDIDO FINALIZAR WHATSAPP - DL MODAS\n\n` +
         `Pedido: #${pedidoAtual.id}\n\n` +
         `Valor:\n${Number(pedidoAtual.total).toLocaleString('pt-BR', {
           style: 'currency',
           currency: 'BRL',
         })}\n\n` +
         ` PRODUTOS:\n${itensTexto}\n\n` +
-        `Status:\nAguardando confirmação\n\n` +
-        `Cliente enviará o comprovante PIX.`;
+        ` Status:\nAguardando confirmação\n\n` +
+        `Cliente aguardando para finalizar o pagamento via WhatsApp.`;
 
       const url = `https://wa.me/55${numeroWhats}?text=${encodeURIComponent(mensagem)}`;
 
@@ -96,7 +91,7 @@ export default function Pagamento() {
       navigate('/perfil');
     } catch (err) {
       console.error('ERRO PIX:', err);
-      alert('Erro ao enviar comprovante');
+      alert('Erro ao processar pagamento');
     }
   }
 
@@ -105,7 +100,7 @@ export default function Pagamento() {
       <h1>Pagamento PIX</h1>
 
       <div className="pix-box">
-        <h3>Pedido #{pedido.id}</h3>
+        <h3>Pedido #{pedido.pedido_id ?? pedido.id}</h3>
 
         <h2>
           {Number(pedido.total).toLocaleString('pt-BR', {
@@ -121,6 +116,7 @@ export default function Pagamento() {
           Copiar chave PIX
         </button>
 
+        {/*  AGORA SÓ FLUXO LIMPO */}
         <button onClick={confirmarPix}>Já paguei - enviar comprovante</button>
       </div>
     </div>

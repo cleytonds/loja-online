@@ -243,8 +243,8 @@ export default function Admin() {
 
       alert('Status atualizado!');
     } catch (err) {
-      console.error(err);
-      alert('Erro ao atualizar pedido');
+      console.error(err.response?.data);
+      alert(JSON.stringify(err.response?.data));
     }
   }
 
