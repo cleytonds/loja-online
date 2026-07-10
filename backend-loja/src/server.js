@@ -102,9 +102,15 @@ app.use(
 // UPLOADS
 // =====================================================
 
+// =====================================================
+// UPLOADS (produção)
+// =====================================================
+// Problema: servir `uploads` inteiro publicamente expõe comprovantes PIX.
+// Solução: manter /uploads/produtos público e NÃO expor /uploads/comprovantes.
+
 app.use(
-  '/uploads',
-  express.static(path.resolve('uploads'), {
+  '/uploads/produtos',
+  express.static(path.resolve('uploads', 'produtos'), {
     setHeaders: (res) => {
       res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin');
     },

@@ -22,7 +22,7 @@ CRIAR PEDIDO
 =========================
 */
 router.post('/', verificarToken, async (req, res) => {
-  const allowedPagamentos = ['pix'];
+  const allowedPagamentos = ['pix', 'whatsapp'];
   const { itens, pagamento } = req.body;
 
   if (!Array.isArray(itens) || itens.length === 0) {
@@ -421,7 +421,10 @@ AND expires_at < NOW()
       await connection.beginTransaction();
 
       try {
-        // Bloqueia o pedido para expiração concorrente (InnoDB)
+        // Proteção contra processamento duplicado:
+        // 1) trava o pedido pendente na mesma transação
+        // 2) garante que só devolve estoque se ainda estiver pendente
+        // (evita devolução dupla em cenários de concorrência/retry)
         const [pedidoLocked] = await connection.query(
           `
           SELECT id
@@ -735,4 +738,50 @@ Valor: R$ ${Number(item.preco * item.quantidade).toFixed(2)}`;
     }
   },
 );
+
+/*
+=========================
+COMPROVANTE PIX (PRIVADO)
+=========================
+*/
+router.get('/:id/comprovante', verificarToken, async (req, res) => {
+  try {
+    const pedidoId = req.params.id;
+    const usuarioId = req.user.id;
+    const isAdminUser = req.user?.tipo === 'admin';
+
+    const [rows] = await db.query(
+      `
+      SELECT id, usuario_id, comprovante
+      FROM pedidos
+      WHERE id = ?
+      `,
+      [pedidoId],
+    );
+
+    if (!rows.length) {
+      return res.status(404).json({ erro: 'Pedido não encontrado' });
+    }
+
+    const pedido = rows[0];
+
+    const podeAcessar = isAdminUser || String(pedido.usuario_id) === String(usuarioId);
+
+    if (!podeAcessar) {
+      return res.status(403).json({ erro: 'Acesso negado' });
+    }
+
+    if (!pedido.comprovante) {
+      return res.status(404).json({ erro: 'Comprovante não encontrado' });
+    }
+
+    const fileOnDisk = path.resolve(process.cwd(), pedido.comprovante);
+
+    return res.sendFile(fileOnDisk);
+  } catch (err) {
+    console.error('ERRO GET COMPROVANTE:', err);
+    return res.status(500).json({ erro: 'Erro ao buscar comprovante' });
+  }
+});
+
 export default router;

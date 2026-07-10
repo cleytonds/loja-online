@@ -31,16 +31,6 @@ export default function Carrinho() {
       alert('Carrinho vazio');
       return;
     }
-    const itensSnapshot = carrinho.map((item) => ({
-      produto_id: item.produto_id,
-      variacao_id: item.variacao_id,
-      quantidade: item.quantidade,
-      preco: Number(item.preco),
-
-      nome: item.nome,
-      cor: item.cor,
-      tamanho: item.tamanho,
-    }));
 
     const token = localStorage.getItem('token');
 
