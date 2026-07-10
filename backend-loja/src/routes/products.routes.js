@@ -9,7 +9,7 @@ import path from 'path';
 const router = express.Router();
 
 // ===============================
-// 🔓 CATEGORIAS
+//  CATEGORIAS
 // ===============================
 router.get('/categorias', async (req, res) => {
   try {
@@ -21,7 +21,7 @@ router.get('/categorias', async (req, res) => {
 });
 
 // ===============================
-// 🔓 LISTAR PRODUTOS (COMPLETO)
+//  LISTAR PRODUTOS (COMPLETO)
 // ===============================
 router.get('/', async (req, res) => {
   try {
@@ -60,12 +60,16 @@ router.get('/', async (req, res) => {
 });
 
 // ===============================
-// 🔓 DETALHE DO PRODUTO
+//  DETALHE DO PRODUTO
 // ===============================
 
 router.get('/:id', async (req, res) => {
   try {
     const { id } = req.params;
+    const idNum = Number(id);
+    if (!Number.isInteger(idNum) || idNum <= 0) {
+      return res.status(400).json({ erro: 'ID inválido' });
+    }
     const [produto] = await db.query(
       `
 
@@ -78,7 +82,7 @@ router.get('/:id', async (req, res) => {
       WHERE p.id=?
 
     `,
-      [id],
+      [idNum],
     );
 
     if (!produto.length) {
@@ -123,7 +127,7 @@ router.get('/:id', async (req, res) => {
 });
 
 // ===============================
-// 🔓 ESTOQUE VARIAÇÕES
+//  ESTOQUE VARIAÇÕES
 // ===============================
 
 router.get('/estoque', async (req, res) => {
@@ -151,7 +155,7 @@ router.get('/estoque', async (req, res) => {
 });
 
 // ===============================
-// 🔒 CRIAR PRODUTO (COMPLETO)
+//  CRIAR PRODUTO (COMPLETO)
 // ===============================
 router.post('/', verificarToken, isAdmin, uploadProduto.array('imagens'), async (req, res) => {
   try {
@@ -207,12 +211,15 @@ router.post('/', verificarToken, isAdmin, uploadProduto.array('imagens'), async 
 });
 
 // ===============================
-
-// 🔒 ATUALIZAR PRODUTO COMPLETO
-
+//  ATUALIZAR PRODUTO COMPLETO (DADOS, VARIAÇÕES E IMAGENS)
 // ===============================
 
 router.put('/:id', verificarToken, isAdmin, uploadProduto.array('imagens'), async (req, res) => {
+  const idNum = Number(req.params.id);
+  if (!Number.isInteger(idNum) || idNum <= 0) {
+    return res.status(400).json({ erro: 'ID inválido' });
+  }
+
   try {
     const { id } = req.params;
 
@@ -227,9 +234,7 @@ router.put('/:id', verificarToken, isAdmin, uploadProduto.array('imagens'), asyn
     } = req.body;
 
     // ===============================
-
     // ATUALIZA DADOS PRINCIPAIS
-
     // ===============================
 
     await db.query(
@@ -249,12 +254,6 @@ router.put('/:id', verificarToken, isAdmin, uploadProduto.array('imagens'), asyn
 
       [nome, descricao, categoria, id],
     );
-
-    // ===============================
-
-    // ATUALIZA VARIAÇÕES
-
-    // ===============================
 
     // ===============================
     // ATUALIZA VARIAÇÕES SEM QUEBRAR PEDIDOS

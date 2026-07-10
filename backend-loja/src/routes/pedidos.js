@@ -22,6 +22,33 @@ CRIAR PEDIDO
 =========================
 */
 router.post('/', verificarToken, async (req, res) => {
+  const allowedPagamentos = ['pix'];
+  const { itens, pagamento } = req.body;
+
+  if (!Array.isArray(itens) || itens.length === 0) {
+    return res.status(400).json({ erro: 'Carrinho vazio' });
+  }
+
+  if (!allowedPagamentos.includes(pagamento || 'pix')) {
+    return res.status(400).json({ erro: 'Pagamento inválido' });
+  }
+
+  for (const item of itens) {
+    const produtoId = Number(item?.produto_id);
+    const variacaoId = Number(item?.variacao_id);
+    const quantidadeNum = Number(item?.quantidade);
+
+    if (!Number.isInteger(produtoId) || produtoId <= 0) {
+      return res.status(400).json({ erro: 'Produto inválido' });
+    }
+    if (!Number.isInteger(variacaoId) || variacaoId <= 0) {
+      return res.status(400).json({ erro: 'Variação inválida' });
+    }
+    if (!Number.isInteger(quantidadeNum) || quantidadeNum <= 0) {
+      return res.status(400).json({ erro: 'Quantidade inválida' });
+    }
+  }
+
   const connection = await db.getConnection();
 
   try {
@@ -169,10 +196,18 @@ router.get('/meus', verificarToken, async (req, res) => {
       [req.user.id],
     );
 
-    for (const pedido of pedidos) {
-      const [itens] = await db.query(
-        `
+    const pedidoIds = pedidos.map((p) => p.id);
+
+    if (pedidoIds.length === 0) {
+      return res.json(pedidos);
+    }
+
+    const placeholders = pedidoIds.map(() => '?').join(',');
+
+    const [itensRows] = await db.query(
+      `
         SELECT 
+          pi.pedido_id,
           pi.produto_id,
           pi.quantidade,
           pi.preco,
@@ -182,12 +217,26 @@ router.get('/meus', verificarToken, async (req, res) => {
         FROM pedido_itens pi
         JOIN produtos pr ON pr.id = pi.produto_id
         JOIN produto_variacoes v ON v.id = pi.variacao_id
-        WHERE pi.pedido_id = ?
+        WHERE pi.pedido_id IN (${placeholders})
+        ORDER BY pi.pedido_id DESC
       `,
-        [pedido.id],
-      );
+      pedidoIds,
+    );
 
-      pedido.itens = itens;
+    const mapa = new Map();
+
+    for (const p of pedidos) {
+      mapa.set(p.id, []);
+    }
+
+    for (const item of itensRows) {
+      const arr = mapa.get(item.pedido_id);
+      if (arr) arr.push(item);
+    }
+
+    // preserva ordem de itens já retornada pelo JOIN (ORDER BY pi.pedido_id)
+    for (const pedido of pedidos) {
+      pedido.itens = mapa.get(pedido.id) || [];
     }
 
     res.json(pedidos);
@@ -221,10 +270,18 @@ router.get('/', verificarToken, async (req, res) => {
       ORDER BY p.id DESC
     `);
 
-    for (const pedido of pedidos) {
-      const [itens] = await db.query(
-        `
+    const pedidoIds = pedidos.map((p) => p.id);
+
+    if (pedidoIds.length === 0) {
+      return res.json(pedidos);
+    }
+
+    const placeholders = pedidoIds.map(() => '?').join(',');
+
+    const [itensRows] = await db.query(
+      `
         SELECT 
+          pi.pedido_id,
           pi.produto_id,
           pi.variacao_id,
           pi.quantidade,
@@ -235,12 +292,24 @@ router.get('/', verificarToken, async (req, res) => {
         FROM pedido_itens pi
         JOIN produtos pr ON pr.id = pi.produto_id
         JOIN produto_variacoes v ON v.id = pi.variacao_id
-        WHERE pi.pedido_id = ?
+        WHERE pi.pedido_id IN (${placeholders})
+        ORDER BY pi.pedido_id DESC
       `,
-        [pedido.id],
-      );
+      pedidoIds,
+    );
 
-      pedido.itens = itens;
+    const mapa = new Map();
+    for (const p of pedidos) {
+      mapa.set(p.id, []);
+    }
+
+    for (const item of itensRows) {
+      const arr = mapa.get(item.pedido_id);
+      if (arr) arr.push(item);
+    }
+
+    for (const pedido of pedidos) {
+      pedido.itens = mapa.get(pedido.id) || [];
     }
 
     res.json(pedidos);
@@ -249,6 +318,7 @@ router.get('/', verificarToken, async (req, res) => {
     res.status(500).json({ erro: 'Erro ao listar pedidos' });
   }
 });
+
 /*
 =========================
 ALTERAR STATUS
@@ -332,8 +402,12 @@ setInterval(async () => {
 
   rodando = true;
 
+  let connection;
+
   try {
-    const [pedidos] = await db.query(
+    connection = await db.getConnection();
+
+    const [pedidos] = await connection.query(
       `
 SELECT id
 FROM pedidos
@@ -344,8 +418,28 @@ AND expires_at < NOW()
     );
 
     for (const pedido of pedidos) {
-      const [itens] = await db.query(
-        `
+      await connection.beginTransaction();
+
+      try {
+        // Bloqueia o pedido para expiração concorrente (InnoDB)
+        const [pedidoLocked] = await connection.query(
+          `
+          SELECT id
+          FROM pedidos
+          WHERE id = ?
+            AND status = 'pendente'
+          FOR UPDATE
+          `,
+          [pedido.id],
+        );
+
+        if (!pedidoLocked.length) {
+          await connection.rollback();
+          continue;
+        }
+
+        const [itens] = await connection.query(
+          `
 SELECT
 variacao_id,
 quantidade
@@ -355,12 +449,12 @@ FROM pedido_itens
 WHERE pedido_id=?
 
 `,
-        [pedido.id],
-      );
+          [pedido.id],
+        );
 
-      for (const item of itens) {
-        await db.query(
-          `
+        for (const item of itens) {
+          await connection.query(
+            `
 UPDATE produto_variacoes
 
 SET estoque = estoque + ?
@@ -369,24 +463,39 @@ WHERE id=?
 
 `,
 
-          [item.quantidade, item.variacao_id],
-        );
-      }
+            [item.quantidade, item.variacao_id],
+          );
+        }
 
-      await db.query(
-        `
+        await connection.query(
+          `
 UPDATE pedidos
 SET status='expirado'
 WHERE id=?
 AND status='pendente'
 
 `,
-        [pedido.id],
-      );
+          [pedido.id],
+        );
+
+        await connection.commit();
+      } catch (errPedido) {
+        await connection.rollback();
+        throw errPedido;
+      }
     }
   } catch (err) {
     console.error('EXPIRACAO:', err.message);
+
+    if (connection) {
+      try {
+        await connection.rollback();
+      } catch (_) {
+        // noop
+      }
+    }
   } finally {
+    if (connection) connection.release();
     rodando = false;
   }
 }, 60000);
@@ -462,6 +571,8 @@ router.post(
   verificarToken,
   uploadComprovante.single('comprovante'),
   async (req, res) => {
+    let connection;
+
     try {
       requirePixKey(req, res);
       if (res.headersSent) return;
@@ -469,59 +580,100 @@ router.post(
       const pedidoId = req.params.id;
       const usuarioId = req.user.id;
 
-      const pedidoRows = await db.query(
+      if (!req.file) {
+        return res.status(400).json({
+          erro: 'Comprovante é obrigatório',
+        });
+      }
+
+      // Validação da extensão
+      const allowedExt = ['.jpg', '.jpeg', '.png', '.webp'];
+      const ext = path.extname(req.file.originalname || '').toLowerCase();
+
+      if (!allowedExt.includes(ext)) {
+        return res.status(400).json({
+          erro: 'Tipo de arquivo inválido',
+        });
+      }
+
+      connection = await db.getConnection();
+      await connection.beginTransaction();
+
+      const [rows] = await connection.query(
         `
-        SELECT id, usuario_id, total, status, expires_at
+        SELECT
+          id,
+          usuario_id,
+          total,
+          status,
+          expires_at,
+          comprovante
         FROM pedidos
         WHERE id = ?
+        FOR UPDATE
         `,
         [pedidoId],
       );
 
-      const pedido = pedidoRows[0][0];
-
-      if (!pedido) {
-        return res.status(404).json({ erro: 'Pedido não encontrado' });
+      if (!rows.length) {
+        await connection.rollback();
+        return res.status(404).json({
+          erro: 'Pedido não encontrado',
+        });
       }
+
+      const pedido = rows[0];
 
       if (String(pedido.usuario_id) !== String(usuarioId)) {
-        return res.status(403).json({ erro: 'Acesso negado' });
+        await connection.rollback();
+        return res.status(403).json({
+          erro: 'Acesso negado',
+        });
       }
 
-      const statusAtual = padStatus(pedido.status);
-
-      if (statusAtual !== 'pendente') {
-        return res.status(400).json({ erro: 'Pedido não está pendente' });
+      if (padStatus(pedido.status) !== 'pendente') {
+        await connection.rollback();
+        return res.status(400).json({
+          erro: 'Pedido não está pendente',
+        });
       }
 
       if (new Date(pedido.expires_at).getTime() < Date.now()) {
-        return res.status(400).json({ erro: 'Pedido expirado' });
+        await connection.rollback();
+        return res.status(400).json({
+          erro: 'Pedido expirado',
+        });
       }
 
-      if (!req.file) {
-        return res.status(400).json({ erro: 'Comprovante é obrigatório' });
-      }
-
-      // valida tipo: jpg/jpeg/png/webp
-      const allowedExt = ['.jpg', '.jpeg', '.png', '.webp'];
-      const ext = path.extname(req.file.originalname || '').toLowerCase();
-      if (!allowedExt.includes(ext)) {
-        return res.status(400).json({ erro: 'Tipo de arquivo inválido' });
+      if (pedido.comprovante) {
+        await connection.rollback();
+        return res.status(400).json({
+          erro: 'Comprovante já enviado',
+        });
       }
 
       const comprovantePath = `uploads/comprovantes/${req.file.filename}`;
 
-      await db.query(
+      const [updateResult] = await connection.query(
         `
         UPDATE pedidos
-        SET comprovante = ?, status = 'aguardando_confirmacao'
+        SET
+          comprovante = ?,
+          status = 'aguardando_confirmacao'
         WHERE id = ?
+          AND status = 'pendente'
         `,
         [comprovantePath, pedidoId],
       );
 
-      // monta mensagem consultando banco
-      const [itens] = await db.query(
+      if (!updateResult.affectedRows) {
+        await connection.rollback();
+        return res.status(400).json({
+          erro: 'Não foi possível atualizar o pedido',
+        });
+      }
+
+      const [itens] = await connection.query(
         `
         SELECT
           pi.quantidade,
@@ -530,36 +682,57 @@ router.post(
           v.tamanho,
           v.cor
         FROM pedido_itens pi
-        JOIN produtos pr ON pr.id = pi.produto_id
-        LEFT JOIN produto_variacoes v ON v.id = pi.variacao_id
+        JOIN produtos pr
+          ON pr.id = pi.produto_id
+        LEFT JOIN produto_variacoes v
+          ON v.id = pi.variacao_id
         WHERE pi.pedido_id = ?
         `,
         [pedidoId],
       );
 
       const itensTexto = itens
-        .map((i) => {
-          const tamanho = i.tamanho || '';
-          const cor = i.cor || '';
-          return `• ${i.nome}\nP / ${tamanho} ${cor ? ` / ${cor}` : ''}\n\nQuantidade: ${i.quantidade}\nValor: R$${Number(i.preco * i.quantidade).toFixed(2)}`;
+        .map((item) => {
+          const tamanho = item.tamanho || '';
+          const cor = item.cor || '';
+
+          return `• ${item.nome}
+${tamanho ? `Tamanho: ${tamanho}` : ''}
+${cor ? `Cor: ${cor}` : ''}
+Quantidade: ${item.quantidade}
+Valor: R$ ${Number(item.preco * item.quantidade).toFixed(2)}`;
         })
         .join('\n\n');
 
       const mensagem =
         `🛍️ NOVO PEDIDO - DL MODAS\n\n` +
         `Pedido: #${pedidoId}\n\n` +
-        `💰 Total:\nR$ ${Number(pedido.total).toFixed(2)}\n\n` +
+        `💰 Total: R$ ${Number(pedido.total).toFixed(2)}\n\n` +
         `📦 ITENS:\n\n${itensTexto}\n\n` +
-        `💳 Pagamento:\nPIX\n\n` +
-        `📄 O comprovante PIX será enviado nesta conversa.\n\n` +
-        `⏳ Status:\nAguardando confirmação.`;
+        `💳 Pagamento: PIX\n\n` +
+        `📄 O comprovante será enviado nesta conversa.\n\n` +
+        `⏳ Status: Aguardando confirmação.`;
 
-      res.json({ mensagem });
+      await connection.commit();
+
+      return res.json({
+        mensagem,
+      });
     } catch (err) {
+      if (connection) {
+        await connection.rollback();
+      }
+
       console.error('ERRO PIX POST COMP:', err);
-      res.status(500).json({ erro: 'Erro ao enviar comprovante' });
+
+      return res.status(500).json({
+        erro: 'Erro ao enviar comprovante',
+      });
+    } finally {
+      if (connection) {
+        connection.release();
+      }
     }
   },
 );
-
 export default router;

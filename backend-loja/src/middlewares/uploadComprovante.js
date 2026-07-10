@@ -21,10 +21,19 @@ const storage = multer.diskStorage({
 });
 
 const fileFilter = (req, file, cb) => {
-  if (allowedMimeTypes.has(file.mimetype)) {
+  // Mantém allowlist de MIME type (multer)
+  const isMimeAllowed = allowedMimeTypes.has(file.mimetype);
+
+  // Reforço: valida também a extensão baseada no nome original
+  const ext = path.extname(file.originalname || '').toLowerCase();
+  const allowedExt = new Set(['.jpg', '.jpeg', '.png', '.webp']);
+  const isExtAllowed = allowedExt.has(ext);
+
+  if (isMimeAllowed && isExtAllowed) {
     cb(null, true);
   } else {
-    cb(new Error('Formato inválido. Utilize JPG, PNG ou WEBP.'), false);
+    // Mensagem segura (sem detalhes internos)
+    cb(new Error('Arquivo inválido. Utilize JPG, PNG ou WEBP.'), false);
   }
 };
 

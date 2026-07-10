@@ -1,5 +1,14 @@
 import jwt from 'jsonwebtoken';
 
+function requireJwtSecret() {
+  const secret = process.env.JWT_SECRET;
+  if (!secret || String(secret).trim() === '') {
+    // Falha clara de configuração (sem fallback)
+    throw new Error('JWT_SECRET não definido no servidor');
+  }
+  return secret;
+}
+
 //  Middleware para verificar se o usuário está autenticado
 export function verificarToken(req, res, next) {
   const authHeader = req.headers.authorization;
@@ -25,7 +34,7 @@ export function verificarToken(req, res, next) {
 
   try {
     //  Verifica token
-    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    const decoded = jwt.verify(token, requireJwtSecret());
 
     //  Salva dados do usuário na requisição
     req.user = decoded;
