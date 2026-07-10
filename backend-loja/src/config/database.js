@@ -3,6 +3,21 @@ import dotenv from 'dotenv';
 
 dotenv.config();
 
+function requireEnv(name) {
+  const value = process.env[name];
+  if (value === undefined || value === null || String(value).trim() === '') {
+    throw new Error(`${name} não definida no .env`);
+  }
+  return value;
+}
+
+// Variáveis obrigatórias do banco (sem fallback)
+requireEnv('DB_HOST');
+requireEnv('DB_USER');
+requireEnv('DB_PASSWORD');
+requireEnv('DB_NAME');
+requireEnv('DB_PORT');
+
 const db = mysql.createPool({
   host: process.env.DB_HOST,
   user: process.env.DB_USER,
@@ -14,7 +29,5 @@ const db = mysql.createPool({
   connectionLimit: 10,
   queueLimit: 0,
 });
-
-console.log('Pool MySQL carregado');
 
 export default db;

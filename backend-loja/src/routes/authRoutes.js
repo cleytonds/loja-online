@@ -17,6 +17,22 @@ const router = express.Router();
 router.post('/cadastro', async (req, res) => {
   const { nome, email, senha } = req.body;
 
+  if (!nome || typeof nome !== 'string' || nome.trim().length < 2) {
+    return res.status(400).json({ error: 'Nome inválido' });
+  }
+
+  if (!email || typeof email !== 'string') {
+    return res.status(400).json({ error: 'Email inválido' });
+  }
+
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim().toLowerCase())) {
+    return res.status(400).json({ error: 'Email inválido' });
+  }
+
+  if (!senha || typeof senha !== 'string' || senha.trim().length < 8) {
+    return res.status(400).json({ error: 'Senha inválida' });
+  }
+
   try {
     //  normaliza email
     const emailNormalizado = email.trim().toLowerCase();
