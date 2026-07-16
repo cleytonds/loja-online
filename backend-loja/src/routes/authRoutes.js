@@ -158,7 +158,13 @@ router.get('/me', verificarToken, async (req, res) => {
       return res.status(404).json({ error: 'Usuário não encontrado' });
     }
 
-    return res.json(usuarios[0]);
+    return res.json({
+      id: usuarios[0].id,
+      nome: usuarios[0].nome,
+      email: usuarios[0].email,
+      tipo: usuarios[0].tipo,
+      ativo: usuarios[0].ativo,
+    });
   } catch (err) {
     console.error(' ERRO /ME:', err);
     return res.status(500).json({ error: 'Erro ao buscar usuário' });
@@ -241,6 +247,115 @@ router.post('/reenviar-codigo', async (req, res) => {
   } catch (err) {
     console.error(' ERRO REENVIO:', err);
     return res.status(500).json({ error: 'Erro interno' });
+  }
+});
+
+// =========================
+//  RECUPERACAO DE SENHA
+// =========================
+router.post('/solicitar-recuperacao', async (req, res) => {
+  const email = typeof req.body?.email === 'string' ? req.body.email.trim().toLowerCase() : '';
+  const mensagemSegura = 'Se o e-mail estiver cadastrado, você receberá as instruções de recuperação.';
+
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+    return res.json({ mensagem: mensagemSegura });
+  }
+
+  try {
+    const [usuarios] = await db.query(
+      'SELECT id, email FROM usuarios WHERE LOWER(TRIM(email)) = LOWER(TRIM(?))',
+      [email],
+    );
+
+    if (!usuarios.length) {
+      return res.json({ mensagem: mensagemSegura });
+    }
+
+    const usuario = usuarios[0];
+    const token = crypto.randomBytes(32).toString('hex');
+    const link = `${process.env.FRONT_URL.replace(/\/$/, '')}/#/redefinir-senha/${token}`;
+
+    await db.query(
+      `
+      UPDATE usuarios
+      SET token_redefinicao = ?, token_redefinicao_expira_em = DATE_ADD(NOW(), INTERVAL 1 HOUR)
+      WHERE id = ?
+      `,
+      [token, usuario.id],
+    );
+
+    try {
+      await enviarEmail(
+        usuario.email,
+        'Recuperação de senha - DLmodas',
+        `
+        <div style="font-family: Arial, sans-serif; padding: 20px">
+          <h2>Recuperação de senha</h2>
+          <p>Recebemos uma solicitação para redefinir a senha da sua conta.</p>
+          <p><a href="${link}">Redefinir minha senha</a></p>
+          <p>Este link expira em 1 hora. Se você não fez esta solicitação, ignore este e-mail.</p>
+        </div>
+        `,
+      );
+    } catch (err) {
+      await db.query(
+        'UPDATE usuarios SET token_redefinicao = NULL, token_redefinicao_expira_em = NULL WHERE id = ? AND token_redefinicao = ?',
+        [usuario.id, token],
+      );
+      console.error('ERRO RECUPERACAO SENHA:', err?.message);
+      return res.status(500).json({ erro: 'Não foi possível enviar o e-mail de recuperação.' });
+    }
+
+    return res.json({ mensagem: mensagemSegura });
+  } catch (err) {
+    console.error('ERRO SOLICITAR RECUPERACAO:', err);
+    return res.status(500).json({ erro: 'Não foi possível enviar o e-mail de recuperação.' });
+  }
+});
+
+router.post('/redefinir-senha/:token', async (req, res) => {
+  const token = String(req.params.token || '').trim();
+  const novaSenha = typeof req.body?.novaSenha === 'string' ? req.body.novaSenha : '';
+
+  if (!token || novaSenha.trim().length < 8) {
+    return res.status(400).json({ erro: 'Token inválido ou expirado.' });
+  }
+
+  try {
+    const [usuarios] = await db.query(
+      `
+      SELECT id
+      FROM usuarios
+      WHERE token_redefinicao = ?
+        AND token_redefinicao_expira_em > NOW()
+      `,
+      [token],
+    );
+
+    if (!usuarios.length) {
+      return res.status(400).json({ erro: 'Token inválido ou expirado.' });
+    }
+
+    const novaSenhaHash = await bcrypt.hash(novaSenha, 10);
+    const [updateResult] = await db.query(
+      `
+      UPDATE usuarios
+      SET senha = ?, token_redefinicao = NULL, token_redefinicao_expira_em = NULL
+      WHERE id = ?
+        AND token_redefinicao = ?
+        AND token_redefinicao_expira_em > NOW()
+      `,
+      [novaSenhaHash, usuarios[0].id, token],
+    );
+
+    if (!updateResult.affectedRows) {
+      return res.status(400).json({ erro: 'Token inválido ou expirado.' });
+    }
+
+    return res.json({ mensagem: 'Senha redefinida com sucesso!' });
+  } catch (err) {
+    console.error('ERRO REDEFINIR SENHA:', err);
+    return res.status(500).json({ erro: 'Não foi possível redefinir a senha.' });
   }
 });
 

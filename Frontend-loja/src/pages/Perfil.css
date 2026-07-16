@@ -152,6 +152,13 @@
   color: #999;
 }
 
+.meus-pedidos-grid {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 16px;
+  align-items: start;
+}
+
 /* =========================
    BOTÃO BUSCAR
 ========================= */
@@ -180,16 +187,72 @@
   border-radius: 14px;
   margin-top: 12px;
   transition: 0.2s;
+  width: 100%;
+  box-sizing: border-box;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+.meus-pedidos-grid .order-card {
+  margin-top: 0;
 }
 
 .order-card:hover {
   transform: translateY(-2px);
 }
 
+.order-card-readonly {
+  border-color: rgba(148, 163, 184, 0.35);
+}
+
+.pedido-somente-leitura {
+  margin: 0 0 10px;
+  color: #94a3b8;
+  font-size: 12px;
+  font-weight: 600;
+}
+
 .order-header {
   display: flex;
   justify-content: space-between;
   margin-bottom: 8px;
+  gap: 8px;
+}
+
+.order-header strong,
+.status,
+.acoes-pedido button {
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+.acoes-pedido {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.acoes-pedido button {
+  max-width: 100%;
+  white-space: normal;
+}
+
+@media (max-width: 1399px) {
+  .meus-pedidos-grid {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 1099px) {
+  .meus-pedidos-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 767px) {
+  .meus-pedidos-grid {
+    grid-template-columns: 1fr;
+  }
 }
 
 /* =========================
@@ -259,6 +322,55 @@
   color: white;
 }
 
+.modal-editar-cadastro {
+  max-height: calc(100vh - 32px);
+  overflow-y: auto;
+}
+
+.campo-cadastro {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 14px;
+  text-align: left;
+}
+
+.campo-cadastro label {
+  color: #e5e7eb;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.campo-cadastro input {
+  box-sizing: border-box;
+  height: 42px;
+  margin: 0;
+}
+
+.campo-cadastro input::placeholder {
+  color: #8b93a3;
+}
+
+.erro-cadastro,
+.mensagem-cadastro {
+  color: #fca5a5;
+  font-size: 12px;
+}
+
+.mensagem-cadastro {
+  margin: 14px 0 0;
+}
+
+.acoes-cadastro {
+  display: flex;
+  gap: 10px;
+  margin-top: 20px;
+}
+
+.acoes-cadastro button {
+  flex: 1;
+}
+
 /* =========================
    BOTÕES MODAL
 ========================= */
@@ -293,6 +405,11 @@
 
   .content {
     padding: 15px;
+  }
+
+  .modal-editar-cadastro {
+    width: calc(100% - 32px);
+    padding: 18px;
   }
 }
 .btn-pagamento {

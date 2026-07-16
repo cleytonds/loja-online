@@ -72,7 +72,7 @@ export function CarrinhoProvider({ children }) {
           nome: produto.nome,
           imagem: produto.imagem_principal,
           preco,
-          quantidade: 1,
+          quantidade: Number(variacao.quantidade ?? 1),
           estoque,
           tamanho: variacao.tamanho,
           cor: variacao.cor,

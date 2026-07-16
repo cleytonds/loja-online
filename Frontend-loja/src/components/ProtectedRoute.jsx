@@ -1,23 +1,20 @@
-import { Navigate } from "react-router-dom";
-import { useContext } from "react";
-import { AuthContext } from "../context/AuthContext";
+import { Navigate } from 'react-router-dom';
+import { useContext } from 'react';
+import { AuthContext } from '../context/AuthContext';
 
 export default function ProtectedRoute({ children, tipoPermitido }) {
   const { user, loading } = useContext(AuthContext);
 
-  // 🔒 Aguarda carregar o usuário
   if (loading) {
-    return <p>Carregando...</p>;
+    return <p role="status">Carregando...</p>;
   }
 
-  // 🔒 Não logado
   if (!user) {
-    return <Navigate to="/login" />;
+    return <Navigate to="/login" replace />;
   }
 
-  // 🔒 Verifica tipo (admin, etc)
   if (tipoPermitido && user.tipo !== tipoPermitido) {
-    return <Navigate to="/" />;
+    return <Navigate to="/" replace />;
   }
 
   return children;

@@ -2,7 +2,7 @@
 
 import './produtos.css';
 
-import { useEffect, useState, useContext } from 'react';
+import { useEffect, useState, useContext, useMemo } from 'react';
 
 import { useNavigate } from 'react-router-dom';
 
@@ -20,6 +20,7 @@ function Produtos() {
   const [busca, setBusca] = useState('');
 
   const [loading, setLoading] = useState(true);
+  const [buscaDebounced, setBuscaDebounced] = useState('');
 
   const navigate = useNavigate();
 
@@ -29,9 +30,13 @@ function Produtos() {
   // VERIFICAR FAVORITO
   // =========================
 
-  function isFavorito(produtoId) {
-    return favoritos.some((fav) => fav.id === produtoId);
-  }
+  const favoritosIds = useMemo(() => new Set(favoritos.map((favorito) => favorito.id)), [favoritos]);
+  const isFavorito = (produtoId) => favoritosIds.has(produtoId);
+
+  useEffect(() => {
+    const timer = setTimeout(() => setBuscaDebounced(busca), 300);
+    return () => clearTimeout(timer);
+  }, [busca]);
 
   // =========================
   // CARREGAR PRODUTOS
@@ -41,11 +46,11 @@ function Produtos() {
       try {
         const res = await api.get('/produtos', {
           params: {
-            nome: busca,
+            nome: buscaDebounced,
           },
         });
 
-        setProdutos(res.data || []);
+        setProdutos(res.data?.data || res.data || []);
       } catch (err) {
         console.log(err);
       } finally {
@@ -54,7 +59,7 @@ function Produtos() {
     }
 
     carregarProdutos();
-  }, [busca]);
+  }, [buscaDebounced]);
 
   // =========================
   // FAVORITOS
@@ -210,7 +215,7 @@ function Produtos() {
           <div key={produto.id} className="produto-card">
             {/* IMAGEM */}
             <div className="img-box" onClick={() => abrirProduto(produto)}>
-              <img src={`${api.defaults.baseURL}${produto.imagem_principal}`} alt={produto.nome} />
+              <img loading="lazy" src={`${api.defaults.baseURL}${produto.imagem_principal}`} alt={produto.nome} />
 
               <button
                 className={`fav-btn ${isFavorito(produto.id) ? 'active' : ''}`}

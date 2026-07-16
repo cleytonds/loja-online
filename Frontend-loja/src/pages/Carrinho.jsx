@@ -3,6 +3,8 @@ import { useNavigate } from 'react-router-dom';
 
 import { CarrinhoContext } from '../context/CarrinhoContext';
 import api from '../services/api';
+import { montarUrlWhatsApp } from '../utils/whatsapp.js';
+import { getErrorMessage } from '../utils/frontendState.js';
 
 import './Carrinho.css';
 
@@ -52,6 +54,7 @@ export default function Carrinho() {
         cor: item.cor,
         tamanho: item.tamanho,
       }));
+      const idempotencyKey = crypto.randomUUID();
 
       const res = await api.post(
         '/pedidos',
@@ -62,6 +65,7 @@ export default function Carrinho() {
         {
           headers: {
             Authorization: `Bearer ${token}`,
+            'X-Idempotency-Key': idempotencyKey,
           },
         },
       );
@@ -98,34 +102,27 @@ export default function Carrinho() {
       // WHATSAPP
       // =========================
       if (metodo === 'whatsapp') {
-        const itensTexto = itensSnapshot
-          .map(
-            (i) =>
-              `- ${i.nome} (${i.tamanho || '-'} / ${i.cor || '-'}) x${i.quantidade} = ${formatarPreco(
-                i.preco * i.quantidade,
-              )}`,
-          )
-          .join('\n');
+        const pedidoPayload = {
+          id: pedidoId,
+          pedido_id: pedidoId,
+          total,
+          valor: total,
+          itens: itensSnapshot,
+        };
 
-        const mensagem =
-          ` NOVO PEDIDO FINALIZAR WHATSAPP - DL MODAS\n\n` +
-          `Pedido: #${pedidoId}\n\n` +
-          `Valor:\n${formatarPreco(total)}\n\n` +
-          ` PRODUTOS:\n${itensTexto}\n\n` +
-          ` Status:\nAguardando confirmação\n\n` +
-          `Cliente aguardando para finalizar o pagamento via WhatsApp.`;
-
-        //  LIMPA PRIMEIRO
         limparCarrinho();
 
-        //  DEPOIS ABRE WHATSAPP
-        window.open(`https://wa.me/5581993563122?text=${encodeURIComponent(mensagem)}`, '_blank');
+        montarUrlWhatsApp({
+          pedido: pedidoPayload,
+          itens: itensSnapshot,
+          numero: res.data?.whatsapp_number,
+        });
 
         return;
       }
     } catch (err) {
       console.error('ERRO CHECKOUT:', err);
-      alert('Erro ao criar pedido');
+      alert(getErrorMessage(err, 'Erro ao criar pedido'));
     } finally {
       setFinalizando(false);
     }

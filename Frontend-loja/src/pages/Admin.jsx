@@ -63,10 +63,17 @@ export default function Admin() {
   // =========================
 
   const [vendas, setVendas] = useState([]);
+  const [carregandoVendas, setCarregandoVendas] = useState(false);
+  const [erroVendas, setErroVendas] = useState('');
 
   const [estoque, setEstoque] = useState([]);
+  const [carregandoEstoque, setCarregandoEstoque] = useState(false);
+  const [erroEstoque, setErroEstoque] = useState('');
 
-  const [pedidos, setPedidos] = useState([]);
+  const [pedidosAtuais, setPedidosAtuais] = useState([]);
+  const [historicoPedidos, setHistoricoPedidos] = useState([]);
+  const [carregandoPedidos, setCarregandoPedidos] = useState(false);
+  const [erroPedidos, setErroPedidos] = useState('');
 
   const { logout } = useContext(AuthContext);
 
@@ -79,7 +86,7 @@ export default function Admin() {
   useEffect(() => {
     carregarProdutos();
     carregarCategorias();
-    carregarPedidos();
+    carregarPedidos('atuais');
     carregarVendas();
     carregarEstoque();
   }, []);
@@ -127,16 +134,19 @@ export default function Admin() {
   // =========================
 
   async function carregarVendas() {
-    try {
-      const res = await api.get('/vendas', {
-        headers: {
-          Authorization: `Bearer ${localStorage.getItem('token')}`,
-        },
-      });
+    setCarregandoVendas(true);
+    setErroVendas('');
 
-      setVendas(res.data);
+    try {
+      const res = await api.get('/pedidos/vendas');
+
+      setVendas(Array.isArray(res.data) ? res.data : []);
     } catch (err) {
       console.log('Erro vendas', err);
+      setErroVendas('Não foi possível carregar as vendas.');
+      setVendas([]);
+    } finally {
+      setCarregandoVendas(false);
     }
   }
 
@@ -146,6 +156,9 @@ export default function Admin() {
   // =========================
 
   async function carregarEstoque() {
+    setCarregandoEstoque(true);
+    setErroEstoque('');
+
     try {
       const res = await api.get('/produtos');
 
@@ -166,8 +179,10 @@ export default function Admin() {
       setEstoque(lista);
     } catch (err) {
       console.log('Erro estoque', err);
-
+      setErroEstoque('Não foi possível carregar o estoque.');
       setEstoque([]);
+    } finally {
+      setCarregandoEstoque(false);
     }
   }
 
@@ -175,17 +190,29 @@ export default function Admin() {
   // PEDIDOS
   // =========================
 
-  async function carregarPedidos() {
-    try {
-      const res = await api.get('/pedidos', {
-        headers: {
-          Authorization: `Bearer ${localStorage.getItem('token')}`,
-        },
-      });
+  async function carregarPedidos(tipo = 'atuais') {
+    setCarregandoPedidos(true);
+    setErroPedidos('');
 
-      setPedidos(res.data);
+    try {
+      const res = await api.get(`/pedidos?tipo=${tipo}`);
+      const lista = Array.isArray(res.data) ? res.data : res.data?.data || [];
+
+      if (tipo === 'historico') {
+        setHistoricoPedidos(lista);
+      } else {
+        setPedidosAtuais(lista);
+      }
     } catch (err) {
       console.log(err);
+      setErroPedidos('Não foi possível carregar os pedidos.');
+      if (tipo === 'historico') {
+        setHistoricoPedidos([]);
+      } else {
+        setPedidosAtuais([]);
+      }
+    } finally {
+      setCarregandoPedidos(false);
     }
   }
 
@@ -238,7 +265,7 @@ export default function Admin() {
         },
       );
 
-      await carregarPedidos();
+      await Promise.all([carregarPedidos('atuais'), carregarPedidos('historico')]);
       await carregarEstoque();
 
       alert('Status atualizado!');
@@ -314,6 +341,7 @@ export default function Admin() {
   function editar(id) {
     navigate(`/admin/produto/${id}`);
   }
+
   return (
     <div className="admin-container">
       <h1>Painel Administrativo</h1>
@@ -339,8 +367,24 @@ export default function Admin() {
           Estoque
         </button>
 
-        <button className={tab === 'pedidos' ? 'active' : ''} onClick={() => setTab('pedidos')}>
+        <button
+          className={tab === 'pedidos' ? 'active' : ''}
+          onClick={() => {
+            setTab('pedidos');
+            carregarPedidos('atuais');
+          }}
+        >
           Pedidos
+        </button>
+
+        <button
+          className={tab === 'historico' ? 'active' : ''}
+          onClick={() => {
+            setTab('historico');
+            carregarPedidos('historico');
+          }}
+        >
+          Histórico de pedidos
         </button>
       </div>
 
@@ -352,31 +396,33 @@ export default function Admin() {
         <div className="admin-produtos">
           <h2>Produtos cadastrados</h2>
 
-          {produtos.map((p) => (
-            <div key={p.id} className="produto-admin-item">
-              <strong>{p.nome}</strong>
+          <div className="admin-produtos-grid">
+            {produtos.map((p) => (
+              <div key={p.id} className="produto-admin-item">
+                <strong>{p.nome}</strong>
 
-              <p>R$ {p.variacoes?.length ? p.variacoes[0].preco : p.preco}</p>
+                <p>R$ {p.variacoes?.length ? p.variacoes[0].preco : p.preco}</p>
 
-              {p.variacoes?.map((v) => (
-                <p key={v.id}>
-                  {v.tamanho}
-                  {' | '}
-                  {v.cor}
+                {p.variacoes?.map((v) => (
+                  <p key={v.id}>
+                    {v.tamanho}
+                    {' | '}
+                    {v.cor}
 
-                  {' | R$ '}
-                  {v.preco}
+                    {' | R$ '}
+                    {v.preco}
 
-                  {' | Estoque '}
-                  {v.estoque}
-                </p>
-              ))}
+                    {' | Estoque '}
+                    {v.estoque}
+                  </p>
+                ))}
 
-              <button onClick={() => editar(p.id)}>Editar</button>
+                <button onClick={() => editar(p.id)}>Editar</button>
 
-              <button onClick={() => deletar(p.id)}>Excluir</button>
-            </div>
-          ))}
+                <button onClick={() => deletar(p.id)}>Excluir</button>
+              </div>
+            ))}
+          </div>
         </div>
       )}
 
@@ -487,17 +533,26 @@ export default function Admin() {
         <div className="admin-graficos">
           <h2>Vendas por mês</h2>
 
-          <ResponsiveContainer width="100%" height={300}>
-            <BarChart data={vendas}>
-              <XAxis dataKey="mes" />
+          {erroVendas ? <p>{erroVendas}</p> : null}
+          {carregandoVendas ? <p>Carregando vendas...</p> : null}
 
-              <YAxis />
+          {!carregandoVendas && !erroVendas && vendas.length === 0 ? (
+            <p>Nenhuma venda confirmada até o momento.</p>
+          ) : null}
 
-              <Tooltip />
+          {!carregandoVendas && vendas.length > 0 ? (
+            <ResponsiveContainer width="100%" height={300}>
+              <BarChart data={vendas}>
+                <XAxis dataKey="mes" />
 
-              <Bar dataKey="total" fill="#6366f1" />
-            </BarChart>
-          </ResponsiveContainer>
+                <YAxis />
+
+                <Tooltip />
+
+                <Bar dataKey="total" fill="#6366f1" />
+              </BarChart>
+            </ResponsiveContainer>
+          ) : null}
         </div>
       )}
       {/* =========================
@@ -508,25 +563,34 @@ export default function Admin() {
         <div className="admin-graficos">
           <h2>Controle de Estoque</h2>
 
-          <ResponsiveContainer width="100%" height={300}>
-            <PieChart>
-              <Pie
-                data={estoque}
-                dataKey="qtd"
-                nameKey="nome"
-                cx="50%"
-                cy="50%"
-                outerRadius={100}
-                label
-              >
-                {estoque.map((_, i) => (
-                  <Cell key={i} fill={COLORS[i % COLORS.length]} />
-                ))}
-              </Pie>
+          {erroEstoque ? <p>{erroEstoque}</p> : null}
+          {carregandoEstoque ? <p>Carregando estoque...</p> : null}
 
-              <Legend />
-            </PieChart>
-          </ResponsiveContainer>
+          {!carregandoEstoque && !erroEstoque && estoque.length === 0 ? (
+            <p>Nenhuma variação com estoque cadastrado.</p>
+          ) : null}
+
+          {!carregandoEstoque && estoque.length > 0 ? (
+            <ResponsiveContainer width="100%" height={300}>
+              <PieChart>
+                <Pie
+                  data={estoque}
+                  dataKey="qtd"
+                  nameKey="nome"
+                  cx="50%"
+                  cy="50%"
+                  outerRadius={100}
+                  label
+                >
+                  {estoque.map((_, i) => (
+                    <Cell key={i} fill={COLORS[i % COLORS.length]} />
+                  ))}
+                </Pie>
+
+                <Legend />
+              </PieChart>
+            </ResponsiveContainer>
+          ) : null}
         </div>
       )}
 
@@ -538,52 +602,135 @@ export default function Admin() {
         <div className="admin-pedidos">
           <h2>Pedidos</h2>
 
-          {pedidos.map((p) => (
-            <div key={p.id} className="pedido-card">
-              <p>
-                <strong>Pedido:</strong>#{p.id}
-              </p>
+          {erroPedidos ? <p>{erroPedidos}</p> : null}
+          {carregandoPedidos ? <p>Carregando pedidos...</p> : null}
 
-              <p>
-                <strong>Cliente:</strong>
+          {!carregandoPedidos && !erroPedidos && pedidosAtuais.length === 0 ? (
+            <p>Nenhum pedido encontrado.</p>
+          ) : null}
 
-                {p.usuario_nome}
-              </p>
+          <div className="admin-pedidos-grid">
+            {pedidosAtuais.map((p) => (
+              <div key={p.id} className="pedido-card">
+                <p>
+                  <strong>Pedido:</strong>#{p.id}
+                </p>
 
-              <p>
-                <strong>Email:</strong>
+                <p>
+                  <strong>Cliente:</strong>
 
-                {p.usuario_email}
-              </p>
+                  {p.usuario_nome}
+                </p>
 
-              <p>
-                <strong>Total:</strong>
-                R$ {p.total}
-              </p>
+                <p>
+                  <strong>Email:</strong>
 
-              <p>
-                <strong>Status:</strong>
+                  {p.usuario_email}
+                </p>
 
-                {p.status}
-              </p>
+                <p>
+                  <strong>Total:</strong>
+                  R$ {p.total}
+                </p>
 
-              <button
-                onClick={() => {
-                  atualizarStatus(p.id, 'pago');
-                }}
-              >
-                Marcar Pago
-              </button>
+                <p>
+                  <strong>Status:</strong>
 
-              <button
-                onClick={() => {
-                  atualizarStatus(p.id, 'enviado');
-                }}
-              >
-                Enviado
-              </button>
-            </div>
-          ))}
+                  {p.status}
+                </p>
+
+                {(p.status === 'pendente' || p.status === 'aguardando_confirmacao') && (
+                  <>
+                    <button
+                      onClick={() => {
+                        atualizarStatus(p.id, 'pago');
+                      }}
+                    >
+                      Confirmar pagamento
+                    </button>
+
+                    {p.status === 'aguardando_confirmacao' && (
+                      <button
+                        onClick={() => {
+                          atualizarStatus(p.id, 'cancelado');
+                        }}
+                      >
+                        Reprovar pagamento PIX
+                      </button>
+                    )}
+                  </>
+                )}
+
+                {p.status === 'pago' && (
+                  <button
+                    onClick={() => {
+                      atualizarStatus(p.id, 'enviado');
+                    }}
+                  >
+                    Enviado
+                  </button>
+                )}
+
+                {p.status === 'enviado' && (
+                  <button
+                    onClick={() => {
+                      atualizarStatus(p.id, 'entregue');
+                    }}
+                  >
+                    Marcar como entregue
+                  </button>
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {tab === 'historico' && (
+        <div className="admin-pedidos">
+          <h2>Histórico de pedidos</h2>
+
+          {erroPedidos ? <p>{erroPedidos}</p> : null}
+          {carregandoPedidos ? <p>Carregando pedidos...</p> : null}
+
+          {!carregandoPedidos && !erroPedidos && historicoPedidos.length === 0 ? (
+            <p>Nenhum pedido finalizado encontrado.</p>
+          ) : null}
+
+          <div className="admin-pedidos-grid">
+            {historicoPedidos.map((p) => (
+              <div key={p.id} className="pedido-card pedido-card-readonly">
+                <p>
+                  <strong>Pedido:</strong>#{p.id}
+                </p>
+
+                <p>
+                  <strong>Cliente:</strong>
+
+                  {p.usuario_nome}
+                </p>
+
+                <p>
+                  <strong>Email:</strong>
+
+                  {p.usuario_email}
+                </p>
+
+                <p>
+                  <strong>Total:</strong>
+                  R$ {p.total}
+                </p>
+
+                <p>
+                  <strong>Status:</strong>
+
+                  {p.status}
+                </p>
+
+                <p className="pedido-somente-leitura">Pedido finalizado — somente leitura</p>
+              </div>
+            ))}
+          </div>
         </div>
       )}
 

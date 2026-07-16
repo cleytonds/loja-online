@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import './MeusPedidos.css';
 import api from '../services/api';
 import { useNavigate } from 'react-router-dom';
+import { montarUrlWhatsApp } from '../utils/whatsapp.js';
 
 export default function MeusPedidos({ usuario_id }) {
   const [pedidos, setPedidos] = useState([]);
@@ -10,7 +11,7 @@ export default function MeusPedidos({ usuario_id }) {
   const [ordenarData, setOrdenarData] = useState('desc');
   const navigate = useNavigate();
 
-  uuseEffect(() => {
+  useEffect(() => {
     async function carregarPedidos() {
       try {
         const res = await api.get('/pedidos/meus');
@@ -23,12 +24,13 @@ export default function MeusPedidos({ usuario_id }) {
     carregarPedidos();
   }, []);
 
-  const pedidosArray = pedidos.map((pedido) => ({
+  let pedidosArray = pedidos.map((pedido) => ({
     pedido_id: pedido.id,
     total: Number(pedido.total),
     status: pedido.status,
     criado_em: pedido.created_at,
     itens: pedido.itens || [],
+    whatsapp_number: pedido.whatsapp_number,
   }));
 
   // Filtro por status
@@ -69,29 +71,21 @@ export default function MeusPedidos({ usuario_id }) {
   const fecharModal = () => setModalPedido(null);
 
   const finalizarWhatsApp = (pedido) => {
-    const itensTexto = pedido.itens
-      .map(
-        (item) =>
-          `- ${item.nome || 'Produto'} (${item.tamanho || '-'} / ${item.cor || '-'}) x${item.quantidade} = R$ ${(Number(item.preco) * Number(item.quantidade)).toFixed(2)}`,
-      )
-      .join('\n');
-
-    const mensagem =
-      ` NOVO PEDIDO FINALIZAR WHATSAPP - DL MODAS\n\n` +
-      `Pedido: #${pedidoAtual.id}\n\n` +
-      `Valor:\n${Number(pedidoAtual.total).toLocaleString('pt-BR', {
-        style: 'currency',
-        currency: 'BRL',
-      })}\n\n` +
-      ` PRODUTOS:\n${itensTexto}\n\n` +
-      ` Status:\nAguardando confirmação\n\n` +
-      `Cliente aguardando para finalizar o pagamento via WhatsApp.`;
-
-    const numero = '5581993563122';
-
-    const url = `https://wa.me/${numero}?text=${encodeURIComponent(mensagem)}`;
-
-    window.open(url, '_blank');
+    try {
+      montarUrlWhatsApp({
+        pedido: {
+          id: pedido.pedido_id,
+          pedido_id: pedido.pedido_id,
+          total: Number(pedido.total),
+          valor: Number(pedido.total),
+          itens: pedido.itens || [],
+        },
+        itens: pedido.itens || [],
+        numero: pedido.whatsapp_number,
+      });
+    } catch (err) {
+      alert(err.message);
+    }
   };
 
   return (
@@ -103,7 +97,10 @@ export default function MeusPedidos({ usuario_id }) {
         <select value={filtroStatus} onChange={(e) => setFiltroStatus(e.target.value)}>
           <option value="todos">Todos</option>
           <option value="pendente">Pendente</option>
-          <option value="concluido">Concluído</option>
+          <option value="aguardando_confirmacao">Aguardando confirmação</option>
+          <option value="pago">Pago</option>
+          <option value="enviado">Enviado</option>
+          <option value="entregue">Entregue</option>
           <option value="cancelado">Cancelado</option>
         </select>
 
