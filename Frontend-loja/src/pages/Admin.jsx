@@ -21,6 +21,34 @@ import { AuthContext } from '../context/AuthContext';
 
 import './Admin.css';
 
+const STATUS_CONFIG = {
+  pendente: { label: 'Pendente', className: 'status-pendente' },
+  aguardando_confirmacao: { label: 'Aguardando confirmação', className: 'status-aguardando' },
+  pago: { label: 'Pago', className: 'status-pago' },
+  enviado: { label: 'Enviado', className: 'status-enviado' },
+  entregue: { label: 'Entregue', className: 'status-entregue' },
+  cancelado: { label: 'Cancelado', className: 'status-cancelado' },
+  expirado: { label: 'Expirado', className: 'status-expirado' },
+};
+
+function formatarMoeda(valor) {
+  return Number(valor || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+}
+
+function formatarData(data) {
+  return data ? new Date(data).toLocaleString('pt-BR') : 'Não informado';
+}
+
+function formatarPagamento(pagamento) {
+  const labels = {
+    pix: 'PIX',
+    whatsapp: 'WhatsApp',
+    cartao_credito: 'Cartão de crédito',
+  };
+
+  return labels[pagamento] || pagamento || 'Não informado';
+}
+
 export default function Admin() {
   const navigate = useNavigate();
 
@@ -66,7 +94,13 @@ export default function Admin() {
 
   const [estoque, setEstoque] = useState([]);
 
-  const [pedidos, setPedidos] = useState([]);
+  const [pedidosAtuais, setPedidosAtuais] = useState([]);
+  const [historicoPedidos, setHistoricoPedidos] = useState([]);
+  const [carregandoPedidos, setCarregandoPedidos] = useState(false);
+  const [erroPedidos, setErroPedidos] = useState('');
+  const [pedidoDetalhes, setPedidoDetalhes] = useState(null);
+  const [carregandoDetalhes, setCarregandoDetalhes] = useState(false);
+  const [erroDetalhes, setErroDetalhes] = useState('');
 
   const { logout } = useContext(AuthContext);
 
@@ -79,7 +113,7 @@ export default function Admin() {
   useEffect(() => {
     carregarProdutos();
     carregarCategorias();
-    carregarPedidos();
+    carregarPedidos('atuais');
     carregarVendas();
     carregarEstoque();
   }, []);
@@ -175,17 +209,28 @@ export default function Admin() {
   // PEDIDOS
   // =========================
 
-  async function carregarPedidos() {
-    try {
-      const res = await api.get('/pedidos', {
-        headers: {
-          Authorization: `Bearer ${localStorage.getItem('token')}`,
-        },
-      });
+  async function carregarPedidos(tipo = 'atuais') {
+    setCarregandoPedidos(true);
+    setErroPedidos('');
 
-      setPedidos(res.data);
+    try {
+      const res = await api.get(`/pedidos?tipo=${tipo}`);
+      const lista = Array.isArray(res.data) ? res.data : res.data?.data || [];
+
+      if (tipo === 'historico') {
+        setHistoricoPedidos(lista);
+      } else {
+        setPedidosAtuais(lista);
+      }
     } catch (err) {
-      console.log(err);
+      setErroPedidos('Não foi possível carregar os pedidos.');
+      if (tipo === 'historico') {
+        setHistoricoPedidos([]);
+      } else {
+        setPedidosAtuais([]);
+      }
+    } finally {
+      setCarregandoPedidos(false);
     }
   }
 
@@ -238,7 +283,7 @@ export default function Admin() {
         },
       );
 
-      await carregarPedidos();
+      await Promise.all([carregarPedidos('atuais'), carregarPedidos('historico')]);
       await carregarEstoque();
 
       alert('Status atualizado!');
@@ -314,6 +359,84 @@ export default function Admin() {
   function editar(id) {
     navigate(`/admin/produto/${id}`);
   }
+
+  async function abrirDetalhes(id) {
+    setCarregandoDetalhes(true);
+    setErroDetalhes('');
+    setPedidoDetalhes(null);
+
+    try {
+      const res = await api.get(`/pedidos/${id}/detalhes`);
+      setPedidoDetalhes(res.data);
+    } catch (err) {
+      setErroDetalhes(err.response?.data?.erro || 'Não foi possível carregar os detalhes do pedido.');
+    } finally {
+      setCarregandoDetalhes(false);
+    }
+  }
+
+  function fecharDetalhes() {
+    setPedidoDetalhes(null);
+    setErroDetalhes('');
+  }
+
+  function renderizarBadgeStatus(status) {
+    const config = STATUS_CONFIG[status] || { label: status || 'Não informado', className: 'status-desconhecido' };
+    return <span className={`pedido-status ${config.className}`}>{config.label}</span>;
+  }
+
+  function renderizarAcoesPedido(pedido) {
+    if (pedido.status === 'pendente' || pedido.status === 'aguardando_confirmacao') {
+      return (
+        <>
+          <button className="pedido-acao pedido-acao-confirmar" onClick={() => atualizarStatus(pedido.id, 'pago')}>
+            Confirmar pagamento
+          </button>
+          {pedido.status === 'aguardando_confirmacao' && (
+            <button className="pedido-acao pedido-acao-reprovar" onClick={() => atualizarStatus(pedido.id, 'cancelado')}>
+              Reprovar pagamento PIX
+            </button>
+          )}
+        </>
+      );
+    }
+
+    if (pedido.status === 'pago') {
+      return <button className="pedido-acao" onClick={() => atualizarStatus(pedido.id, 'enviado')}>Marcar como enviado</button>;
+    }
+
+    if (pedido.status === 'enviado') {
+      return <button className="pedido-acao" onClick={() => atualizarStatus(pedido.id, 'entregue')}>Marcar como entregue</button>;
+    }
+
+    return null;
+  }
+
+  function renderizarCardPedido(pedido, somenteLeitura = false) {
+    return (
+      <article key={pedido.id} className={`pedido-card-horizontal${somenteLeitura ? ' pedido-card-readonly' : ''}`}>
+        <div className="pedido-card-cabecalho">
+          <strong>Pedido #{pedido.id}</strong>
+          {renderizarBadgeStatus(pedido.status)}
+        </div>
+
+        <div className="pedido-card-resumo">
+          <p><span>Cliente</span>{pedido.usuario_nome || 'Não informado'}</p>
+          <p><span>Valor total</span>{formatarMoeda(pedido.total)}</p>
+          <p><span>Forma de pagamento</span>{formatarPagamento(pedido.pagamento)}</p>
+          <p><span>Produtos</span>{Number(pedido.quantidade_produtos || pedido.itens?.length || 0)}</p>
+          <p><span>Peças</span>{Number(pedido.quantidade_pecas || pedido.itens?.reduce((total, item) => total + Number(item.quantidade || 0), 0) || 0)}</p>
+          <p><span>Data do pedido</span>{formatarData(pedido.created_at)}</p>
+        </div>
+
+        <div className="pedido-card-acoes">
+          <button className="pedido-acao pedido-acao-detalhes" onClick={() => abrirDetalhes(pedido.id)}>Ver detalhes</button>
+          {!somenteLeitura && renderizarAcoesPedido(pedido)}
+        </div>
+      </article>
+    );
+  }
+
   return (
     <div className="admin-container">
       <h1>Painel Administrativo</h1>
@@ -339,8 +462,24 @@ export default function Admin() {
           Estoque
         </button>
 
-        <button className={tab === 'pedidos' ? 'active' : ''} onClick={() => setTab('pedidos')}>
+        <button
+          className={tab === 'pedidos' ? 'active' : ''}
+          onClick={() => {
+            setTab('pedidos');
+            carregarPedidos('atuais');
+          }}
+        >
           Pedidos
+        </button>
+
+        <button
+          className={tab === 'historico' ? 'active' : ''}
+          onClick={() => {
+            setTab('historico');
+            carregarPedidos('historico');
+          }}
+        >
+          Histórico de pedidos
         </button>
       </div>
 
@@ -538,52 +677,90 @@ export default function Admin() {
         <div className="admin-pedidos">
           <h2>Pedidos</h2>
 
-          {pedidos.map((p) => (
-            <div key={p.id} className="pedido-card">
-              <p>
-                <strong>Pedido:</strong>#{p.id}
-              </p>
+          {erroPedidos ? <p>{erroPedidos}</p> : null}
+          {carregandoPedidos ? <p>Carregando pedidos...</p> : null}
+          {!carregandoPedidos && !erroPedidos && pedidosAtuais.length === 0 ? <p>Nenhum pedido encontrado.</p> : null}
 
-              <p>
-                <strong>Cliente:</strong>
+          <div className="admin-pedidos-grid">
+            {pedidosAtuais.map((pedido) => renderizarCardPedido(pedido))}
+          </div>
+        </div>
+      )}
 
-                {p.usuario_nome}
-              </p>
+      {tab === 'historico' && (
+        <div className="admin-pedidos">
+          <h2>Histórico de pedidos</h2>
 
-              <p>
-                <strong>Email:</strong>
+          {erroPedidos ? <p>{erroPedidos}</p> : null}
+          {carregandoPedidos ? <p>Carregando pedidos...</p> : null}
+          {!carregandoPedidos && !erroPedidos && historicoPedidos.length === 0 ? <p>Nenhum pedido finalizado encontrado.</p> : null}
 
-                {p.usuario_email}
-              </p>
+          <div className="admin-pedidos-grid">
+            {historicoPedidos.map((pedido) => renderizarCardPedido(pedido, true))}
+          </div>
+        </div>
+      )}
 
-              <p>
-                <strong>Total:</strong>
-                R$ {p.total}
-              </p>
+      {(carregandoDetalhes || erroDetalhes || pedidoDetalhes) && (
+        <div className="pedido-modal-backdrop" role="presentation" onMouseDown={fecharDetalhes}>
+          <section className="pedido-modal" role="dialog" aria-modal="true" aria-labelledby="pedido-modal-titulo" onMouseDown={(event) => event.stopPropagation()}>
+            <button className="pedido-modal-fechar" onClick={fecharDetalhes} aria-label="Fechar detalhes">×</button>
+            {carregandoDetalhes && <p>Carregando detalhes do pedido...</p>}
+            {erroDetalhes && <p className="pedido-modal-erro">{erroDetalhes}</p>}
+            {pedidoDetalhes && (
+              <>
+                <header className="pedido-modal-cabecalho">
+                  <div>
+                    <h2 id="pedido-modal-titulo">Pedido #{pedidoDetalhes.id}</h2>
+                    <p>{formatarData(pedidoDetalhes.created_at)}</p>
+                  </div>
+                  {renderizarBadgeStatus(pedidoDetalhes.status)}
+                </header>
 
-              <p>
-                <strong>Status:</strong>
+                <div className="pedido-modal-secoes">
+                  <section>
+                    <h3>Cliente</h3>
+                    <p><strong>Nome:</strong> {pedidoDetalhes.usuario_nome || 'Não informado'}</p>
+                    <p><strong>Telefone:</strong> {pedidoDetalhes.usuario_celular || 'Não informado'}</p>
+                    <p><strong>E-mail:</strong> {pedidoDetalhes.usuario_email || 'Não informado'}</p>
+                  </section>
+                  <section>
+                    <h3>Endereço</h3>
+                    <p><strong>Rua:</strong> {pedidoDetalhes.endereco_rua || 'Não informado'}</p>
+                    <p><strong>Número:</strong> {pedidoDetalhes.endereco_numero || 'Não informado'}</p>
+                    <p><strong>Bairro:</strong> {pedidoDetalhes.endereco_bairro || 'Não informado'}</p>
+                    <p><strong>Cidade:</strong> {[pedidoDetalhes.endereco_cidade, pedidoDetalhes.endereco_estado].filter(Boolean).join(' - ') || 'Não informado'}</p>
+                    <p><strong>CEP:</strong> {pedidoDetalhes.endereco_cep || 'Não informado'}</p>
+                  </section>
+                </div>
 
-                {p.status}
-              </p>
+                <section className="pedido-modal-itens">
+                  <h3>Itens</h3>
+                  {pedidoDetalhes.itens.map((item, index) => (
+                    <article className="pedido-modal-item" key={`${item.produto_id}-${item.variacao_id}-${index}`}>
+                      {item.imagem_principal ? <img src={item.imagem_principal} alt={item.nome} /> : <div className="pedido-modal-sem-imagem">Sem imagem</div>}
+                      <div>
+                        <strong>{item.nome}</strong>
+                        <p>Cor: {item.cor || 'Não informada'}</p>
+                        <p>Tamanho: {item.tamanho || 'Não informado'}</p>
+                        <p>Quantidade: {item.quantidade}</p>
+                        <p>Preço unitário: {formatarMoeda(item.preco)}</p>
+                        <p>Subtotal: {formatarMoeda(Number(item.preco) * Number(item.quantidade))}</p>
+                      </div>
+                    </article>
+                  ))}
+                </section>
 
-              <button
-                onClick={() => {
-                  atualizarStatus(p.id, 'pago');
-                }}
-              >
-                Marcar Pago
-              </button>
-
-              <button
-                onClick={() => {
-                  atualizarStatus(p.id, 'enviado');
-                }}
-              >
-                Enviado
-              </button>
-            </div>
-          ))}
+                <footer className="pedido-modal-rodape">
+                  <p><strong>Valor total:</strong> {formatarMoeda(pedidoDetalhes.total)}</p>
+                  <p><strong>Forma de pagamento:</strong> {formatarPagamento(pedidoDetalhes.pagamento)}</p>
+                  <p><strong>Status:</strong> {STATUS_CONFIG[pedidoDetalhes.status]?.label || pedidoDetalhes.status}</p>
+                  <p><strong>Data do pagamento:</strong> {formatarData(pedidoDetalhes.pagamento_confirmado_em)}</p>
+                  {pedidoDetalhes.mp_payment_id && <p><strong>Código Mercado Pago:</strong> {pedidoDetalhes.mp_payment_id}</p>}
+                </footer>
+              </>
+            )}
+          </section>
         </div>
       )}
 

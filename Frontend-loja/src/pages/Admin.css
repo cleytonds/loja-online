@@ -354,3 +354,73 @@ select {
 
   margin: auto;
 }
+
+/* Fila operacional de pedidos */
+.admin-pedidos-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 14px;
+  align-items: start;
+}
+
+.pedido-card-horizontal {
+  display: grid;
+  grid-template-columns: minmax(160px, 0.8fr) minmax(0, 2.4fr) minmax(190px, 0.9fr);
+  gap: 20px;
+  align-items: center;
+  padding: 20px;
+  border: 1px solid #e2e8f0;
+  border-left: 5px solid #6366f1;
+  border-radius: 16px;
+  background: #fff;
+  box-shadow: 0 6px 18px rgba(15, 23, 42, 0.06);
+}
+
+.pedido-card-horizontal.pedido-card-readonly { border-left-color: #94a3b8; }
+.pedido-card-cabecalho { display: grid; gap: 10px; }
+.pedido-card-cabecalho strong { font-size: 18px; }
+.pedido-status { width: fit-content; padding: 6px 10px; border-radius: 999px; font-size: 12px; font-weight: 800; text-transform: uppercase; }
+.status-pendente, .status-aguardando { background: #fef3c7; color: #92400e; }
+.status-pago { background: #dcfce7; color: #166534; }
+.status-enviado { background: #dbeafe; color: #1d4ed8; }
+.status-entregue { background: #e5e7eb; color: #374151; }
+.status-cancelado { background: #fee2e2; color: #b91c1c; }
+.status-expirado { background: #ffedd5; color: #c2410c; }
+.status-desconhecido { background: #f1f5f9; color: #475569; }
+.pedido-card-resumo { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px 18px; }
+.pedido-card-resumo p, .pedido-modal p { margin: 0; overflow-wrap: anywhere; }
+.pedido-card-resumo span { display: block; margin-bottom: 3px; color: #64748b; font-size: 12px; font-weight: 700; }
+.pedido-card-acoes { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px; }
+.pedido-acao { border: 0; border-radius: 10px; padding: 10px 12px; background: #2563eb; color: #fff; cursor: pointer; font-weight: 700; }
+.pedido-acao-detalhes { background: #475569; }
+.pedido-acao-confirmar { background: #16a34a; }
+.pedido-acao-reprovar { background: #dc2626; }
+
+.pedido-modal-backdrop { position: fixed; inset: 0; z-index: 1000; display: grid; place-items: center; padding: 20px; background: rgba(15, 23, 42, 0.6); }
+.pedido-modal { position: relative; width: min(900px, 100%); max-height: calc(100vh - 40px); overflow-y: auto; padding: 28px; border-radius: 20px; background: #fff; }
+.pedido-modal-fechar { position: absolute; top: 12px; right: 14px; border: 0; background: transparent; color: #334155; cursor: pointer; font-size: 30px; line-height: 1; }
+.pedido-modal-cabecalho, .pedido-modal-itens, .pedido-modal-rodape { border-bottom: 1px solid #e2e8f0; padding-bottom: 18px; margin-bottom: 18px; }
+.pedido-modal-cabecalho { display: flex; justify-content: space-between; gap: 16px; padding-right: 28px; }
+.pedido-modal-cabecalho h2, .pedido-modal h3 { margin: 0 0 10px; }
+.pedido-modal-cabecalho p { color: #64748b; }
+.pedido-modal-secoes { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 20px; margin-bottom: 22px; }
+.pedido-modal-secoes section { display: grid; gap: 8px; padding: 16px; border-radius: 12px; background: #f8fafc; }
+.pedido-modal-itens { display: grid; gap: 12px; }
+.pedido-modal-item { display: grid; grid-template-columns: 90px minmax(0, 1fr); gap: 14px; align-items: start; padding: 12px 0; border-top: 1px solid #f1f5f9; }
+.pedido-modal-item img, .pedido-modal-sem-imagem { width: 90px; height: 110px; border-radius: 10px; object-fit: cover; }
+.pedido-modal-sem-imagem { display: grid; place-items: center; background: #e2e8f0; color: #64748b; font-size: 12px; }
+.pedido-modal-item div { display: grid; gap: 5px; }
+.pedido-modal-rodape { display: grid; gap: 8px; border-bottom: 0; margin-bottom: 0; padding-bottom: 0; }
+.pedido-modal-erro { color: #b91c1c; font-weight: 700; }
+
+@media (max-width: 900px) {
+  .pedido-card-horizontal { grid-template-columns: 1fr; }
+  .pedido-card-resumo { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .pedido-card-acoes { justify-content: flex-start; }
+}
+
+@media (max-width: 600px) {
+  .pedido-card-resumo, .pedido-modal-secoes { grid-template-columns: 1fr; }
+  .pedido-card-acoes .pedido-acao { width: 100%; }
+  .pedido-modal { padding: 20px; }
+}
