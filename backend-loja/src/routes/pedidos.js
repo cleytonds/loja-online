@@ -9,6 +9,18 @@ const router = express.Router();
 
 const PIX_KEY = process.env.PIX_KEY;
 
+function isAdminUser(req) {
+  return req.user?.tipo === 'admin';
+}
+
+function getPagination(query) {
+  const hasPagination = query.page !== undefined || query.limit !== undefined;
+  const page = Math.max(1, Number.parseInt(query.page, 10) || 1);
+  const limit = Math.min(50, Math.max(1, Number.parseInt(query.limit, 10) || 20));
+
+  return { hasPagination, page, limit, offset: (page - 1) * limit };
+}
+
 function requirePixKey(req, res) {
   if (!PIX_KEY) {
     return res.status(500).json({ erro: 'PIX_KEY não configurado no servidor' });
@@ -205,6 +217,29 @@ ADMIN PEDIDOS
 
 router.get('/', verificarToken, async (req, res) => {
   try {
+    if (!isAdminUser(req)) {
+      return res.status(403).json({ erro: 'Acesso negado' });
+    }
+
+    const tipo = String(req.query.tipo || '').trim().toLowerCase();
+    const statusPorTipo = {
+      atuais: ['pendente', 'aguardando_confirmacao', 'pago', 'enviado'],
+      historico: ['entregue', 'cancelado', 'expirado'],
+    };
+
+    if (tipo && !statusPorTipo[tipo]) {
+      return res.status(400).json({ erro: 'Tipo de pedidos inválido' });
+    }
+
+    const statusFiltro = statusPorTipo[tipo] || null;
+    const whereSql = statusFiltro ? ` WHERE p.status IN (${statusFiltro.map(() => '?').join(',')})` : '';
+    const pagination = getPagination(req.query);
+    const paginationSql = pagination.hasPagination ? ' LIMIT ? OFFSET ?' : '';
+    const queryParams = [
+      ...(statusFiltro || []),
+      ...(pagination.hasPagination ? [pagination.limit, pagination.offset] : []),
+    ];
+
     const [pedidos] = await db.query(`
       SELECT 
         p.id,
@@ -215,16 +250,46 @@ router.get('/', verificarToken, async (req, res) => {
         p.total,
         p.status,
         p.pagamento,
-        p.created_at
+        p.created_at,
+        COALESCE(resumo.quantidade_produtos, 0) AS quantidade_produtos,
+        COALESCE(resumo.quantidade_pecas, 0) AS quantidade_pecas
       FROM pedidos p
       JOIN usuarios u ON u.id = p.usuario_id
-      ORDER BY p.id DESC
-    `);
+      LEFT JOIN (
+        SELECT
+          pedido_id,
+          COUNT(*) AS quantidade_produtos,
+          COALESCE(SUM(quantidade), 0) AS quantidade_pecas
+        FROM pedido_itens
+        GROUP BY pedido_id
+      ) resumo ON resumo.pedido_id = p.id${whereSql}
+      ORDER BY p.created_at DESC, p.id DESC${paginationSql}
+    `, queryParams);
 
-    for (const pedido of pedidos) {
-      const [itens] = await db.query(
-        `
-        SELECT 
+    if (pedidos.length === 0) {
+      if (!pagination.hasPagination) return res.json([]);
+
+      const [countRows] = await db.query(
+        `SELECT COUNT(*) AS total FROM pedidos p${whereSql}`,
+        statusFiltro || [],
+      );
+      return res.json({
+        data: [],
+        pagination: {
+          page: pagination.page,
+          limit: pagination.limit,
+          total: Number(countRows[0].total),
+          totalPages: Math.ceil(Number(countRows[0].total) / pagination.limit),
+        },
+      });
+    }
+
+    const pedidoIds = pedidos.map((pedido) => pedido.id);
+    const placeholders = pedidoIds.map(() => '?').join(',');
+    const [itensRows] = await db.query(
+      `
+        SELECT
+          pi.pedido_id,
           pi.produto_id,
           pi.variacao_id,
           pi.quantidade,
@@ -233,20 +298,121 @@ router.get('/', verificarToken, async (req, res) => {
           v.tamanho,
           v.cor
         FROM pedido_itens pi
-        JOIN produtos pr ON pr.id = pi.produto_id
-        JOIN produto_variacoes v ON v.id = pi.variacao_id
-        WHERE pi.pedido_id = ?
+        LEFT JOIN produtos pr ON pr.id = pi.produto_id
+        LEFT JOIN produto_variacoes v ON v.id = pi.variacao_id
+        WHERE pi.pedido_id IN (${placeholders})
+        ORDER BY pi.pedido_id DESC, pi.id ASC
       `,
-        [pedido.id],
-      );
+      pedidoIds,
+    );
 
-      pedido.itens = itens;
+    const itensPorPedido = new Map(pedidos.map((pedido) => [pedido.id, []]));
+    for (const item of itensRows) {
+      itensPorPedido.get(item.pedido_id)?.push(item);
     }
 
-    res.json(pedidos);
+    for (const pedido of pedidos) {
+      pedido.itens = itensPorPedido.get(pedido.id) || [];
+    }
+
+    if (!pagination.hasPagination) return res.json(pedidos);
+
+    const [countRows] = await db.query(
+      `SELECT COUNT(*) AS total FROM pedidos p${whereSql}`,
+      statusFiltro || [],
+    );
+    return res.json({
+      data: pedidos,
+      pagination: {
+        page: pagination.page,
+        limit: pagination.limit,
+        total: Number(countRows[0].total),
+        totalPages: Math.ceil(Number(countRows[0].total) / pagination.limit),
+      },
+    });
   } catch (err) {
     console.error(err);
     res.status(500).json({ erro: 'Erro ao listar pedidos' });
+  }
+});
+
+/*
+=========================
+DETALHES ADMINISTRATIVOS DO PEDIDO
+=========================
+*/
+
+router.get('/:id/detalhes', verificarToken, async (req, res) => {
+  try {
+    if (!isAdminUser(req)) {
+      return res.status(403).json({ erro: 'Acesso negado' });
+    }
+
+    const pedidoId = Number.parseInt(req.params.id, 10);
+    if (!Number.isInteger(pedidoId) || pedidoId <= 0) {
+      return res.status(400).json({ erro: 'Pedido inválido' });
+    }
+
+    const [pedidos] = await db.query(
+      `
+        SELECT
+          p.id,
+          p.usuario_id,
+          p.total,
+          p.status,
+          p.pagamento,
+          p.created_at,
+          u.nome AS usuario_nome,
+          u.email AS usuario_email,
+          u.celular AS usuario_celular,
+          u.rua AS endereco_rua,
+          u.numero AS endereco_numero,
+          u.bairro AS endereco_bairro,
+          u.cidade AS endereco_cidade,
+          u.estado AS endereco_estado,
+          u.cep AS endereco_cep
+        FROM pedidos p
+        JOIN usuarios u ON u.id = p.usuario_id
+        WHERE p.id = ?
+      `,
+      [pedidoId],
+    );
+
+    if (!pedidos.length) {
+      return res.status(404).json({ erro: 'Pedido não encontrado' });
+    }
+
+    const pedido = pedidos[0];
+    const [itens] = await db.query(
+      `
+        SELECT
+          pi.produto_id,
+          pi.variacao_id,
+          pi.quantidade,
+          pi.preco,
+          pr.nome,
+          v.tamanho,
+          v.cor,
+          img.url AS imagem_principal
+        FROM pedido_itens pi
+        LEFT JOIN produtos pr ON pr.id = pi.produto_id
+        LEFT JOIN produto_variacoes v ON v.id = pi.variacao_id
+        LEFT JOIN produto_imagens img ON img.id = (
+          SELECT MIN(imagem.id)
+          FROM produto_imagens imagem
+          WHERE imagem.produto_id = pi.produto_id
+            AND imagem.is_principal = 1
+        )
+        WHERE pi.pedido_id = ?
+        ORDER BY pi.id ASC
+      `,
+      [pedidoId],
+    );
+
+    return res.json({ ...pedido, itens });
+  } catch (err) {
+    console.error(err);
+    return res.status(500).json({ erro: 'Erro ao buscar detalhes do pedido' });
   }
 });
 /*
