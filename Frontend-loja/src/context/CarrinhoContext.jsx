@@ -124,6 +124,70 @@ export function CarrinhoProvider({ children }) {
     setAberto(false);
   }
 
+  function restaurarPedidoExpirado(pedidoId, itensPedido) {
+    const storageKey = 'pedidos_expirados_restaurados';
+    const restaurados = new Set(JSON.parse(localStorage.getItem(storageKey) || '[]').map(String));
+    const idNormalizado = String(pedidoId);
+
+    if (restaurados.has(idNormalizado)) {
+      return { restaurado: false, jaRestaurado: true, indisponiveis: 0 };
+    }
+
+    const itensValidos = Array.isArray(itensPedido)
+      ? itensPedido.filter((item) =>
+        Number.isInteger(Number(item?.produto_id))
+        && Number.isInteger(Number(item?.variacao_id))
+        && Number(item?.quantidade) > 0,
+      )
+      : [];
+
+    let indisponiveis = 0;
+    setCarrinho((anterior) => {
+      const proximo = [...anterior];
+
+      for (const item of itensValidos) {
+        const variacaoId = Number(item.variacao_id);
+        const estoque = Math.max(0, Number(item.estoque ?? 0));
+        const quantidadeSolicitada = Number(item.quantidade);
+        const indice = proximo.findIndex((existente) => Number(existente.variacao_id) === variacaoId);
+        const quantidadeAtual = indice >= 0 ? Number(proximo[indice].quantidade || 0) : 0;
+        const quantidadeDisponivel = Math.max(0, estoque - quantidadeAtual);
+        const quantidadeParaRestaurar = Math.min(quantidadeSolicitada, quantidadeDisponivel);
+
+        if (quantidadeParaRestaurar < quantidadeSolicitada) indisponiveis += quantidadeSolicitada - quantidadeParaRestaurar;
+        if (quantidadeParaRestaurar <= 0) continue;
+
+        if (indice >= 0) {
+          proximo[indice] = {
+            ...proximo[indice],
+            quantidade: quantidadeAtual + quantidadeParaRestaurar,
+            estoque,
+          };
+          continue;
+        }
+
+        proximo.push({
+          produto_id: Number(item.produto_id),
+          variacao_id: variacaoId,
+          nome: item.nome,
+          imagem: item.imagem_principal,
+          preco: Number(item.preco_atual ?? item.preco ?? 0),
+          quantidade: quantidadeParaRestaurar,
+          estoque,
+          tamanho: item.tamanho,
+          cor: item.cor,
+        });
+      }
+
+      return proximo;
+    });
+
+    restaurados.add(idNormalizado);
+    localStorage.setItem(storageKey, JSON.stringify([...restaurados]));
+    setAberto(true);
+    return { restaurado: true, jaRestaurado: false, indisponiveis };
+  }
+
   return (
     <CarrinhoContext.Provider
       value={{
@@ -139,6 +203,7 @@ export function CarrinhoProvider({ children }) {
         fecharCarrinho,
         toggleCarrinho,
         limparCarrinho,
+        restaurarPedidoExpirado,
       }}
     >
       {children}

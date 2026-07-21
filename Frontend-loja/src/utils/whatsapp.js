@@ -1,64 +1,77 @@
-function formatarValor(valor) {
-  return new Intl.NumberFormat('pt-BR', {
-    style: 'currency',
-    currency: 'BRL',
-  }).format(Number(valor || 0));
-}
-
 export function normalizarNumeroWhatsApp(value) {
   const digits = String(value ?? '').replace(/\D/g, '');
 
   if (!/^55\d{10,11}$/.test(digits)) {
-    throw new Error('WhatsApp da loja não está configurado corretamente. Tente novamente mais tarde.');
+    throw new Error('Atendimento via WhatsApp indisponível. Tente novamente mais tarde.');
   }
 
   return digits;
 }
 
-export function montarMensagemWhatsApp({ pedido, itens = [], numero }) {
-  const pedidoId = pedido?.pedido_id ?? pedido?.id ?? '';
-  const valor = pedido?.valor ?? pedido?.total ?? pedido?.valor_total ?? 0;
-  const listaItens = Array.isArray(itens) && itens.length > 0 ? itens : pedido?.itens || [];
-
-  const itensTexto = listaItens
-    .map((item) => {
-      const nome = item?.nome || 'Produto';
-      const tamanho = item?.tamanho || '-';
-      const cor = item?.cor || '-';
-      const quantidade = Number(item?.quantidade || 0);
-      const preco = Number(item?.preco || 0);
-      const valorItem = preco * quantidade;
-
-      return `- ${nome} (${tamanho} / ${cor}) x${quantidade} = ${formatarValor(valorItem)}`;
-    })
-    .join('\n');
-
-  return [
-    'NOVO PEDIDO FINALIZAR WHATSAPP - DL MODAS',
-    '',
-    `Pedido: #${pedidoId}`,
-    '',
-    'Valor:',
-    formatarValor(valor),
-    '',
-    'PRODUTOS:',
-    itensTexto || 'Nenhum item informado',
-    '',
-    'Status:',
-    'Aguardando confirmação',
-    '',
-    'Cliente aguardando para finalizar o pagamento via WhatsApp.',
-  ].join('\n');
-}
-
-export function montarUrlWhatsApp({ pedido, itens = [], numero, windowRef = window }) {
-  const mensagem = montarMensagemWhatsApp({ pedido, itens, numero });
+export function abrirAtendimentoWhatsApp({ numero, mensagem, windowRef = window }) {
   const destino = normalizarNumeroWhatsApp(numero);
   const url = `https://wa.me/${destino}?text=${encodeURIComponent(mensagem)}`;
 
   if (typeof windowRef?.open === 'function') {
-    windowRef.open(url, '_blank');
+    const novaAba = windowRef.open(url, '_blank', 'noopener,noreferrer');
+    if (novaAba) novaAba.opener = null;
   }
 
   return url;
+}
+
+export function pedidoPodeTratarEntrega(status) {
+  return ['pago', 'enviado'].includes(String(status || '').trim().toLowerCase());
+}
+
+export function montarMensagemEntregaPedido({ pedido, nomeCliente }) {
+  const pedidoId = pedido?.pedido_id ?? pedido?.id;
+  const itens = Array.isArray(pedido?.itens) ? pedido.itens : [];
+  const formasPagamento = {
+    mercado_pago: 'Mercado Pago',
+    pix: 'PIX',
+    cartao_credito: 'Cartão de Crédito',
+    credit_card: 'Cartão de Crédito',
+    whatsapp: 'WhatsApp',
+  };
+  const statusFormatado = String(pedido?.status || '').trim().toLowerCase();
+  const pagamento = formasPagamento[String(pedido?.pagamento || '').trim().toLowerCase()] || 'Não informado';
+  const total = Number(pedido?.total || 0).toLocaleString('pt-BR', {
+    style: 'currency',
+    currency: 'BRL',
+  });
+  const linhasItens = itens.length
+    ? itens.flatMap((item) => [
+      `- ${item.nome || 'Produto'}`,
+      `  Cor: ${item.cor || 'Não informada'}`,
+      `  Tamanho: ${item.tamanho || 'Não informado'}`,
+      `  Quantidade: ${Number(item.quantidade || 0)}`,
+    ])
+    : ['- Itens não informados'];
+
+  return [
+    'Olá! Meu pedido foi pago e gostaria de combinar a entrega.',
+    '',
+    `Pedido: #${pedidoId || 'não informado'}`,
+    `Cliente: ${nomeCliente || 'Não informado'}`,
+    `Valor: ${total}`,
+    `Forma de pagamento: ${pagamento}`,
+    `Status: ${statusFormatado ? `${statusFormatado.charAt(0).toUpperCase()}${statusFormatado.slice(1)}` : 'Não informado'}`,
+    '',
+    'Itens:',
+    ...linhasItens,
+    '',
+    'Gostaria de combinar a entrega, por favor.',
+  ].join('\n');
+}
+
+// Compatibilidade temporária com telas legadas: abre somente atendimento,
+// sem criar pedido, alterar status ou iniciar pagamento.
+export function montarUrlWhatsApp({ pedido, numero, windowRef = window }) {
+  const pedidoId = pedido?.pedido_id ?? pedido?.id;
+  const mensagem = pedidoId
+    ? `Olá! Estou com uma dúvida sobre o pedido #${pedidoId}.`
+    : 'Olá! Tenho uma dúvida sobre uma compra na DL Modas.';
+
+  return abrirAtendimentoWhatsApp({ numero, mensagem, windowRef });
 }

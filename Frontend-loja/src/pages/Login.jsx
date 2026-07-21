@@ -31,7 +31,6 @@ export default function Login() {
         senha: senha.trim(),
       });
 
-      console.log("RESPOSTA LOGIN:", response.data); // 🔥 DEBUG
 
       const { token, usuario } = response.data;
 
@@ -48,8 +47,6 @@ export default function Login() {
       }
 
     } catch (err) {
-      console.log("ERRO LOGIN:", err);
-
       const mensagemErro =
         err.response?.data?.error || "Erro no login";
 

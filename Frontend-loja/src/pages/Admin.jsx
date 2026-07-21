@@ -50,6 +50,27 @@ function formatarPagamento(pagamento) {
   return labels[pagamento] || 'Não informado';
 }
 
+function montarUrlImagem(url) {
+  if (!url) return '';
+  return url.startsWith('http') ? url : `${api.defaults.baseURL}${url}`;
+}
+
+function ImagemItemPedido({ url, nome }) {
+  const [falhouAoCarregar, setFalhouAoCarregar] = useState(false);
+  const src = montarUrlImagem(url);
+
+  if (!src || falhouAoCarregar) {
+    return (
+      <div className="pedido-modal-sem-imagem" role="img" aria-label={`Imagem indisponível de ${nome}`}>
+        <span aria-hidden="true">▧</span>
+        <span>Imagem indisponível</span>
+      </div>
+    );
+  }
+
+  return <img src={src} alt={nome} onError={() => setFalhouAoCarregar(true)} />;
+}
+
 export default function Admin() {
   const navigate = useNavigate();
 
@@ -300,6 +321,10 @@ export default function Admin() {
       await Promise.all([carregarPedidos('atuais'), carregarPedidos('historico')]);
       await carregarEstoque();
 
+      setPedidoDetalhes((pedido) => (
+        pedido?.id === id ? { ...pedido, status } : pedido
+      ));
+
       alert('Status atualizado!');
     } catch (err) {
       console.error(err.response?.data);
@@ -408,11 +433,11 @@ export default function Admin() {
       return (
         <>
           <button className="pedido-acao pedido-acao-confirmar" onClick={() => atualizarStatus(pedido.id, 'pago')}>
-            Confirmar pagamento
+            Aprovar pagamento
           </button>
           {pedido.status === 'aguardando_confirmacao' && (
             <button className="pedido-acao pedido-acao-reprovar" onClick={() => atualizarStatus(pedido.id, 'cancelado')}>
-              Reprovar pagamento PIX
+              Cancelar pedido
             </button>
           )}
         </>
@@ -684,25 +709,38 @@ export default function Admin() {
           ) : null}
 
           {!carregandoEstoque && estoque.length > 0 ? (
-            <ResponsiveContainer width="100%" height={300}>
-              <PieChart>
-                <Pie
-                  data={estoque}
-                  dataKey="qtd"
-                  nameKey="nome"
-                  cx="50%"
-                  cy="50%"
-                  outerRadius={100}
-                  label
-                >
-                  {estoque.map((_, i) => (
-                    <Cell key={i} fill={COLORS[i % COLORS.length]} />
-                  ))}
-                </Pie>
+            <>
+              <div className="estoque-grafico-container">
+                <ResponsiveContainer width="100%" height="100%">
+                  <PieChart>
+                    <Pie
+                      data={estoque}
+                      dataKey="qtd"
+                      nameKey="nome"
+                      cx="50%"
+                      cy="50%"
+                      outerRadius={100}
+                      label={false}
+                    >
+                      {estoque.map((_, i) => (
+                        <Cell key={i} fill={COLORS[i % COLORS.length]} />
+                      ))}
+                    </Pie>
 
-                <Legend />
-              </PieChart>
-            </ResponsiveContainer>
+                    <Legend />
+                  </PieChart>
+                </ResponsiveContainer>
+              </div>
+
+              <div className="estoque-lista-mobile" aria-label="Lista de estoque por variação">
+                {estoque.map((variacao, index) => (
+                  <div className="estoque-linha-mobile" key={`${variacao.nome}-${index}`}>
+                    <span className="estoque-variacao-nome">{variacao.nome}</span>
+                    <strong className="estoque-variacao-quantidade">{Number(variacao.qtd || 0)}</strong>
+                  </div>
+                ))}
+              </div>
+            </>
           ) : null}
         </div>
       )}
@@ -788,7 +826,7 @@ export default function Admin() {
                   <h3>Itens</h3>
                   {pedidoDetalhes.itens.map((item, index) => (
                     <article className="pedido-modal-item" key={`${item.produto_id}-${item.variacao_id}-${index}`}>
-                      {item.imagem_principal ? <img src={item.imagem_principal} alt={item.nome} /> : <div className="pedido-modal-sem-imagem">Sem imagem</div>}
+                      <ImagemItemPedido url={item.imagem_principal} nome={item.nome} />
                       <div>
                         <strong>{item.nome}</strong>
                         <p>Cor: {item.cor || 'Não informada'}</p>
@@ -807,6 +845,11 @@ export default function Admin() {
                   <p><strong>Status:</strong> {STATUS_CONFIG[pedidoDetalhes.status]?.label || pedidoDetalhes.status}</p>
                   <p><strong>Data do pagamento:</strong> {formatarData(pedidoDetalhes.pagamento_confirmado_em)}</p>
                   {pedidoDetalhes.mp_payment_id && <p><strong>Código Mercado Pago:</strong> {pedidoDetalhes.mp_payment_id}</p>}
+                  <div className="pedido-modal-acoes">
+                    {['entregue', 'cancelado', 'expirado'].includes(pedidoDetalhes.status)
+                      ? <p className="pedido-modal-sem-acoes">Pedido finalizado — nenhuma ação disponível.</p>
+                      : renderizarAcoesPedido(pedidoDetalhes)}
+                  </div>
                 </footer>
               </>
             )}

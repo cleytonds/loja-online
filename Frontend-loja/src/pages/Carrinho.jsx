@@ -3,8 +3,8 @@ import { useNavigate } from 'react-router-dom';
 
 import { CarrinhoContext } from '../context/CarrinhoContext';
 import api from '../services/api';
-import { montarUrlWhatsApp } from '../utils/whatsapp.js';
 import { getErrorMessage } from '../utils/frontendState.js';
+import BotaoAtendimentoWhatsApp from '../components/BotaoAtendimentoWhatsApp.jsx';
 
 import './Carrinho.css';
 
@@ -26,7 +26,7 @@ export default function Carrinho() {
     0,
   );
 
-  async function finalizarCompra(metodo) {
+  async function finalizarCompra() {
     if (finalizando) return;
 
     if (!carrinho.length) {
@@ -43,8 +43,9 @@ export default function Carrinho() {
 
     setFinalizando(true);
 
+    let etapa = 'criação do pedido';
+
     try {
-      // snapshot seguro (evita mutação e bugs de estado)
       const itensSnapshot = carrinho.map((item) => ({
         produto_id: item.produto_id,
         variacao_id: item.variacao_id,
@@ -54,13 +55,14 @@ export default function Carrinho() {
         cor: item.cor,
         tamanho: item.tamanho,
       }));
+
       const idempotencyKey = crypto.randomUUID();
 
       const res = await api.post(
         '/pedidos',
         {
           itens: itensSnapshot,
-          pagamento: metodo,
+          pagamento: 'mercado_pago',
         },
         {
           headers: {
@@ -76,53 +78,42 @@ export default function Carrinho() {
         throw new Error('Pedido não retornou ID');
       }
 
-      // =========================
-      // PIX
-      // =========================
-      if (metodo === 'pix') {
-        const pedidoPagamento = {
-          id: pedidoId,
-          pedido_id: pedidoId,
-          total: Number(res.data.total),
-          status: 'pendente',
-        };
+      etapa = 'criação da preferência do Mercado Pago';
 
-        sessionStorage.setItem('pedido_pagamento', JSON.stringify(pedidoPagamento));
+      const preferencia = await api.post(
+        `/pagamentos/mercado-pago/preferencia/${pedidoId}`,
+        {},
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        },
+      );
 
-        limparCarrinho();
+      const checkoutUrl = preferencia.data?.checkoutUrl;
 
-        navigate(`/pagamento/${pedidoId}`, {
-          state: pedidoPagamento,
-        });
-
-        return;
+      if (typeof checkoutUrl !== 'string' || !checkoutUrl.trim()) {
+        throw new Error('Checkout Mercado Pago indisponível');
       }
 
-      // =========================
-      // WHATSAPP
-      // =========================
-      if (metodo === 'whatsapp') {
-        const pedidoPayload = {
-          id: pedidoId,
-          pedido_id: pedidoId,
-          total,
-          valor: total,
-          itens: itensSnapshot,
-        };
-
-        limparCarrinho();
-
-        montarUrlWhatsApp({
-          pedido: pedidoPayload,
-          itens: itensSnapshot,
-          numero: res.data?.whatsapp_number,
-        });
-
-        return;
-      }
+      limparCarrinho();
+      window.location.assign(checkoutUrl);
     } catch (err) {
-      console.error('ERRO CHECKOUT:', err);
-      alert(getErrorMessage(err, 'Erro ao criar pedido'));
+      console.error('ERRO CHECKOUT:', {
+        etapa,
+        status: err.response?.status,
+        resposta: err.response?.data,
+        url: err.config?.url,
+        metodo: err.config?.method,
+        mensagem: err.message,
+      });
+
+      const mensagemBackend =
+        err.response?.data?.erro ||
+        err.response?.data?.message ||
+        getErrorMessage(err, 'Erro ao iniciar pagamento');
+
+      alert(`${etapa}: ${mensagemBackend}`);
     } finally {
       setFinalizando(false);
     }
@@ -184,13 +175,11 @@ export default function Carrinho() {
           <span>{formatarPreco(total)}</span>
         </div>
 
-        <button disabled={finalizando} onClick={() => finalizarCompra('pix')}>
-          {finalizando ? 'Processando...' : 'Finalizar com PIX'}
+        <button disabled={finalizando} onClick={finalizarCompra}>
+          {finalizando ? 'Processando...' : 'Pagar com PIX ou cartão'}
         </button>
 
-        <button disabled={finalizando} onClick={() => finalizarCompra('whatsapp')}>
-          Finalizar no WhatsApp
-        </button>
+        <BotaoAtendimentoWhatsApp mensagem="Olá! Tenho uma dúvida sobre uma compra na DL Modas." />
       </div>
     </div>
   );
