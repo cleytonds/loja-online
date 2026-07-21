@@ -64,3 +64,4 @@ Thumbs.db
 # ========================
 jspm_packages/
 .npm/
+.vercel

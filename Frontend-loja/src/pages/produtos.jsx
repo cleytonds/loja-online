@@ -7,6 +7,7 @@ import { useEffect, useState, useContext, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 
 import api from '../services/api';
+import ImagemProduto from '../components/ImagemProduto.jsx';
 
 import { CarrinhoContext } from '../context/CarrinhoContext';
 
@@ -215,7 +216,7 @@ function Produtos() {
           <div key={produto.id} className="produto-card">
             {/* IMAGEM */}
             <div className="img-box" onClick={() => abrirProduto(produto)}>
-              <img loading="lazy" src={`${api.defaults.baseURL}${produto.imagem_principal}`} alt={produto.nome} />
+              <ImagemProduto url={produto.imagem_principal} alt={produto.nome} />
 
               <button
                 className={`fav-btn ${isFavorito(produto.id) ? 'active' : ''}`}

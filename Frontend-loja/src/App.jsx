@@ -27,6 +27,7 @@ const Admin = lazy(() => import('./pages/Admin.jsx'));
 const ProdutoDetalhe = lazy(() => import('./pages/ProdutoDetalhe'));
 const EditarProduto = lazy(() => import('./pages/EditarProduto'));
 const Pagamento = lazy(() => import('./pages/Pagamento'));
+const PagamentoRetorno = lazy(() => import('./pages/PagamentoRetorno'));
 
 import './App.css';
 
@@ -54,6 +55,9 @@ export default function App() {
               <Route path="/busca" element={<Busca />} />
               <Route path="/produto/:id" element={<ProdutoDetalhe />} />
               <Route path="/admin/produto/:id" element={<EditarProduto />} />
+              <Route path="/pagamento/sucesso" element={<PagamentoRetorno />} />
+              <Route path="/pagamento/pendente" element={<PagamentoRetorno />} />
+              <Route path="/pagamento/falhou" element={<PagamentoRetorno />} />
               <Route path="/pagamento/:id" element={<Pagamento />} />
 
               {/* USUÁRIO LOGADO */}

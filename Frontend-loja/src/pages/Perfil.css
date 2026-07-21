@@ -212,6 +212,45 @@
   font-weight: 600;
 }
 
+.pedido-itens-consulta {
+  margin-top: 14px;
+}
+
+.pedido-resumo-consulta {
+  padding-bottom: 14px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.pedido-resumo-consulta p {
+  margin: 6px 0;
+}
+
+.pedido-total-consulta {
+  font-size: 18px;
+  font-weight: 700;
+  color: #fff;
+}
+
+.pedido-item-consulta {
+  display: flex;
+  gap: 10px;
+  padding: 10px 0;
+  border-top: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.pedido-item-consulta img {
+  width: 64px;
+  height: 64px;
+  flex: 0 0 64px;
+  object-fit: cover;
+  border-radius: 8px;
+}
+
+.pedido-item-consulta p {
+  margin: 3px 0;
+  overflow-wrap: anywhere;
+}
+
 .order-header {
   display: flex;
   justify-content: space-between;
@@ -418,6 +457,15 @@
   background: #25d366;
   color: white;
   border: none;
+  border-radius: 6px;
+  cursor: pointer;
+}
+.btn-whatsapp-atendimento {
+  margin-top: 6px;
+  padding: 8px 12px;
+  background: transparent;
+  color: #168a42;
+  border: 1px solid #25d366;
   border-radius: 6px;
   cursor: pointer;
 }

@@ -1,14 +1,26 @@
-import React, { useEffect, useState } from 'react';
+import React, { useContext, useEffect, useState } from 'react';
 import './MeusPedidos.css';
 import api from '../services/api';
 import { useNavigate } from 'react-router-dom';
-import { montarUrlWhatsApp } from '../utils/whatsapp.js';
+import BotaoAtendimentoWhatsApp from '../components/BotaoAtendimentoWhatsApp.jsx';
+import { CarrinhoContext } from '../context/CarrinhoContext';
+import { AuthContext } from '../context/AuthContext';
+import { montarMensagemEntregaPedido, pedidoPodeTratarEntrega } from '../utils/whatsapp.js';
+
+function formatarTempoRestante(expiresAt, agora) {
+  const totalSegundos = Math.max(0, Math.ceil((new Date(expiresAt).getTime() - agora) / 1000));
+  return `${String(Math.floor(totalSegundos / 60)).padStart(2, '0')}:${String(totalSegundos % 60).padStart(2, '0')}`;
+}
 
 export default function MeusPedidos({ usuario_id }) {
   const [pedidos, setPedidos] = useState([]);
   const [modalPedido, setModalPedido] = useState(null);
   const [filtroStatus, setFiltroStatus] = useState('todos');
   const [ordenarData, setOrdenarData] = useState('desc');
+  const [continuandoPedidoId, setContinuandoPedidoId] = useState(null);
+  const [agora, setAgora] = useState(Date.now());
+  const { restaurarPedidoExpirado } = useContext(CarrinhoContext);
+  const { user } = useContext(AuthContext);
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -24,11 +36,18 @@ export default function MeusPedidos({ usuario_id }) {
     carregarPedidos();
   }, []);
 
+  useEffect(() => {
+    const interval = window.setInterval(() => setAgora(Date.now()), 1000);
+    return () => window.clearInterval(interval);
+  }, []);
+
   let pedidosArray = pedidos.map((pedido) => ({
     pedido_id: pedido.id,
     total: Number(pedido.total),
     status: pedido.status,
+    pagamento: pedido.pagamento,
     criado_em: pedido.created_at,
+    expires_at: pedido.expires_at,
     itens: pedido.itens || [],
     whatsapp_number: pedido.whatsapp_number,
   }));
@@ -58,10 +77,8 @@ export default function MeusPedidos({ usuario_id }) {
 
   const repetirPedido = async (pedido_id) => {
     try {
-      const res = await api.get(`/pedidos/meus`);
-      alert(res.data.mensagem);
-      const resPedidos = await api.get(`/pedidos/meus/${usuario_id}`);
-      setPedidos(resPedidos.data);
+      const res = await api.get('/pedidos/meus');
+      setPedidos(Array.isArray(res.data) ? res.data : []);
     } catch {
       alert('Erro ao repetir pedido');
     }
@@ -70,22 +87,32 @@ export default function MeusPedidos({ usuario_id }) {
   const abrirModal = (pedido) => setModalPedido(pedido);
   const fecharModal = () => setModalPedido(null);
 
-  const finalizarWhatsApp = (pedido) => {
+  const continuarPagamentoMercadoPago = async (pedido) => {
     try {
-      montarUrlWhatsApp({
-        pedido: {
-          id: pedido.pedido_id,
-          pedido_id: pedido.pedido_id,
-          total: Number(pedido.total),
-          valor: Number(pedido.total),
-          itens: pedido.itens || [],
-        },
-        itens: pedido.itens || [],
-        numero: pedido.whatsapp_number,
-      });
+      setContinuandoPedidoId(pedido.pedido_id);
+      const resposta = await api.post(`/pagamentos/mercado-pago/preferencia/${pedido.pedido_id}`);
+      const checkoutUrl = resposta.data?.checkoutUrl;
+
+      if (typeof checkoutUrl !== 'string' || !checkoutUrl.trim()) {
+        throw new Error('Link de pagamento indisponível');
+      }
+
+      window.location.assign(checkoutUrl);
     } catch (err) {
       alert(err.message);
+    } finally {
+      setContinuandoPedidoId(null);
     }
+  };
+
+  const voltarAoCarrinho = (pedido) => {
+    const resultado = restaurarPedidoExpirado(pedido.pedido_id, pedido.itens);
+    if (resultado.jaRestaurado) {
+      alert('Os itens deste pedido já foram restaurados no carrinho.');
+    } else if (resultado.indisponiveis > 0) {
+      alert('Parte dos itens não pôde ser restaurada por falta de estoque.');
+    }
+    navigate('/carrinho');
   };
 
   return (
@@ -143,32 +170,78 @@ export default function MeusPedidos({ usuario_id }) {
                 Detalhes
               </button>
 
-              {pedido.status === 'pendente' && (
+              {pedido.status === 'pendente' && pedido.pagamento === 'mercado_pago'
+                && !(pedido.expires_at && new Date(pedido.expires_at).getTime() <= agora) && (
                 <>
+                  <p>Pedido expira em {formatarTempoRestante(pedido.expires_at, agora)}</p>
                   <button
                     className="btn-pagamento"
-                    onClick={() =>
-                      navigate(`/pagamento/${pedido.pedido_id}`, {
-                        state: pedido,
-                      })
-                    }
+                    onClick={() => continuarPagamentoMercadoPago(pedido)}
+                    disabled={continuandoPedidoId === pedido.pedido_id}
                   >
-                    Pagar com PIX
+                    {continuandoPedidoId === pedido.pedido_id ? 'Abrindo pagamento...' : 'Continuar pagamento'}
+                  </button>
+                  <BotaoAtendimentoWhatsApp
+                    numero={pedido.whatsapp_number}
+                    mensagem={`Olá! Estou com uma dúvida sobre o pedido #${pedido.pedido_id}.`}
+                  />
+                </>
+              )}
+
+              {pedido.pagamento === 'mercado_pago'
+                && (pedido.status === 'expirado'
+                  || (pedido.status === 'pendente' && pedido.expires_at && new Date(pedido.expires_at).getTime() <= agora)) && (
+                <>
+                  <p className="pedido-somente-leitura">Pedido expirado</p>
+                  <p className="pedido-somente-leitura">
+                    {pedido.status === 'expirado'
+                      ? 'O tempo para pagamento expirou. Os itens foram devolvidos ao seu carrinho.'
+                      : 'O tempo para pagamento expirou. Aguardando a devolução do estoque.'}
+                  </p>
+                  {pedido.status === 'expirado' && (
+                    <button className="btn-pagamento" onClick={() => voltarAoCarrinho(pedido)}>
+                      Voltar ao carrinho
+                    </button>
+                  )}
+                  <BotaoAtendimentoWhatsApp
+                    numero={pedido.whatsapp_number}
+                    mensagem={`Olá! Estou com uma dúvida sobre o pedido #${pedido.pedido_id}.`}
+                  />
+                </>
+              )}
+
+              {pedido.status === 'pendente' && pedido.pagamento === 'pix' && (
+                <button
+                  className="btn-pagamento"
+                  onClick={() =>
+                    navigate(`/pagamento/${pedido.pedido_id}`, {
+                      state: pedido,
+                    })
+                  }
+                >
+                  Pagar com PIX
+                </button>
+              )}
+
+              {!['pago', 'enviado', 'entregue', 'cancelado', 'expirado'].includes(pedido.status) && (
+                <>
+                  <button className="btn-repetir" onClick={() => repetirPedido(pedido.pedido_id)}>
+                    Repetir
                   </button>
 
-                  <button className="btn-whatsapp" onClick={() => finalizarWhatsApp(pedido)}>
-                    Finalizar via WhatsApp
+                  <button className="btn-cancelar" onClick={() => cancelarPedido(pedido.pedido_id)}>
+                    Cancelar
                   </button>
                 </>
               )}
 
-              <button className="btn-repetir" onClick={() => repetirPedido(pedido.pedido_id)}>
-                Repetir
-              </button>
-
-              <button className="btn-cancelar" onClick={() => cancelarPedido(pedido.pedido_id)}>
-                Cancelar
-              </button>
+              {pedidoPodeTratarEntrega(pedido.status) && (
+                <BotaoAtendimentoWhatsApp
+                  numero={pedido.whatsapp_number}
+                  texto="Tratar entrega pelo WhatsApp"
+                  mensagem={montarMensagemEntregaPedido({ pedido, nomeCliente: user?.nome })}
+                />
+              )}
             </div>
           </div>
         ))

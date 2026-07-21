@@ -7,6 +7,7 @@ import { useEffect, useState } from 'react';
 import { FaChevronLeft, FaChevronRight } from 'react-icons/fa';
 
 import api from '../services/api';
+import ImagemProduto from '../components/ImagemProduto.jsx';
 
 export default function Home() {
   const [produtos, setProdutos] = useState([]);
@@ -69,7 +70,7 @@ export default function Home() {
   function ProdutoCard({ produto }) {
     return (
       <Link className="card-produto" to={`/produto/${produto.id}`}>
-        <img loading="lazy" src={`${api.defaults.baseURL}${produto.imagem_principal}`} alt={produto.nome} />
+        <ImagemProduto url={produto.imagem_principal} alt={produto.nome} />
 
         <h3>{produto.nome}</h3>
 

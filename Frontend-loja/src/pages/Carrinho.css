@@ -160,3 +160,14 @@
 .btn-finalizar:hover {
   transform: scale(1.02);
 }
+
+.btn-whatsapp-atendimento {
+  width: 100%;
+  margin-top: 10px;
+  padding: 10px;
+  border: 1px solid #25d366;
+  border-radius: 10px;
+  background: transparent;
+  color: #25d366;
+  cursor: pointer;
+}

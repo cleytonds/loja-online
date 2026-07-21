@@ -1,21 +1,43 @@
 import { useEffect, useState, useContext } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { montarUrlWhatsApp } from '../utils/whatsapp.js';
 
 import api from '../services/api';
 import { AuthContext } from '../context/AuthContext';
+import { CarrinhoContext } from '../context/CarrinhoContext';
 import { getErrorMessage } from '../utils/frontendState.js';
+import BotaoAtendimentoWhatsApp from '../components/BotaoAtendimentoWhatsApp.jsx';
+import { montarMensagemEntregaPedido, pedidoPodeTratarEntrega } from '../utils/whatsapp.js';
 
 import './Perfil.css';
+
+function formatarTempoRestante(expiresAt, agora) {
+  const totalSegundos = Math.max(0, Math.ceil((new Date(expiresAt).getTime() - agora) / 1000));
+  return `${String(Math.floor(totalSegundos / 60)).padStart(2, '0')}:${String(totalSegundos % 60).padStart(2, '0')}`;
+}
+
+function formatarFormaPagamento(pagamento) {
+  const nomes = {
+    mercado_pago: 'Mercado Pago',
+    pix: 'PIX',
+    cartao_credito: 'Cartão de Crédito',
+    credit_card: 'Cartão de Crédito',
+    whatsapp: 'WhatsApp',
+  };
+
+  return nomes[String(pagamento || '').trim().toLowerCase()] || 'Não informado';
+}
 
 export default function Perfil() {
   const navigate = useNavigate();
   const { user, logout, atualizarUsuario } = useContext(AuthContext);
+  const { restaurarPedidoExpirado } = useContext(CarrinhoContext);
 
   const [tab, setTab] = useState('perfil');
 
   const [pedidos, setPedidos] = useState([]);
   const [carregandoPedidos, setCarregandoPedidos] = useState(false);
+  const [continuandoPedidoId, setContinuandoPedidoId] = useState(null);
+  const [agora, setAgora] = useState(Date.now());
 
   const [editar, setEditar] = useState(false);
   const [senha, setSenha] = useState(false);
@@ -85,6 +107,11 @@ export default function Perfil() {
     setCep(user.cep || '');
   }, [user]);
 
+  useEffect(() => {
+    const interval = window.setInterval(() => setAgora(Date.now()), 1000);
+    return () => window.clearInterval(interval);
+  }, []);
+
   // =========================
   // BUSCAR PEDIDOS (MANUAL)
   // =========================
@@ -148,22 +175,41 @@ export default function Perfil() {
     }
   }
 
-  function finalizarWhatsApp(pedido) {
+  async function continuarPagamentoMercadoPago(pedido) {
     try {
-      montarUrlWhatsApp({
-        pedido: {
-          id: pedido.id,
-          pedido_id: pedido.id,
-          total: Number(pedido.total || 0),
-          valor: Number(pedido.total || 0),
-          itens: pedido.itens || [],
+      setContinuandoPedidoId(pedido.id);
+
+      const resposta = await api.post(
+        `/pagamentos/mercado-pago/preferencia/${pedido.id}`,
+        {},
+        {
+          headers: {
+            Authorization: `Bearer ${localStorage.getItem('token')}`,
+          },
         },
-        itens: pedido.itens || [],
-        numero: pedido.whatsapp_number,
-      });
+      );
+      const checkoutUrl = resposta.data?.checkoutUrl;
+
+      if (typeof checkoutUrl !== 'string' || !checkoutUrl.trim()) {
+        throw new Error('Link de pagamento indisponível');
+      }
+
+      window.location.assign(checkoutUrl);
     } catch (err) {
-      alert(err.message);
+      alert(getErrorMessage(err, 'Não foi possível continuar o pagamento'));
+    } finally {
+      setContinuandoPedidoId(null);
     }
+  }
+
+  function voltarAoCarrinho(pedido) {
+    const resultado = restaurarPedidoExpirado(pedido.id, pedido.itens);
+    if (resultado.jaRestaurado) {
+      alert('Os itens deste pedido já foram restaurados no carrinho.');
+    } else if (resultado.indisponiveis > 0) {
+      alert('Parte dos itens não pôde ser restaurada por falta de estoque.');
+    }
+    navigate('/carrinho');
   }
 
   // =========================
@@ -207,6 +253,10 @@ export default function Perfil() {
 
   function renderPedido(pedido, permitirAcoes) {
     const status = String(pedido.status || '').trim().toLowerCase();
+    const pagamentoMercadoPago = pedido.pagamento === 'mercado_pago';
+    const prazoVencido = pagamentoMercadoPago && pedido.expires_at
+      && new Date(pedido.expires_at).getTime() <= agora;
+    const pedidoExpirado = status === 'expirado' || prazoVencido;
 
     return (
       <div className={`order-card ${permitirAcoes ? '' : 'order-card-readonly'}`} key={pedido.id}>
@@ -215,9 +265,44 @@ export default function Perfil() {
           <span className={`status ${status}`}>{status}</span>
         </div>
 
-        {!permitirAcoes && <p className="pedido-somente-leitura">Pedido finalizado — somente leitura</p>}
+        {permitirAcoes && status === 'pendente' && pagamentoMercadoPago && !pedidoExpirado && (
+          <div className="acoes-pedido">
+            <p>Pedido expira em {formatarTempoRestante(pedido.expires_at, agora)}</p>
+            <button
+              className="btn-pagamento"
+              onClick={() => continuarPagamentoMercadoPago(pedido)}
+              disabled={continuandoPedidoId === pedido.id}
+            >
+              {continuandoPedidoId === pedido.id ? 'Abrindo pagamento...' : 'Continuar pagamento'}
+            </button>
+            <BotaoAtendimentoWhatsApp
+              numero={pedido.whatsapp_number}
+              mensagem={`Olá! Estou com uma dúvida sobre o pedido #${pedido.id}.`}
+            />
+          </div>
+        )}
 
-        {permitirAcoes && status === 'pendente' && (
+        {permitirAcoes && pedidoExpirado && pagamentoMercadoPago && (
+          <div className="acoes-pedido">
+            <p className="pedido-somente-leitura">Pedido expirado</p>
+            <p className="pedido-somente-leitura">
+              {status === 'expirado'
+                ? 'O tempo para pagamento expirou. Os itens foram devolvidos ao seu carrinho.'
+                : 'O tempo para pagamento expirou. Aguardando a devolução do estoque.'}
+            </p>
+            {status === 'expirado' && (
+              <button className="btn-pagamento" onClick={() => voltarAoCarrinho(pedido)}>
+                Voltar ao carrinho
+              </button>
+            )}
+            <BotaoAtendimentoWhatsApp
+              numero={pedido.whatsapp_number}
+              mensagem={`Olá! Estou com uma dúvida sobre o pedido #${pedido.id}.`}
+            />
+          </div>
+        )}
+
+        {permitirAcoes && status === 'pendente' && pedido.pagamento === 'pix' && (
           <div className="acoes-pedido">
             <button
               className="btn-pagamento"
@@ -229,16 +314,53 @@ export default function Perfil() {
             >
               Pagar com PIX
             </button>
-
-            <button className="btn-whatsapp" onClick={() => finalizarWhatsApp(pedido)}>
-              Finalizar compra via WhatsApp
-            </button>
           </div>
         )}
 
-        <p>Data: {new Date(pedido.created_at).toLocaleString('pt-BR')}</p>
-        <p>Pagamento: {pedido.pagamento}</p>
-        <h3>R$ {Number(pedido.total || 0).toFixed(2)}</h3>
+        {pedidoPodeTratarEntrega(status) && (
+          <div className="acoes-pedido">
+            <BotaoAtendimentoWhatsApp
+              numero={pedido.whatsapp_number}
+              texto="Tratar entrega pelo WhatsApp"
+              mensagem={montarMensagemEntregaPedido({ pedido, nomeCliente: user?.nome })}
+            />
+          </div>
+        )}
+
+        <div className={permitirAcoes ? '' : 'pedido-resumo-consulta'}>
+          <p>Data: {new Date(pedido.created_at).toLocaleString('pt-BR')}</p>
+          {permitirAcoes ? (
+            <>
+              <p>Pagamento: {formatarFormaPagamento(pedido.pagamento)}</p>
+              <h3>R$ {Number(pedido.total || 0).toFixed(2)}</h3>
+            </>
+          ) : (
+            <p className="pedido-total-consulta">Total: R$ {Number(pedido.total || 0).toFixed(2)}</p>
+          )}
+        </div>
+
+        {!permitirAcoes && (
+          <div className="pedido-itens-consulta">
+            {(pedido.itens || []).map((item, index) => (
+              <article className="pedido-item-consulta" key={`${pedido.id}-${item.variacao_id || index}`}>
+                {item.imagem_principal ? (
+                  <img
+                    src={item.imagem_principal.startsWith('http')
+                      ? item.imagem_principal
+                      : `${api.defaults.baseURL}${item.imagem_principal}`}
+                    alt={item.nome || 'Produto comprado'}
+                  />
+                ) : null}
+                <div>
+                  <strong>{item.nome}</strong>
+                  <p>Quantidade: {item.quantidade}</p>
+                  <p>Cor: {item.cor || 'Não informada'}</p>
+                  <p>Tamanho: {item.tamanho || 'Não informado'}</p>
+                </div>
+              </article>
+            ))}
+          </div>
+        )}
       </div>
     );
   }
@@ -284,7 +406,7 @@ export default function Perfil() {
             className={tab === 'historico' ? 'ativo' : ''}
             onClick={() => {
               setTab('historico');
-              setPedidos([]);
+              carregarPedidos();
             }}
           >
             Histórico de pedidos
@@ -351,15 +473,12 @@ export default function Perfil() {
                 <p>Pedidos finalizados para consulta</p>
               </div>
 
-              <button className="buscar-pedidos" onClick={carregarPedidos} disabled={carregandoPedidos}>
-                {carregandoPedidos ? 'Buscando...' : 'Buscar histórico'}
-              </button>
             </div>
 
             {!carregandoPedidos && pedidosHistorico.length === 0 && (
               <div className="empty-orders">
                 <h4>Nenhum pedido no histórico</h4>
-                <p>Clique em buscar para consultar seus pedidos finalizados.</p>
+                <p>Nenhum pedido finalizado foi encontrado.</p>
               </div>
             )}
 
