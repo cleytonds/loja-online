@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import api from '../services/api';
+import ImagemProduto from '../components/ImagemProduto.jsx';
 import './Favoritos.css';
 
 export default function Favoritos() {
@@ -65,7 +66,7 @@ export default function Favoritos() {
         {favoritos.map((item) => (
           <div key={item.id} className="card">
             <div className="img-box">
-              <img src={`${api.defaults.baseURL}${item.imagem_principal}`} alt={item.nome} />
+              <ImagemProduto url={item.imagem_principal} alt={item.nome} />
 
               <button className="fav-remove" onClick={() => remover(item.id)}>
                 ♡

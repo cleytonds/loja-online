@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import api from "../services/api";
+import ImagemProduto from '../components/ImagemProduto.jsx';
 import "./Busca.css";
 
 export default function Busca() {
@@ -63,10 +64,7 @@ export default function Busca() {
         {!carregando &&
           produtos.map((p) => (
             <div key={p.id} className="produto-card">
-              <img
-                src={p.imagem || "https://picsum.photos/300/350"}
-                alt={p.nome}
-              />
+              <ImagemProduto url={p.imagem} alt={p.nome} />
               <h3>{p.nome}</h3>
               <p>R$ {Number(p.preco).toFixed(2)}</p>
               <p className="categoria">{p.categoria_nome}</p>
