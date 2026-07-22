@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 
 import { CarrinhoContext } from '../context/CarrinhoContext';
 import api from '../services/api';
+import ImagemProduto from '../components/ImagemProduto.jsx';
 import { getErrorMessage } from '../utils/frontendState.js';
 import BotaoAtendimentoWhatsApp from '../components/BotaoAtendimentoWhatsApp.jsx';
 
@@ -136,10 +137,7 @@ export default function Carrinho() {
         {carrinho.map((item) => (
           <div className="carrinho-item" key={item.variacao_id}>
             <div className="item-info">
-              <img
-                src={item.imagem ? `${api.defaults.baseURL}${item.imagem}` : '/placeholder.png'}
-                alt={item.nome}
-              />
+              <ImagemProduto url={item.imagem} alt={item.nome} />
 
               <div>
                 <h2>{item.nome}</h2>

@@ -3,14 +3,11 @@ import { useParams, useNavigate } from 'react-router-dom';
 
 import api from '../services/api';
 
+import ImagemProduto from '../components/ImagemProduto';
+
 import { CarrinhoContext } from '../context/CarrinhoContext';
 
 import './ProdutoDetalhe.css';
-
-// =========================
-// HELPER IMAGEM
-// =========================
-const getImage = (url) => (url?.startsWith('http') ? url : `${api.defaults.baseURL}${url}`);
 
 export default function ProdutoDetalhe() {
   const { id } = useParams();
@@ -45,7 +42,7 @@ export default function ProdutoDetalhe() {
         setProduto(res.data);
 
         if (res.data.imagens?.length) {
-          setImagem(getImage(res.data.imagens[0].url));
+          setImagem(res.data.imagens[0].url);
         }
 
         if (res.data.variacoes?.length) {
@@ -153,15 +150,21 @@ export default function ProdutoDetalhe() {
       {/* GALERIA */}
 
       <div className="galeria">
-        <img className="imagem-principal" src={imagem} alt={produto.nome} />
+        <ImagemProduto
+          className="imagem-principal"
+          url={imagem}
+          alt={produto.nome}
+          loading="lazy"
+        />
 
         <div className="miniaturas">
           {produto.imagens?.map((img) => (
-            <img
+            <ImagemProduto
               key={img.id}
-              src={getImage(img.url)}
-              onClick={() => setImagem(getImage(img.url))}
+              url={img.url}
+              onClick={() => setImagem(img.url)}
               alt=""
+              loading="lazy"
             />
           ))}
         </div>

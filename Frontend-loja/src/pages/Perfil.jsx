@@ -2,6 +2,7 @@ import { useEffect, useState, useContext } from 'react';
 import { useNavigate } from 'react-router-dom';
 
 import api from '../services/api';
+import ImagemProduto from '../components/ImagemProduto.jsx';
 import { AuthContext } from '../context/AuthContext';
 import { CarrinhoContext } from '../context/CarrinhoContext';
 import { getErrorMessage } from '../utils/frontendState.js';
@@ -343,14 +344,10 @@ export default function Perfil() {
           <div className="pedido-itens-consulta">
             {(pedido.itens || []).map((item, index) => (
               <article className="pedido-item-consulta" key={`${pedido.id}-${item.variacao_id || index}`}>
-                {item.imagem_principal ? (
-                  <img
-                    src={item.imagem_principal.startsWith('http')
-                      ? item.imagem_principal
-                      : `${api.defaults.baseURL}${item.imagem_principal}`}
-                    alt={item.nome || 'Produto comprado'}
-                  />
-                ) : null}
+                <ImagemProduto
+                  url={item.imagem_principal}
+                  alt={item.nome || 'Produto comprado'}
+                />
                 <div>
                   <strong>{item.nome}</strong>
                   <p>Quantidade: {item.quantidade}</p>
@@ -390,7 +387,7 @@ export default function Perfil() {
         </div>
 
         <nav>
-          <button onClick={() => setTab('perfil')}>Minha conta</button>
+          <button className={tab === 'perfil' ? 'ativo' : ''} onClick={() => setTab('perfil')}>Minha conta</button>
 
           <button
             className={tab === 'pedidos' ? 'ativo' : ''}
@@ -414,7 +411,7 @@ export default function Perfil() {
 
           <button onClick={() => navigate('/favoritos')}>Favoritos</button>
 
-          <button onClick={() => setTab('config')}>Configurações</button>
+          <button className={tab === 'config' ? 'ativo' : ''} onClick={() => setTab('config')}>Configurações</button>
         </nav>
 
         <button className="logout" onClick={logout}>

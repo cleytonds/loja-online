@@ -434,16 +434,73 @@
 @media (max-width: 768px) {
   .dashboard {
     flex-direction: column;
+    min-height: auto;
   }
 
   .sidebar {
     width: 100%;
-    flex-direction: row;
-    overflow-x: auto;
+    box-sizing: border-box;
+    padding: 16px;
+    border-right: 0;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  }
+
+  .user-box {
+    margin: 0 0 14px;
+    padding: 4px 0;
+  }
+
+  .sidebar nav {
+    width: 100%;
+    gap: 6px;
+  }
+
+  .sidebar button {
+    width: 100%;
+    min-height: 44px;
+    padding: 12px 14px;
+  }
+
+  .logout {
+    margin-top: 12px;
   }
 
   .content {
     padding: 15px;
+    min-width: 0;
+  }
+
+  .content h2 {
+    font-size: 22px;
+  }
+
+  .pedidos-area,
+  .settings-card {
+    padding: 16px;
+  }
+
+  .pedidos-header {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  .buscar-pedidos {
+    width: 100%;
+  }
+
+  .order-card {
+    padding: 14px;
+  }
+
+  .pedido-item-consulta,
+  .pedido-item-consulta > div {
+    min-width: 0;
+  }
+
+  .pedido-item-consulta strong,
+  .pedido-item-consulta p {
+    overflow-wrap: anywhere;
   }
 
   .modal-editar-cadastro {

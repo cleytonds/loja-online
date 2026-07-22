@@ -1,12 +1,34 @@
 import { createContext, useState, useEffect } from 'react';
+import { normalizarCaminhoImagem } from '../utils/imagem.js';
 
 export const CarrinhoContext = createContext();
 
+function normalizarImagemDoItem(item) {
+  if (!item || typeof item !== 'object') return item;
+
+  const proximo = { ...item };
+  for (const campo of ['imagem', 'imagem_url', 'url_imagem', 'imagem_principal']) {
+    if (!(campo in proximo)) continue;
+
+    const normalizada = normalizarCaminhoImagem(proximo[campo]);
+    if (normalizada.startsWith('blob:')) delete proximo[campo];
+    else proximo[campo] = normalizada;
+  }
+
+  return proximo;
+}
+
+function carregarCarrinho() {
+  try {
+    const salvo = JSON.parse(localStorage.getItem('carrinho') || '[]');
+    return Array.isArray(salvo) ? salvo.map(normalizarImagemDoItem) : [];
+  } catch {
+    return [];
+  }
+}
+
 export function CarrinhoProvider({ children }) {
-  const [carrinho, setCarrinho] = useState(() => {
-    const salvo = localStorage.getItem('carrinho');
-    return salvo ? JSON.parse(salvo) : [];
-  });
+  const [carrinho, setCarrinho] = useState(carregarCarrinho);
 
   const [aberto, setAberto] = useState(false);
 
@@ -70,7 +92,7 @@ export function CarrinhoProvider({ children }) {
           produto_id: produto.id,
           variacao_id: variacao.id,
           nome: produto.nome,
-          imagem: produto.imagem_principal,
+          imagem: normalizarCaminhoImagem(produto.imagem_principal),
           preco,
           quantidade: Number(variacao.quantidade ?? 1),
           estoque,
@@ -170,7 +192,7 @@ export function CarrinhoProvider({ children }) {
           produto_id: Number(item.produto_id),
           variacao_id: variacaoId,
           nome: item.nome,
-          imagem: item.imagem_principal,
+          imagem: normalizarCaminhoImagem(item.imagem_principal),
           preco: Number(item.preco_atual ?? item.preco ?? 0),
           quantidade: quantidadeParaRestaurar,
           estoque,

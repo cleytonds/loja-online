@@ -1,63 +1,121 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
+import axios from 'axios';
 import api from '../services/api.js';
+import { montarUrlImagem, usaUrlNgrok } from '../utils/imagem.js';
 
-const FALLBACK_SRC = 'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="600" height="800" viewBox="0 0 600 800"%3E%3Crect width="100%25" height="100%25" fill="%23f1f5f9"/%3E%3Cpath d="M180 550l90-120 70 80 55-70 125 110H180z" fill="%23cbd5e1"/%3E%3Ccircle cx="255" cy="285" r="42" fill="%23cbd5e1"/%3E%3Ctext x="300" y="650" text-anchor="middle" fill="%2364748b" font-family="Arial" font-size="28"%3EImagem indisponível%3C/text%3E%3C/svg%3E';
+const FALLBACK_SRC =
+  'data:image/svg+xml;charset=UTF-8,' +
+  encodeURIComponent(`
+    <svg xmlns="http://www.w3.org/2000/svg"
+         width="600"
+         height="800"
+         viewBox="0 0 600 800">
+      <rect width="100%" height="100%" fill="#f1f5f9"/>
+      <path
+        d="M180 550l90-120 70 80 55-70 125 110H180z"
+        fill="#cbd5e1"
+      />
+      <circle cx="255" cy="285" r="42" fill="#cbd5e1"/>
+      <text
+        x="300"
+        y="650"
+        text-anchor="middle"
+        fill="#64748b"
+        font-family="Arial"
+        font-size="28">
+        Imagem indisponível
+      </text>
+    </svg>
+  `);
 
-function montarUrlImagem(url) {
-  if (!url) return '';
-  return url.startsWith('http') ? url : `${api.defaults.baseURL}${url}`;
-}
+const apiImagem = axios.create();
 
-function usaNgrok(url) {
-  try {
-    return /(^|\.)ngrok(?:-[a-z0-9-]+)?\.(app|io|dev)$/i.test(new URL(url).hostname);
-  } catch {
-    return false;
-  }
-}
-
-export default function ImagemProduto({ url, alt, className, loading = 'lazy' }) {
-  const urlImagem = montarUrlImagem(url);
-  const [src, setSrc] = useState(urlImagem || FALLBACK_SRC);
+export default function ImagemProduto({
+  url,
+  alt = '',
+  className,
+  loading = 'lazy',
+  onError,
+  ...imgProps
+}) {
+  const urlImagem = useMemo(() => montarUrlImagem(url, api.defaults.baseURL), [url]);
+  const [src, setSrc] = useState(FALLBACK_SRC);
 
   useEffect(() => {
-    let ativa = true;
+    let componenteAtivo = true;
     let objectUrl = '';
 
-    if (!urlImagem) {
+    async function carregarImagem() {
+      if (!urlImagem) {
+        setSrc(FALLBACK_SRC);
+        return;
+      }
+
+      if (!usaUrlNgrok(urlImagem)) {
+        setSrc(urlImagem);
+        return;
+      }
+
       setSrc(FALLBACK_SRC);
-      return undefined;
-    }
 
-    if (!usaNgrok(urlImagem)) {
-      setSrc(urlImagem);
-      return undefined;
-    }
+      try {
+        const resposta = await apiImagem.get(urlImagem, {
+          responseType: 'blob',
 
-    setSrc(FALLBACK_SRC);
-    api.get(urlImagem, { responseType: 'blob' })
-      .then((resposta) => {
-        if (!ativa || !resposta.data?.size) return;
-        objectUrl = URL.createObjectURL(resposta.data);
+          headers: {
+            'ngrok-skip-browser-warning': 'true',
+          },
+
+          timeout: 15000,
+        });
+
+        if (!componenteAtivo) return;
+
+        const blob = resposta.data;
+        const contentType = blob?.type || resposta.headers?.['content-type'] || '';
+
+        if (
+          !(blob instanceof Blob) ||
+          blob.size === 0 ||
+          !contentType.toLowerCase().startsWith('image/')
+        ) {
+          setSrc(FALLBACK_SRC);
+          return;
+        }
+
+        objectUrl = URL.createObjectURL(blob);
         setSrc(objectUrl);
-      })
-      .catch(() => {
-        if (ativa) setSrc(FALLBACK_SRC);
-      });
+      } catch {
+        if (!componenteAtivo) return;
+        setSrc(FALLBACK_SRC);
+      }
+    }
+
+    carregarImagem();
 
     return () => {
-      ativa = false;
-      if (objectUrl) URL.revokeObjectURL(objectUrl);
+      componenteAtivo = false;
+
+      if (objectUrl) {
+        URL.revokeObjectURL(objectUrl);
+      }
     };
   }, [urlImagem]);
 
   return (
     <img
+      {...imgProps}
       className={className}
       src={src}
       alt={alt}
       loading={loading}
-      onError={() => setSrc(FALLBACK_SRC)}
+      onError={(event) => {
+        if (event.currentTarget.src !== FALLBACK_SRC) {
+          setSrc(FALLBACK_SRC);
+        }
+
+        onError?.(event);
+      }}
     />
   );
 }
