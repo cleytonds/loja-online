@@ -1,5 +1,6 @@
 import { useContext, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { FiTrash2 } from 'react-icons/fi';
 
 import { CarrinhoContext } from '../context/CarrinhoContext';
 import api from '../services/api';
@@ -133,51 +134,62 @@ export default function Carrinho() {
     <div className="carrinho-container">
       <h1 className="carrinho-titulo">Carrinho de compras</h1>
 
+      <div className="carrinho-layout">
       <div className="lista-carrinho">
         {carrinho.map((item) => (
           <div className="carrinho-item" key={item.variacao_id}>
             <div className="item-info">
               <ImagemProduto url={item.imagem} alt={item.nome} />
 
-              <div>
+              <div className="item-detalhes">
                 <h2>{item.nome}</h2>
 
                 <p>
                   {item.tamanho} • {item.cor}
                 </p>
 
-                <strong>{formatarPreco(item.preco)}</strong>
+                <strong className="item-preco-unitario">{formatarPreco(item.preco)}</strong>
               </div>
             </div>
 
-            <div className="item-quantidade">
-              <button onClick={() => diminuirQuantidade(item.variacao_id)}>-</button>
+            <div className="item-quantidade" aria-label={`Quantidade de ${item.nome}`}>
+              <button type="button" onClick={() => diminuirQuantidade(item.variacao_id)} aria-label="Diminuir quantidade">−</button>
 
               <span>{item.quantidade}</span>
 
-              <button onClick={() => aumentarQuantidade(item.variacao_id)}>+</button>
+              <button type="button" onClick={() => aumentarQuantidade(item.variacao_id)} aria-label="Aumentar quantidade">+</button>
             </div>
 
             <div className="item-acoes">
               <strong>{formatarPreco(item.preco * item.quantidade)}</strong>
 
-              <button onClick={() => removerDoCarrinho(item.variacao_id)}>Remover</button>
+              <button type="button" onClick={() => removerDoCarrinho(item.variacao_id)}>
+                <FiTrash2 aria-hidden="true" />
+                Remover
+              </button>
             </div>
           </div>
         ))}
       </div>
 
-      <div className="carrinho-resumo">
+      <aside className="carrinho-resumo">
+        <h2>Resumo do pedido</h2>
         <div className="resumo-linha">
+          <span>Subtotal</span>
+          <span>{formatarPreco(total)}</span>
+        </div>
+
+        <div className="resumo-linha resumo-total">
           <span>Total</span>
           <span>{formatarPreco(total)}</span>
         </div>
 
-        <button disabled={finalizando} onClick={finalizarCompra}>
+        <button className="btn-finalizar" disabled={finalizando} onClick={finalizarCompra}>
           {finalizando ? 'Processando...' : 'Pagar com PIX ou cartão'}
         </button>
 
         <BotaoAtendimentoWhatsApp mensagem="Olá! Tenho uma dúvida sobre uma compra na DL Modas." />
+      </aside>
       </div>
     </div>
   );

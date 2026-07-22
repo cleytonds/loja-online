@@ -65,7 +65,7 @@
 }
 
 .descricao {
-  color: #666;
+  color: var(--text-muted);
 
   line-height: 1.6;
 }
@@ -74,6 +74,7 @@
   font-size: 35px;
 
   margin: 25px 0;
+  color: var(--gold-dark);
 }
 
 .opcoes {
@@ -89,7 +90,7 @@
 
   border-radius: 30px;
 
-  border: 1px solid #ddd;
+  border: 1px solid var(--border);
 
   background: white;
 
@@ -97,7 +98,7 @@
 }
 
 .opcoes .selecionado {
-  background: #111;
+  background: var(--primary);
 
   color: white;
 }
@@ -121,7 +122,7 @@
 
   border: none;
 
-  background: #111;
+  background: var(--primary);
 
   color: white;
 }
@@ -146,13 +147,14 @@
 }
 
 .btn-carrinho {
-  background: #111;
+  background: var(--secondary);
 
-  color: white;
+  color: var(--text);
 }
 
 .btn-comprar {
-  background: #16a34a;
+  background: var(--gold);
+  color: white;
 
   color: white;
 }

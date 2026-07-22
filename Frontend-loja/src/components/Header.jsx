@@ -4,6 +4,7 @@ import { AuthContext } from "../context/AuthContext"; // 👈 IMPORTANTE
 import { useNavigate, Link, useLocation } from "react-router-dom";
 import "./Header.css";
 import { FiShoppingCart, FiSearch, FiUser, FiHeart } from "react-icons/fi";
+import logoDayaneLima from "../assets/logo-dayane-lima-header.png";
 
 export default function Header() {
   const { carrinho, toggleCarrinho } = useContext(CarrinhoContext);
@@ -11,7 +12,6 @@ export default function Header() {
   const navigate = useNavigate();
   const location = useLocation();
 
-  const [mostrarBusca, setMostrarBusca] = useState(false);
   const [bloqueado, setBloqueado] = useState(false);
 
   const token = localStorage.getItem("token");
@@ -22,6 +22,10 @@ export default function Header() {
   }
 
   const quantidadeTotal = carrinho.reduce((acc, item) => acc + item.quantidade, 0);
+
+  function abrirBuscaProdutos() {
+    navigate('/produtos', { state: { focarBusca: true } });
+  }
 
   // 🔥 FUNÇÃO CORRIGIDA
   const handlePerfilClick = () => {
@@ -39,32 +43,19 @@ export default function Header() {
   };
 
   return (
-    <header>
+    <header className="header">
 
       <div className="header-container">
 
-        <h1 className="logo" onClick={() => navigate("/")}>
-          DLmodas
-        </h1>
-
-        {mostrarBusca && (
-          <input
-            className="input-busca"
-            placeholder="Buscar produtos..."
-            onKeyDown={(e) => {
-              if (e.key === "Enter") {
-                navigate(`/busca?nome=${e.target.value}`);
-                setMostrarBusca(false);
-              }
-            }}
-          />
-        )}
+        <button className="logo" type="button" onClick={() => navigate("/")} aria-label="Ir para a página inicial">
+          <img src={logoDayaneLima} alt="Dayane Lima Moda Feminina" />
+        </button>
 
         <div className="header-icons">
 
           <FiSearch
             className="icon"
-            onClick={() => setMostrarBusca(!mostrarBusca)}
+            onClick={abrirBuscaProdutos}
           />
 
           {/* 👤 PERFIL CORRIGIDO */}
@@ -90,7 +81,7 @@ export default function Header() {
         </div>
       </div>
 
-      <div className="menu-preto">
+      <div className="menu-categorias">
         <nav className="menu-container">
           <Link to="/">Home</Link>
           <Link to="/produtos">Produtos</Link>

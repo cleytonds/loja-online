@@ -3,6 +3,7 @@ import { useState, useContext } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import api from "../services/api";
 import { AuthContext } from "../context/AuthContext";
+import logoDayaneLima from "../assets/logo-dayane-lima-header.png";
 import "./login.css";
 
 export default function Login() {
@@ -58,19 +59,23 @@ export default function Login() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-100 p-6 relative">
-      <div className="bg-white p-10 rounded-2xl shadow-xl w-full max-w-md">
-        <h1 className="text-3xl font-bold text-center mb-6 text-gray-800">
-          Login
+    <div className="login-page min-h-screen flex items-center justify-center bg-gray-100 p-6 relative">
+      <div className="login-card bg-white p-10 rounded-2xl shadow-xl w-full max-w-md">
+        <img className="login-logo" src={logoDayaneLima} alt="Dayane Lima Moda Feminina" />
+
+        <h1 className="login-titulo text-3xl font-bold text-center mb-6 text-gray-800">
+          Entrar
         </h1>
 
-        <form onSubmit={handleLogin} className="space-y-4">
+        <p className="login-subtitulo">Entre para acompanhar seus pedidos e continuar suas compras.</p>
+
+        <form onSubmit={handleLogin} className="login-form space-y-4">
           <input
             type="email"
             placeholder="Email"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
-            className="w-full p-3 rounded-lg border border-gray-300 focus:outline-none focus:ring-2 focus:ring-black"
+            className="login-input w-full p-3 rounded-lg border border-gray-300 focus:outline-none focus:ring-2 focus:ring-black"
             required
           />
 
@@ -79,35 +84,35 @@ export default function Login() {
             placeholder="Senha"
             value={senha}
             onChange={(e) => setSenha(e.target.value)}
-            className="w-full p-3 rounded-lg border border-gray-300 focus:outline-none focus:ring-2 focus:ring-black"
+            className="login-input w-full p-3 rounded-lg border border-gray-300 focus:outline-none focus:ring-2 focus:ring-black"
             required
           />
 
           <button
             type="submit"
             disabled={loading}
-            className="w-full py-3 rounded-lg bg-black text-white font-semibold hover:bg-gray-800 transition disabled:opacity-50"
+            className="login-submit w-full py-3 rounded-lg bg-black text-white font-semibold hover:bg-gray-800 transition disabled:opacity-50"
           >
             {loading ? "Entrando..." : "Entrar"}
           </button>
         </form>
 
         {/* ✅ ESQUECI SENHA (mantido) */}
-        <p className="mt-2 text-center text-gray-600">
+        <p className="login-link-row mt-2 text-center text-gray-600">
           Esqueceu a senha?{" "}
           <Link
             to="/esqueci-senha"
-            className="text-black font-semibold hover:underline"
+            className="login-link text-black font-semibold hover:underline"
           >
             Redefinir senha
           </Link>
         </p>
 
-        <p className="mt-4 text-center text-gray-600">
+        <p className="login-link-row login-cadastro mt-4 text-center text-gray-600">
           Não tem conta?{" "}
           <Link
             to="/cadastro"
-            className="text-black font-semibold hover:underline"
+            className="login-link text-black font-semibold hover:underline"
           >
             Cadastre-se
           </Link>

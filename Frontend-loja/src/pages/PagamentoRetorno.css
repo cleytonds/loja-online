@@ -18,3 +18,8 @@
   display: inline-block;
   text-decoration: none;
 }
+
+.pagamento-retorno { background: var(--background); color: var(--text); }
+.pagamento-retorno > * { background: var(--surface); border-color: var(--border); box-shadow: var(--shadow); }
+.pagamento-retorno .btn-primary { background: var(--primary); }
+.pagamento-retorno .btn-primary:hover { background: var(--primary-dark); }

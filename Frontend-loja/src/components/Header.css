@@ -1,56 +1,74 @@
 .header {
-  background: #fff;
-  border-bottom: 1px solid #eee;
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+  box-shadow: 0 3px 16px rgba(91, 61, 69, 0.04);
+  position: sticky;
+  top: 0;
+  z-index: 100;
 }
 
 .header-container {
-  max-width: 1100px;
+  max-width: 1240px;
   margin: auto;
-  padding: 15px;
+  min-height: 112px;
+  padding: 12px 28px;
   display: flex;
   align-items: center;
-  gap: 15px;
+  gap: 32px;
 }
 
 /* LOGO */
 .logo {
-  font-size: 22px;
-  font-weight: bold;
+  flex: 0 0 clamp(285px, 27vw, 360px);
+  width: clamp(285px, 27vw, 360px);
+  height: 86px;
+  padding: 0;
+  border: 0;
+  background: transparent;
   cursor: pointer;
+  line-height: 0;
 }
 
-/* BUSCA */
-.input-busca {
-  flex: 1;
-  padding: 10px;
-  border-radius: 8px;
-  border: 1px solid #ddd;
-  outline: none;
-  transition: 0.2s;
+.logo img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  object-position: left center;
 }
 
-.input-busca:focus {
-  border-color: #999;
+@media (max-width: 1000px) {
+  .header-container {
+    min-height: 88px;
+    gap: 22px;
+  }
+
+  .logo {
+    flex-basis: clamp(230px, 29vw, 270px);
+    width: clamp(230px, 29vw, 270px);
+    height: 64px;
+  }
 }
 
 /* ÍCONES */
 .header-icons {
+  margin-left: auto;
   display: flex;
   align-items: center;
-  gap: 18px;
+  gap: 16px;
 }
 
 /* 👇 agora serve pros ícones profissionais */
 .icon {
-  font-size: 22px;
-  color: #333;
+  font-size: 21px;
+  color: var(--text);
   cursor: pointer;
   transition: 0.2s;
 }
 
 .icon:hover {
-  color: #000;
-  transform: scale(1.1);
+  color: var(--primary-dark);
+  transform: scale(1.06);
 }
 
 /* CARRINHO */
@@ -65,7 +83,7 @@
   top: -6px;
   right: -8px;
 
-  background: #ff3b30;
+  background: var(--primary-dark);
   color: #fff;
 
   font-size: 10px;
@@ -78,6 +96,165 @@
   align-items: center;
   justify-content: center;
 
-  border-radius: 50%;
-  box-shadow: 0 2px 6px rgba(0,0,0,0.2);
+  border-radius: 999px;
+  box-shadow: 0 2px 6px rgba(232, 142, 160, 0.3);
+}
+
+.menu-categorias {
+  background: var(--secondary);
+  border-top: 1px solid var(--border);
+  border-bottom: 1px solid var(--border);
+}
+
+.menu-container {
+  max-width: 1240px;
+  min-height: 42px;
+  margin: 0 auto;
+  padding: 0 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+
+.menu-container a,
+.menu-container .btn-sair {
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--text);
+  padding: 8px 14px;
+  font: 600 13px 'Poppins', sans-serif;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.menu-container a:hover,
+.menu-container .btn-sair:hover {
+  background: transparent;
+  color: var(--primary-dark);
+}
+
+/* Estado visual unificado para os links do menu em qualquer resolução. */
+.header .menu-container a {
+  position: relative;
+  display: inline-flex;
+  min-height: 44px;
+  align-items: center;
+  justify-content: center;
+  padding: 0 10px;
+  border-radius: 0;
+  background: transparent;
+}
+
+.header .menu-container a.active,
+.header .menu-container a:hover {
+  background: transparent;
+  color: var(--primary-dark);
+  font-weight: 600;
+  transform: none;
+}
+
+.header .menu-container a::before,
+.header .menu-container a.active::before {
+  display: none;
+}
+
+.header .menu-container a::after {
+  left: 50%;
+  bottom: 4px;
+  width: 0;
+  height: 3px;
+  border-radius: 999px;
+  background: var(--primary);
+  transform: translateX(-50%);
+}
+
+.header .menu-container a:hover::after,
+.header .menu-container a.active::after {
+  width: 30px;
+}
+
+@media (max-width: 768px) {
+  .header-container {
+    min-height: 72px;
+    padding: 8px 16px;
+    gap: 12px;
+    flex-wrap: wrap;
+  }
+
+  .logo {
+    flex: 0 0 clamp(150px, 44vw, 190px);
+    width: clamp(150px, 44vw, 190px);
+    height: 52px;
+  }
+
+  .header-icons {
+    margin-left: auto;
+    gap: 16px;
+    flex-wrap: nowrap;
+    flex-shrink: 0;
+    white-space: nowrap;
+  }
+
+  .icon { font-size: 21px; }
+
+  .menu-container {
+    min-height: 44px;
+    justify-content: center;
+    gap: 32px;
+    overflow: hidden;
+    padding: 0 16px;
+  }
+
+  .menu-container a:not(:first-child):not(:nth-child(2)),
+  .menu-container .btn-sair {
+    display: none;
+  }
+
+  .menu-container a { white-space: nowrap; }
+
+}
+
+@media (max-width: 420px) {
+  .header-container {
+    min-height: 64px;
+    padding: 6px 10px;
+    gap: 10px;
+  }
+
+  .logo {
+    flex-basis: clamp(135px, 46vw, 160px);
+    width: clamp(135px, 46vw, 160px);
+    height: 46px;
+  }
+
+  .header-icons { gap: 11px; }
+  .icon { font-size: 20px; }
+}
+
+/* Protege o header das regras legadas globais de App.css. */
+.header .header-container {
+  flex-direction: row;
+  justify-content: initial;
+}
+
+.header .header-icons {
+  flex-direction: row;
+}
+
+.header .menu-container a,
+.header .menu-container .btn-sair {
+  color: var(--text);
+  text-decoration: none;
+}
+
+@media (max-width: 768px) {
+  .header .header-container {
+    flex-direction: row;
+  }
+
+  .header .menu-container {
+    flex-wrap: nowrap;
+  }
 }
