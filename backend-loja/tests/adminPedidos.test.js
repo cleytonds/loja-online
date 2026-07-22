@@ -59,3 +59,18 @@ test('painel administrativo consome os contratos de listagem e detalhes', async 
   assert.match(source, /quantidade_pecas/);
   assert.match(source, /Ver detalhes/);
 });
+
+test('alteração administrativa bloqueia apenas estados expirados ou expirÃ¡veis e exige administrador', async () => {
+  const source = await lerRotaPedidos();
+  const statusStart = source.indexOf("router.put('/:id/status'");
+  const statusEnd = source.indexOf('/*', statusStart + 1);
+  const statusRoute = source.slice(statusStart, statusEnd);
+
+  assert.match(statusRoute, /if \(!isAdminUser\(req\)\)[\s\S]*?status\(403\)/);
+  assert.match(statusRoute, /SELECT id, status, expires_at FROM pedidos/);
+  assert.match(statusRoute, /const statusExpiraveis = \['pendente', 'aguardando_pagamento'\]/);
+  assert.match(statusRoute, /statusExpiraveis\.includes\(currentStatus\) && expiradoPorPrazo/);
+  assert.match(statusRoute, /pago:\s*\['enviado'\]/);
+  assert.match(statusRoute, /enviado:\s*\['entregue'\]/);
+  assert.match(statusRoute, /if \(currentStatus === 'expirado'\)/);
+});

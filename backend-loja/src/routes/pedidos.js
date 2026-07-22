@@ -423,6 +423,10 @@ ALTERAR STATUS
 
 router.put('/:id/status', verificarToken, async (req, res) => {
   try {
+    if (!isAdminUser(req)) {
+      return res.status(403).json({ erro: 'Ação não permitida' });
+    }
+
     const novoStatus = String(req.body.status || '').toLowerCase();
 
     //  bloqueia alteração para pago por não-admin
@@ -430,7 +434,7 @@ router.put('/:id/status', verificarToken, async (req, res) => {
       return res.status(403).json({ erro: 'Ação não permitida' });
     }
 
-    const [rows] = await db.query(`SELECT id, status FROM pedidos WHERE id=?`, [req.params.id]);
+    const [rows] = await db.query(`SELECT id, status, expires_at FROM pedidos WHERE id=?`, [req.params.id]);
 
     if (!rows.length) {
       return res.status(404).json({
@@ -443,6 +447,15 @@ router.put('/:id/status', verificarToken, async (req, res) => {
 
     //  BLOQUEIO ABSOLUTO DE EXPIRADO
     if (currentStatus === 'expirado') {
+      return res.status(403).json({
+        erro: 'Pedido expirado não pode ser alterado',
+      });
+    }
+
+    const statusExpiraveis = ['pendente', 'aguardando_pagamento'];
+    const expiradoPorPrazo = pedido.expires_at && new Date(pedido.expires_at).getTime() <= Date.now();
+
+    if (statusExpiraveis.includes(currentStatus) && expiradoPorPrazo) {
       return res.status(403).json({
         erro: 'Pedido expirado não pode ser alterado',
       });
