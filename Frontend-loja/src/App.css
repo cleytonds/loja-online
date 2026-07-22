@@ -5,9 +5,9 @@
 
 /* Variáveis globais */
 :root {
-  --cor-primaria: #000;
-  --cor-secundaria: #fff;
-  --cor-acento: #f59e0b;
+  --cor-primaria: var(--primary);
+  --cor-secundaria: var(--surface);
+  --cor-acento: var(--primary);
   --fonte-principal: 'Inter', sans-serif;
 }
 
@@ -181,8 +181,8 @@ input:focus, textarea:focus, select:focus {
 
 /* Footer */
 footer {
-  background-color: #111827;
-  color: #fff;
+  background-color: var(--secondary);
+  color: var(--text);
   text-align: center;
   padding: 1.5rem 0;
   margin-top: 2rem;

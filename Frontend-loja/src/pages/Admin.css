@@ -7,11 +7,11 @@
 
   padding: 30px;
 
-  background: linear-gradient(135deg, #f8fafc, #eef2ff);
+  background: linear-gradient(135deg, var(--background), var(--secondary-light));
 
   font-family: Inter, system-ui, sans-serif;
 
-  color: #1f2937;
+  color: var(--text);
 }
 
 /* TITULO */
@@ -57,7 +57,7 @@
 }
 
 .admin-tabs .active {
-  background: #6366f1;
+  background: var(--primary);
 
   color: white;
 }

@@ -526,3 +526,28 @@
   border-radius: 6px;
   cursor: pointer;
 }
+
+/* Identidade DL Modas */
+.dashboard, .content { background: var(--background); color: var(--text); }
+.sidebar { background: var(--surface); border-color: var(--border); }
+.avatar { background: var(--secondary); }
+.user-box p, .pedidos-header p, .empty-orders { color: var(--text-muted); }
+.sidebar button { color: var(--text); }
+.sidebar button:hover { background: var(--secondary-light); color: var(--primary-dark); }
+.sidebar button.ativo, .buscar-pedidos, .modal-card button { background: linear-gradient(135deg, var(--primary), var(--primary-dark)); color: #fff; }
+.logout, .logout:hover { background: var(--secondary-medium) !important; color: var(--text) !important; }
+.settings-card, .pedidos-area, .order-card, .modal-card { background: var(--surface); border-color: var(--border); box-shadow: var(--shadow); }
+.order-card-readonly { border-color: var(--border); }
+.pedido-somente-leitura, .pedido-item-consulta p { color: var(--text-muted); }
+.pedido-resumo-consulta, .pedido-item-consulta { border-color: var(--border); }
+.pedido-total-consulta, .campo-cadastro label { color: var(--text); }
+.status { background: var(--secondary); color: var(--text); }
+.status.pendente { background: #f8e7bd; color: #7c5a17; }
+.status.pago { background: #e1ecdf; color: #4b6b47; }
+.status.enviado { background: #f5dfb0; color: #856623; }
+.status.expirado { background: #f4d9dd; color: #98505d; }
+.modal-card input { background: var(--secondary-light); border-color: var(--border); color: var(--text); }
+.campo-cadastro input::placeholder { color: var(--text-muted); }
+.erro-cadastro, .mensagem-cadastro { color: var(--danger); }
+.btn-pagamento { background: var(--primary); }
+.btn-whatsapp-atendimento { color: var(--primary-dark); border-color: var(--primary); }

@@ -2,9 +2,9 @@
 
 import './produtos.css';
 
-import { useEffect, useState, useContext, useMemo } from 'react';
+import { useEffect, useState, useContext, useMemo, useRef } from 'react';
 
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 
 import api from '../services/api';
 import ImagemProduto from '../components/ImagemProduto.jsx';
@@ -24,6 +24,8 @@ function Produtos() {
   const [buscaDebounced, setBuscaDebounced] = useState('');
 
   const navigate = useNavigate();
+  const location = useLocation();
+  const buscaRef = useRef(null);
 
   const { adicionarAoCarrinho } = useContext(CarrinhoContext);
 
@@ -106,6 +108,14 @@ function Produtos() {
     carregarCategorias();
   }, []);
 
+  useEffect(() => {
+    if (!location.state?.focarBusca || loading || !buscaRef.current) return;
+
+    buscaRef.current.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    buscaRef.current.focus();
+    navigate(location.pathname, { replace: true, state: null });
+  }, [loading, location.pathname, location.state, navigate]);
+
   // =========================
   // FILTRO
   // =========================
@@ -182,8 +192,11 @@ function Produtos() {
       {/* BUSCA */}
 
       <input
+        ref={buscaRef}
+        id="busca-produtos"
         className="busca-produto"
         placeholder="Buscar produtos..."
+        aria-label="Buscar produtos"
         value={busca}
         onChange={(e) => setBusca(e.target.value)}
       />

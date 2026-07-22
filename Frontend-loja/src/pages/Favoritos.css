@@ -207,3 +207,11 @@
     padding: 10px;
   }
 }
+
+/* Identidade DL Modas */
+.favoritos-container { background: var(--background); color: var(--text); }
+.card { background: var(--surface); border: 1px solid var(--border); box-shadow: var(--shadow); }
+.img-box { background: var(--secondary-light); }
+.fav-remove { color: var(--primary-dark); }
+.acoes button { background: var(--primary); }
+.acoes button:hover { background: var(--primary-dark); }

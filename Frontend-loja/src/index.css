@@ -1,6 +1,64 @@
+@import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@500;600;700&family=Poppins:wght@400;500;600;700&display=swap');
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+:root {
+  --primary: #f7b6c2;
+  --primary-dark: #e88ea0;
+  --secondary: #ffe6ec;
+  --secondary-light: #fff2f5;
+  --secondary-medium: #fbd1da;
+  --gold: #d4af37;
+  --gold-dark: #b88a1d;
+  --background: #fff8fa;
+  --surface: #ffffff;
+  --text: #333333;
+  --text-muted: #777777;
+  --border: #f5d7dd;
+  --shadow: 0 10px 30px rgba(0, 0, 0, 0.08);
+  --shadow-hover: 0 16px 35px rgba(0, 0, 0, 0.12);
+  --success: #6f8b68;
+  --danger: #b85c6b;
+  --radius-sm: 12px;
+  --radius: 14px;
+  --radius-card: 18px;
+  --radius-lg: 24px;
+  --transition: 250ms ease;
+  --focus-ring: 0 0 0 3px rgba(212, 175, 55, 0.18);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+button,
+input,
+textarea,
+select {
+  transition: border-color var(--transition), background-color var(--transition),
+    box-shadow var(--transition), color var(--transition), transform var(--transition);
+}
+
+button:focus-visible,
+input:focus-visible,
+textarea:focus-visible,
+select:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+
 body {
-  font-family: 'Inter', sans-serif;
+  font-family: 'Poppins', 'Inter', sans-serif;
+  margin: 0;
+  background: var(--background);
+  color: var(--text);
+}
+
+h1,
+h2,
+h3,
+.logo {
+  font-family: 'Playfair Display', Georgia, serif;
 }

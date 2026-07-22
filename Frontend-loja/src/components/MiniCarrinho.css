@@ -278,3 +278,19 @@
   padding: 40px 10px;
   color: #888;
 }
+
+/* Identidade DL Modas */
+.overlay { background: rgba(91, 61, 69, 0.28); }
+.drawer { background: linear-gradient(180deg, var(--surface), var(--secondary-light)); box-shadow: -20px 0 60px rgba(91, 61, 69, 0.18); }
+.drawer-header, .drawer-footer { background: rgba(255, 255, 255, 0.94); border-color: var(--border); }
+.drawer-header span, .btn-remover { color: var(--text-muted); }
+.drawer-header span:hover, .btn-remover:hover { color: var(--primary-dark); }
+.item { background: var(--surface); border-color: var(--border); box-shadow: var(--shadow); }
+.item img { background: var(--secondary-light); }
+.nome { color: var(--text); }
+.preco { color: var(--primary-dark); }
+.qtd-controle button { border-color: var(--border); background: var(--surface); color: var(--text); }
+.qtd-controle button:hover, .btn-continuar { background: var(--gold); border-color: var(--gold); color: #fff; }
+.btn-continuar:hover { background: var(--gold-dark); }
+.btn-ver-carrinho { background: var(--secondary); color: var(--text); }
+.btn-ver-carrinho:hover { box-shadow: 0 10px 20px rgba(200, 162, 74, 0.2); }

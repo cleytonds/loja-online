@@ -3,7 +3,7 @@
 ========================= */
 
 .home {
-  background: #fafafa;
+  background: var(--background);
   width: 100%;
   overflow-x: hidden;
 }
@@ -132,7 +132,7 @@
 
   text-decoration: none;
 
-  color: #111;
+  color: var(--text);
 
   box-shadow: 0 15px 45px rgba(0, 0, 0, 0.08);
 
@@ -170,7 +170,7 @@
 
   padding: 0 15px 20px;
 
-  color: #777;
+  color: var(--primary-dark);
 }
 
 /* =========================
@@ -180,7 +180,7 @@
 .cta {
   margin-top: 80px;
 
-  background: #111;
+  background: var(--primary-dark);
 
   color: white;
 
@@ -312,6 +312,32 @@
 
 .card-produto {
   width: 100%;
+}
+
+/* Identidade DL Modas */
+.card-produto { background: var(--surface); color: var(--text); border: 1px solid var(--border); box-shadow: var(--shadow); }
+.card-produto:hover { box-shadow: var(--shadow-hover); }
+.card-produto span { color: var(--gold-dark); }
+.cta { background: linear-gradient(135deg, var(--gold-dark), var(--gold)); }
+.cta button { background: var(--surface); color: var(--gold-dark); }
+.arrow { color: var(--gold-dark); }
+
+.banner-premium {
+  position: relative;
+  isolation: isolate;
+}
+
+.banner-premium::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(120deg, rgba(255, 248, 250, 0.82), rgba(247, 182, 194, 0.28));
+  z-index: 0;
+}
+
+.banner-premium-content {
+  position: relative;
+  z-index: 1;
 }
 
 /* =========================
