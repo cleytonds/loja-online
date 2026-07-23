@@ -69,38 +69,6 @@
   justify-content: space-between;
 }
 
-.arrow {
-  position: absolute;
-
-  top: 50%;
-
-  transform: translateY(-50%);
-
-  width: 45px;
-
-  height: 45px;
-
-  border-radius: 50%;
-
-  border: none;
-
-  cursor: pointer;
-
-  background: white;
-
-  box-shadow: 0 10px 30px #0003;
-
-  z-index: 5;
-}
-
-.arrow.left {
-  left: 25px;
-}
-
-.arrow.right {
-  right: 25px;
-}
-
 /* =========================
    PRODUTOS
 ========================= */
@@ -238,12 +206,6 @@
     height: 230px;
   }
 
-  .arrow {
-    width: 35px;
-
-    height: 35px;
-  }
-
   .grid-produtos {
     grid-template-columns: repeat(2, 1fr) !important;
 
@@ -288,6 +250,107 @@
     height: 160px;
   }
 }
+
+/* Carrossel de banners institucionais: a arte já contém toda a comunicação. */
+.banner-premium { display: none; }
+
+.hero {
+  width: 100%;
+  max-width: 100%;
+  height: auto;
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+  border-radius: 0 0 var(--radius-card) var(--radius-card);
+  background: transparent;
+  display: block;
+}
+
+.banner-slide {
+  width: 100%;
+  height: auto;
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+  line-height: 0;
+}
+
+.banner-slide picture {
+  display: block;
+  width: 100%;
+}
+
+.hero .banner-imagem {
+  display: block;
+  width: 100%;
+  height: auto;
+  max-width: 100%;
+  margin: 0;
+  animation: banner-fade .45s ease both;
+}
+
+@keyframes banner-fade {
+  from { opacity: .72; transform: scale(1.01); }
+  to { opacity: 1; transform: scale(1); }
+}
+
+.hero-indicadores {
+  position: absolute;
+  bottom: 12px;
+  left: 50%;
+  display: flex;
+  gap: 10px;
+  transform: translateX(-50%);
+}
+
+.hero-indicadores button {
+  width: 10px;
+  height: 10px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: var(--primary);
+  cursor: pointer;
+  opacity: 1;
+  transition: background var(--transition), transform var(--transition);
+}
+
+.hero-indicadores button.ativo {
+  background: var(--primary-dark);
+  transform: scale(1.08);
+}
+
+@media (max-width: 1024px) {
+  .hero { border-radius: 0 0 var(--radius) var(--radius); }
+}
+
+@media (max-width: 767px) {
+  .hero {
+    height: auto;
+    border-radius: 0;
+  }
+
+  .banner-slide {
+    height: auto;
+    aspect-ratio: 2 / 1;
+    background: #FFE6EC;
+  }
+
+  .banner-slide picture {
+    display: block;
+    width: 100%;
+    height: 100%;
+  }
+
+  .hero .banner-imagem {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    object-position: center;
+  }
+
+  .hero-indicadores { bottom: 7px; }
+}
 /* =========================
    AJUSTE FINAL RESPONSIVO
 ========================= */
@@ -320,8 +383,6 @@
 .card-produto span { color: var(--gold-dark); }
 .cta { background: linear-gradient(135deg, var(--gold-dark), var(--gold)); }
 .cta button { background: var(--surface); color: var(--gold-dark); }
-.arrow { color: var(--gold-dark); }
-
 .banner-premium {
   position: relative;
   isolation: isolate;
@@ -378,21 +439,7 @@
   /* CARROSSEL */
 
   .hero {
-    height: 220px;
-
-    background-size: cover;
-
-    background-position: center;
-  }
-
-  /* SETAS */
-
-  .arrow {
-    width: 35px;
-
-    height: 35px;
-
-    font-size: 12px;
+    height: auto;
   }
 
   /* PRODUTOS LADO A LADO */
