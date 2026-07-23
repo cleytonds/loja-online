@@ -3,6 +3,7 @@
 import { useEffect, useState, useContext } from 'react';
 import { useNavigate } from 'react-router-dom';
 import api from '../services/api';
+import { montarUrlImagem } from '../utils/imagem.js';
 
 import {
   BarChart,
@@ -48,11 +49,6 @@ function formatarPagamento(pagamento) {
   };
 
   return labels[pagamento] || 'Não informado';
-}
-
-function montarUrlImagem(url) {
-  if (!url) return '';
-  return url.startsWith('http') ? url : `${api.defaults.baseURL}${url}`;
 }
 
 function ImagemItemPedido({ url, nome }) {
@@ -122,6 +118,7 @@ export default function Admin() {
 
   const [pedidosAtuais, setPedidosAtuais] = useState([]);
   const [historicoPedidos, setHistoricoPedidos] = useState([]);
+  const [reconciliacoesPendentes, setReconciliacoesPendentes] = useState([]);
   const [carregandoPedidos, setCarregandoPedidos] = useState(false);
   const [erroPedidos, setErroPedidos] = useState('');
   const [pedidoDetalhes, setPedidoDetalhes] = useState(null);
@@ -248,10 +245,15 @@ export default function Admin() {
     setErroPedidos('');
 
     try {
-      const res = await api.get(`/pedidos?tipo=${tipo}`);
+      const url = tipo === 'reconciliacoes'
+        ? '/pedidos?reconciliacao_status=pendente'
+        : `/pedidos?tipo=${tipo}`;
+      const res = await api.get(url);
       const lista = Array.isArray(res.data) ? res.data : res.data?.data || [];
 
-      if (tipo === 'historico') {
+      if (tipo === 'reconciliacoes') {
+        setReconciliacoesPendentes(lista);
+      } else if (tipo === 'historico') {
         setHistoricoPedidos(lista);
       } else {
         setPedidosAtuais(lista);
@@ -259,7 +261,9 @@ export default function Admin() {
     } catch (err) {
       console.log(err);
       setErroPedidos('Não foi possível carregar os pedidos.');
-      if (tipo === 'historico') {
+      if (tipo === 'reconciliacoes') {
+        setReconciliacoesPendentes([]);
+      } else if (tipo === 'historico') {
         setHistoricoPedidos([]);
       } else {
         setPedidosAtuais([]);
@@ -335,6 +339,24 @@ export default function Admin() {
   // =========================
   // CRIAR PRODUTO
   // =========================
+
+  async function resolverReconciliacao(id, resolucao) {
+    const observacao = window.prompt('Observação opcional para a reconciliação:') || '';
+
+    try {
+      await api.put(`/pedidos/${id}/reconciliacao`, { resolucao, observacao });
+      await Promise.all([
+        carregarPedidos('reconciliacoes'),
+        carregarPedidos('atuais'),
+        carregarPedidos('historico'),
+      ]);
+      setPedidoDetalhes((pedido) => (
+        pedido?.id === id ? { ...pedido, reconciliacao_status: resolucao } : pedido
+      ));
+    } catch (err) {
+      alert(err.response?.data?.erro || 'Não foi possível resolver a reconciliação.');
+    }
+  }
 
   async function criarProduto(e) {
     e.preventDefault();
@@ -429,21 +451,6 @@ export default function Admin() {
       return null;
     }
 
-    if (pedido.status === 'pendente' || pedido.status === 'aguardando_confirmacao') {
-      return (
-        <>
-          <button className="pedido-acao pedido-acao-confirmar" onClick={() => atualizarStatus(pedido.id, 'pago')}>
-            Aprovar pagamento
-          </button>
-          {pedido.status === 'aguardando_confirmacao' && (
-            <button className="pedido-acao pedido-acao-reprovar" onClick={() => atualizarStatus(pedido.id, 'cancelado')}>
-              Cancelar pedido
-            </button>
-          )}
-        </>
-      );
-    }
-
     if (pedido.status === 'pago') {
       return <button className="pedido-acao" onClick={() => atualizarStatus(pedido.id, 'enviado')}>Marcar como enviado</button>;
     }
@@ -472,8 +479,20 @@ export default function Admin() {
           <p><span>Data do pedido</span>{formatarData(pedido.created_at)}</p>
         </div>
 
+        {pedido.reconciliacao_status === 'pendente' ? (
+          <p className="pedido-reconciliacao-alerta">
+            Pagamento aprovado após expiração. Requer reconciliação operacional.
+          </p>
+        ) : null}
+
         <div className="pedido-card-acoes">
           <button className="pedido-acao pedido-acao-detalhes" onClick={() => abrirDetalhes(pedido.id)}>Ver detalhes</button>
+          {pedido.reconciliacao_status === 'pendente' ? (
+            <>
+              <button className="pedido-acao pedido-acao-estorno" onClick={() => resolverReconciliacao(pedido.id, 'resolvida_estorno')}>Registrar estorno</button>
+              <button className="pedido-acao pedido-acao-atendimento" onClick={() => resolverReconciliacao(pedido.id, 'resolvida_atendimento')}>Registrar atendimento</button>
+            </>
+          ) : null}
           {!somenteLeitura && renderizarAcoesPedido(pedido)}
         </div>
       </article>
@@ -523,6 +542,16 @@ export default function Admin() {
           }}
         >
           Histórico de pedidos
+        </button>
+
+        <button
+          className={tab === 'reconciliacoes' ? 'active' : ''}
+          onClick={() => {
+            setTab('reconciliacoes');
+            carregarPedidos('reconciliacoes');
+          }}
+        >
+          Reconciliações
         </button>
       </div>
 
@@ -779,6 +808,21 @@ export default function Admin() {
 
           <div className="admin-pedidos-grid">
             {historicoPedidos.map((pedido) => renderizarCardPedido(pedido, true))}
+          </div>
+        </div>
+      )}
+
+      {tab === 'reconciliacoes' && (
+        <div className="admin-pedidos">
+          <h2>Reconciliações pendentes</h2>
+          <p className="pedido-reconciliacao-intro">Pagamentos aprovados após a expiração não reativam o pedido nem o estoque. Registre o atendimento ou estorno após análise operacional.</p>
+
+          {erroPedidos ? <p>{erroPedidos}</p> : null}
+          {carregandoPedidos ? <p>Carregando reconciliações...</p> : null}
+          {!carregandoPedidos && !erroPedidos && reconciliacoesPendentes.length === 0 ? <p>Nenhuma reconciliação pendente.</p> : null}
+
+          <div className="admin-pedidos-grid">
+            {reconciliacoesPendentes.map((pedido) => renderizarCardPedido(pedido, true))}
           </div>
         </div>
       )}
