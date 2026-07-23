@@ -267,31 +267,42 @@
 }
 
 .banner-slide {
+  position: relative;
   width: 100%;
   height: auto;
+  aspect-ratio: 1920 / 340;
   margin: 0;
   padding: 0;
+  background: var(--secondary-light);
   overflow: hidden;
   line-height: 0;
 }
 
 .banner-slide picture {
+  position: absolute;
+  inset: 0;
   display: block;
   width: 100%;
+  height: 100%;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity .45s ease;
+  will-change: opacity;
+}
+
+.banner-slide picture.ativo {
+  z-index: 1;
+  opacity: 1;
 }
 
 .hero .banner-imagem {
   display: block;
   width: 100%;
-  height: auto;
+  height: 100%;
   max-width: 100%;
   margin: 0;
-  animation: banner-fade .45s ease both;
-}
-
-@keyframes banner-fade {
-  from { opacity: .72; transform: scale(1.01); }
-  to { opacity: 1; transform: scale(1); }
+  object-fit: cover;
+  object-position: center;
 }
 
 .hero-indicadores {
@@ -337,8 +348,6 @@
   }
 
   .banner-slide picture {
-    display: block;
-    width: 100%;
     height: 100%;
   }
 
