@@ -4,8 +4,6 @@ import { Link } from 'react-router-dom';
 
 import { useEffect, useState } from 'react';
 
-import { FaChevronLeft, FaChevronRight } from 'react-icons/fa';
-
 import api from '../services/api';
 import ImagemProduto from '../components/ImagemProduto.jsx';
 
@@ -13,25 +11,23 @@ export default function Home() {
   const [produtos, setProdutos] = useState([]);
 
   const [slide, setSlide] = useState(0);
+  const [carrosselPausado, setCarrosselPausado] = useState(false);
 
   const banners = [
     {
-      imagem: '/banner1.jpg',
-      titulo: 'Coleção Verão 2026',
-      texto: 'Estilo e elegância em cada peça',
-      link: '/produtos',
+      desktop: '/banner1.png',
+      mobile: '/banner1-mobile.png',
+      alt: 'Dayane Lima Moda Feminina - Banner 1',
     },
     {
-      imagem: '/banner2.jpg',
-      titulo: 'Promoções exclusivas',
-      texto: 'Até 50% OFF por tempo limitado',
-      link: '/produtos',
+      desktop: '/banner2.png',
+      mobile: '/banner2-mobile.png',
+      alt: 'Dayane Lima Moda Feminina - Banner 2',
     },
     {
-      imagem: '/banner3.jpg',
-      titulo: 'Novidades da semana',
-      texto: 'Lançamentos incríveis para você',
-      link: '/produtos',
+      desktop: '/banner3.png',
+      mobile: '/banner3-mobile.png',
+      alt: 'Dayane Lima Moda Feminina - Banner 3',
     },
   ];
 
@@ -56,12 +52,14 @@ export default function Home() {
   }, []);
 
   useEffect(() => {
+    if (carrosselPausado) return undefined;
+
     const timer = setInterval(() => {
       setSlide((old) => (old + 1) % banners.length);
     }, 6000);
 
     return () => clearInterval(timer);
-  }, [banners.length]);
+  }, [banners.length, carrosselPausado]);
 
   const maisVendidos = produtos.slice(0, 4);
 
@@ -85,49 +83,41 @@ export default function Home() {
       BANNER
       ===================== */}
       <section
-        className="banner-premium"
-        style={{
-          backgroundImage: `linear-gradient(
-      rgba(0, 0, 0, 0.45),
-      rgba(0, 0, 0, 0.45)
-    ), url('/banner-fashion.jpg')`,
-        }}
+        className="hero"
+        aria-roledescription="carrossel"
+        aria-label="Banners em destaque"
+        onMouseEnter={() => setCarrosselPausado(true)}
+        onMouseLeave={() => setCarrosselPausado(false)}
       >
-        <div className="banner-premium-content">
-          <h1>Seu novo look está a um clique</h1>
-          <p>Moda premium, estilo único e entrega rápida para você</p>
+        <div className="banner-slide">
+          <picture>
+            <source
+              media="(max-width: 767px)"
+              srcSet={banners[slide].mobile}
+            />
+            <img
+              key={banners[slide].desktop}
+              src={banners[slide].desktop}
+              alt={banners[slide].alt}
+              className="banner-imagem"
+              loading={slide === 0 ? 'eager' : 'lazy'}
+            />
+          </picture>
+        </div>
+
+        <div className="hero-indicadores" aria-label="Selecionar banner">
+          {banners.map((banner, indice) => (
+            <button
+              key={banner.desktop}
+              type="button"
+              className={indice === slide ? 'ativo' : ''}
+              aria-label={`Exibir banner ${indice + 1}`}
+              aria-current={indice === slide ? 'true' : undefined}
+              onClick={() => setSlide(indice)}
+            />
+          ))}
         </div>
       </section>
-
-      <Link
-        to={banners[slide].link}
-        className="hero"
-        style={{
-          backgroundImage: `
-      url(${banners[slide].imagem})
-    `,
-        }}
-      >
-        <button
-          className="arrow left"
-          onClick={(e) => {
-            e.preventDefault();
-            setSlide((slide - 1 + banners.length) % banners.length);
-          }}
-        >
-          ◀
-        </button>
-
-        <button
-          className="arrow right"
-          onClick={(e) => {
-            e.preventDefault();
-            setSlide((slide + 1) % banners.length);
-          }}
-        >
-          ▶
-        </button>
-      </Link>
 
       {/* =====================
       MAIS VENDIDOS

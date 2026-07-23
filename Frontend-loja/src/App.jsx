@@ -12,6 +12,7 @@ import PrivateRoute from './routes/PrivateRoute';
 import AdminRoute from './routes/AdminRoute';
 
 import Header from './components/Header';
+import Footer from './components/Footer';
 import MiniCarrinho from './components/MiniCarrinho';
 
 import { CarrinhoProvider } from './context/CarrinhoContext';
@@ -92,7 +93,7 @@ export default function App() {
             </Suspense>
           </main>
 
-          <footer className="footer">© {new Date().getFullYear()} DLmodas</footer>
+          <Footer />
         </CarrinhoProvider>
       </AuthProvider>
     </Router>
