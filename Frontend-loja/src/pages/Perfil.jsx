@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 
 import api from '../services/api';
 import ImagemProduto from '../components/ImagemProduto.jsx';
+import { montarUrlImagem } from '../utils/imagem.js';
 import { AuthContext } from '../context/AuthContext';
 import { CarrinhoContext } from '../context/CarrinhoContext';
 import { getErrorMessage } from '../utils/frontendState.js';
@@ -244,10 +245,10 @@ export default function Perfil() {
   if (!user) return <p role="status">Carregando...</p>;
 
   const pedidosEmAndamento = pedidos.filter((pedido) =>
-    ['pendente', 'aguardando_confirmacao'].includes(String(pedido.status || '').trim().toLowerCase()),
+    String(pedido.status || '').trim().toLowerCase() === 'pendente',
   );
   const pedidosHistorico = pedidos.filter((pedido) =>
-    ['pago', 'enviado', 'entregue', 'cancelado', 'expirado'].includes(
+    ['aguardando_confirmacao', 'pago', 'enviado', 'entregue', 'cancelado', 'expirado'].includes(
       String(pedido.status || '').trim().toLowerCase(),
     ),
   );
@@ -300,21 +301,6 @@ export default function Perfil() {
               numero={pedido.whatsapp_number}
               mensagem={`Olá! Estou com uma dúvida sobre o pedido #${pedido.id}.`}
             />
-          </div>
-        )}
-
-        {permitirAcoes && status === 'pendente' && pedido.pagamento === 'pix' && (
-          <div className="acoes-pedido">
-            <button
-              className="btn-pagamento"
-              onClick={() =>
-                navigate(`/pagamento/${pedido.id}`, {
-                  state: pedido,
-                })
-              }
-            >
-              Pagar com PIX
-            </button>
           </div>
         )}
 
@@ -371,7 +357,7 @@ export default function Perfil() {
             {user.foto ? (
               <img
                 src={
-                  user.foto.startsWith('http') ? user.foto : `${api.defaults.baseURL}${user.foto}`
+                  montarUrlImagem(user.foto)
                 }
                 alt="perfil"
               />

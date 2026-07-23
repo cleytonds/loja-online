@@ -1,5 +1,4 @@
 import { useEffect, useMemo, useState } from 'react';
-import axios from 'axios';
 import api from '../services/api.js';
 import { montarUrlImagem, usaUrlNgrok } from '../utils/imagem.js';
 
@@ -28,8 +27,6 @@ const FALLBACK_SRC =
     </svg>
   `);
 
-const apiImagem = axios.create();
-
 export default function ImagemProduto({
   url,
   alt = '',
@@ -38,7 +35,7 @@ export default function ImagemProduto({
   onError,
   ...imgProps
 }) {
-  const urlImagem = useMemo(() => montarUrlImagem(url, api.defaults.baseURL), [url]);
+  const urlImagem = useMemo(() => montarUrlImagem(url), [url]);
   const [src, setSrc] = useState(FALLBACK_SRC);
 
   useEffect(() => {
@@ -59,7 +56,7 @@ export default function ImagemProduto({
       setSrc(FALLBACK_SRC);
 
       try {
-        const resposta = await apiImagem.get(urlImagem, {
+        const resposta = await api.get(urlImagem, {
           responseType: 'blob',
 
           headers: {

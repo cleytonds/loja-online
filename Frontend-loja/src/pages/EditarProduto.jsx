@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 
 import api from '../services/api';
+import { montarUrlImagem } from '../utils/imagem.js';
 import './EditarProduto.css';
 
 export default function EditarProduto() {
@@ -165,7 +166,7 @@ export default function EditarProduto() {
 
         <div className="imagens">
           {produto.imagens?.map((img) => (
-            <img key={img.id} src={`${api.defaults.baseURL}${img.url}`} />
+            <img key={img.id} src={montarUrlImagem(img.url)} />
           ))}
         </div>
 

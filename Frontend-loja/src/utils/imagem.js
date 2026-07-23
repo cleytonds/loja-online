@@ -19,7 +19,7 @@ export function normalizarCaminhoImagem(valor) {
   }
 }
 
-export function montarUrlImagem(valor, baseURL) {
+export function montarUrlImagem(valor, baseURL = import.meta.env.VITE_API_URL) {
   const imagem = normalizarCaminhoImagem(valor);
   if (!imagem || imagem.startsWith('data:') || imagem.startsWith('blob:') || /^https?:\/\//i.test(imagem)) {
     return imagem;
