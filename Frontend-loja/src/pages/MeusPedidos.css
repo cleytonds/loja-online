@@ -191,6 +191,12 @@
 .btn-detalhes:hover, .btn-repetir:hover { background: var(--primary-dark); }
 .btn-cancelar, .btn-fechar { background: var(--secondary-medium); color: var(--text); }
 .btn-whatsapp-atendimento { border-color: var(--primary); color: var(--primary-dark); }
+.pedido-entrega-confirmada {
+  width: 100%;
+  margin: 0;
+  color: var(--primary-dark);
+  font-weight: 600;
+}
 
 @keyframes slideDown {
   from { transform: translateY(-20px); opacity: 0; }

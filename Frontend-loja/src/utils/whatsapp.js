@@ -8,9 +8,13 @@ export function normalizarNumeroWhatsApp(value) {
   return digits;
 }
 
-export function abrirAtendimentoWhatsApp({ numero, mensagem, windowRef = window }) {
+export function montarLinkWhatsApp({ numero, mensagem }) {
   const destino = normalizarNumeroWhatsApp(numero);
-  const url = `https://wa.me/${destino}?text=${encodeURIComponent(mensagem)}`;
+  return `https://wa.me/${destino}?text=${encodeURIComponent(mensagem)}`;
+}
+
+export function abrirAtendimentoWhatsApp({ numero, mensagem, windowRef = window }) {
+  const url = montarLinkWhatsApp({ numero, mensagem });
 
   if (typeof windowRef?.open === 'function') {
     const novaAba = windowRef.open(url, '_blank', 'noopener,noreferrer');
@@ -22,6 +26,13 @@ export function abrirAtendimentoWhatsApp({ numero, mensagem, windowRef = window 
 
 export function pedidoPodeTratarEntrega(status) {
   return ['pago', 'enviado'].includes(String(status || '').trim().toLowerCase());
+}
+
+export function pedidoPodeCombinarEntregaMercadoPago(pedido) {
+  return String(pedido?.status || '').trim().toLowerCase() === 'pago'
+    && String(pedido?.pagamento || '').trim().toLowerCase() === 'mercado_pago'
+    && String(pedido?.mp_status || '').trim().toLowerCase() === 'approved'
+    && Boolean(pedido?.pagamento_confirmado_em);
 }
 
 export function montarMensagemEntregaPedido({ pedido, nomeCliente }) {

@@ -8,7 +8,7 @@ import { AuthContext } from '../context/AuthContext';
 import { CarrinhoContext } from '../context/CarrinhoContext';
 import { getErrorMessage } from '../utils/frontendState.js';
 import BotaoAtendimentoWhatsApp from '../components/BotaoAtendimentoWhatsApp.jsx';
-import { montarMensagemEntregaPedido, pedidoPodeTratarEntrega } from '../utils/whatsapp.js';
+import { montarMensagemEntregaPedido, pedidoPodeCombinarEntregaMercadoPago } from '../utils/whatsapp.js';
 
 import './Perfil.css';
 
@@ -245,10 +245,10 @@ export default function Perfil() {
   if (!user) return <p role="status">Carregando...</p>;
 
   const pedidosEmAndamento = pedidos.filter((pedido) =>
-    String(pedido.status || '').trim().toLowerCase() === 'pendente',
+    ['pendente', 'pago'].includes(String(pedido.status || '').trim().toLowerCase()),
   );
   const pedidosHistorico = pedidos.filter((pedido) =>
-    ['aguardando_confirmacao', 'pago', 'enviado', 'entregue', 'cancelado', 'expirado'].includes(
+    ['enviado', 'entregue'].includes(
       String(pedido.status || '').trim().toLowerCase(),
     ),
   );
@@ -256,9 +256,11 @@ export default function Perfil() {
   function renderPedido(pedido, permitirAcoes) {
     const status = String(pedido.status || '').trim().toLowerCase();
     const pagamentoMercadoPago = pedido.pagamento === 'mercado_pago';
+    const pagamentoConfirmado = String(pedido.mp_status || '').trim().toLowerCase() === 'approved'
+      || Boolean(pedido.pagamento_confirmado_em);
     const prazoVencido = pagamentoMercadoPago && pedido.expires_at
       && new Date(pedido.expires_at).getTime() <= agora;
-    const pedidoExpirado = status === 'expirado' || prazoVencido;
+    const pedidoExpirado = status === 'expirado' || (prazoVencido && !pagamentoConfirmado);
 
     return (
       <div className={`order-card ${permitirAcoes ? '' : 'order-card-readonly'}`} key={pedido.id}>
@@ -267,7 +269,7 @@ export default function Perfil() {
           <span className={`status ${status}`}>{status}</span>
         </div>
 
-        {permitirAcoes && status === 'pendente' && pagamentoMercadoPago && !pedidoExpirado && (
+        {permitirAcoes && status === 'pendente' && pagamentoMercadoPago && !pagamentoConfirmado && !pedidoExpirado && (
           <div className="acoes-pedido">
             <p>Pedido expira em {formatarTempoRestante(pedido.expires_at, agora)}</p>
             <button
@@ -304,11 +306,11 @@ export default function Perfil() {
           </div>
         )}
 
-        {pedidoPodeTratarEntrega(status) && (
+        {pedidoPodeCombinarEntregaMercadoPago(pedido) && (
           <div className="acoes-pedido">
             <BotaoAtendimentoWhatsApp
               numero={pedido.whatsapp_number}
-              texto="Tratar entrega pelo WhatsApp"
+              texto="Combinar entrega pelo WhatsApp"
               mensagem={montarMensagemEntregaPedido({ pedido, nomeCliente: user?.nome })}
             />
           </div>
