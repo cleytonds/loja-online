@@ -152,7 +152,7 @@ router.get('/:id', async (req, res) => {
       FROM produtos p
       LEFT JOIN categorias c
       ON c.id=p.categoria_id
-      WHERE p.id=?
+      WHERE p.id=? AND p.ativo = 1
 
     `,
       [idNum],
@@ -203,6 +203,7 @@ router.get('/:id', async (req, res) => {
 //  CRIAR PRODUTO (COMPLETO)
 // ===============================
 router.post('/', verificarToken, isAdmin, uploadProduto.array('imagens'), validarImagensProduto, async (req, res) => {
+  let connection;
   try {
     const { nome, preco, descricao, categoria } = req.body;
 
@@ -212,7 +213,10 @@ router.post('/', verificarToken, isAdmin, uploadProduto.array('imagens'), valida
         error: 'Produto precisa de pelo menos uma variação',
       });
     }
-    const [result] = await db.query(
+    connection = await db.getConnection();
+    await connection.beginTransaction();
+
+    const [result] = await connection.query(
       `
       INSERT INTO produtos (nome, preco_base, descricao, categoria_id)
       VALUES (?, ?, ?, ?)
@@ -225,7 +229,7 @@ router.post('/', verificarToken, isAdmin, uploadProduto.array('imagens'), valida
     // imagens
     if (req.files?.length) {
       for (let i = 0; i < req.files.length; i++) {
-        await db.query(
+        await connection.query(
           `
           INSERT INTO produto_imagens
           (produto_id, url, is_principal)
@@ -238,7 +242,7 @@ router.post('/', verificarToken, isAdmin, uploadProduto.array('imagens'), valida
 
     // variações
     for (let v of variacoes) {
-      await db.query(
+      await connection.query(
         `
         INSERT INTO produto_variacoes
         (produto_id, tamanho, cor, preco, estoque)
@@ -248,11 +252,21 @@ router.post('/', verificarToken, isAdmin, uploadProduto.array('imagens'), valida
       );
     }
 
+    await connection.commit();
     res.json({ message: 'Produto criado com sucesso' });
   } catch (err) {
+    if (connection) {
+      try {
+        await connection.rollback();
+      } catch (_) {
+        // A limpeza de arquivos continua sendo a prioridade após uma falha.
+      }
+    }
     removerImagensProduto(req.files);
     console.error('ERRO BACKEND:', err);
     res.status(500).json({ error: 'Erro ao criar produto' });
+  } finally {
+    if (connection) connection.release();
   }
 });
 

@@ -8,6 +8,7 @@ import jwt from 'jsonwebtoken';
 import crypto from 'crypto';
 import { enviarEmail } from '../utils/email.js';
 import { verificarToken } from '../middlewares/auth.js';
+import { normalizarCelularBrasileiro } from '../utils/celular.js';
 
 const router = express.Router();
 
@@ -16,6 +17,7 @@ const router = express.Router();
 // =========================
 router.post('/cadastro', async (req, res) => {
   const { nome, email, senha } = req.body;
+  const celular = normalizarCelularBrasileiro(req.body?.celular);
 
   if (!nome || typeof nome !== 'string' || nome.trim().length < 2) {
     return res.status(400).json({ error: 'Nome inválido' });
@@ -31,6 +33,10 @@ router.post('/cadastro', async (req, res) => {
 
   if (!senha || typeof senha !== 'string' || senha.trim().length < 8) {
     return res.status(400).json({ error: 'Senha inválida' });
+  }
+
+  if (!celular) {
+    return res.status(400).json({ erro: 'Informe um celular válido com DDD.' });
   }
 
   try {
@@ -57,9 +63,9 @@ router.post('/cadastro', async (req, res) => {
     //  salva no banco
     await db.query(
       `INSERT INTO usuarios 
-      (nome, email, senha, ativo, token_confirmacao, codigo_confirmacao, tipo) 
-      VALUES (?, ?, ?, 0, ?, ?, 'cliente')`,
-      [nome, emailNormalizado, hashSenha, tokenConfirmacao, codigo],
+      (nome, email, senha, celular, ativo, token_confirmacao, codigo_confirmacao, tipo)
+      VALUES (?, ?, ?, ?, 0, ?, ?, 'cliente')`,
+      [nome, emailNormalizado, hashSenha, celular, tokenConfirmacao, codigo],
     );
 
     //  link de confirmação
@@ -95,14 +101,17 @@ router.post('/cadastro', async (req, res) => {
 //  LOGIN
 // =========================
 router.post('/login', async (req, res) => {
-  const { email, senha } = req.body;
+  const email = typeof req.body?.email === 'string' ? req.body.email.trim().toLowerCase() : '';
+  const senha = typeof req.body?.senha === 'string' ? req.body.senha : '';
+
+  if (!email || !senha) {
+    return res.status(400).json({ error: 'Email e senha sao obrigatorios' });
+  }
 
   try {
-    const emailNormalizado = email.trim().toLowerCase();
-
     const [usuarios] = await db.query(
       'SELECT * FROM usuarios WHERE LOWER(TRIM(email)) = LOWER(TRIM(?))',
-      [emailNormalizado],
+      [email],
     );
 
     if (!usuarios.length) {
@@ -175,13 +184,23 @@ router.get('/me', verificarToken, async (req, res) => {
 //  CONFIRMAR CONTA
 // =========================
 router.post('/verificar-codigo', async (req, res) => {
-  const { token, codigo } = req.body;
+  const { token, codigo, email } = req.body;
+  const codigoNormalizado = String(codigo || '').replace(/\D/g, '');
+
+  if (!/^\d{6}$/.test(codigoNormalizado) || (!token && !email)) {
+    return res.status(400).json({ error: 'Código ou token inválido' });
+  }
 
   try {
-    const [usuarios] = await db.query(
-      'SELECT * FROM usuarios WHERE token_confirmacao = ? AND codigo_confirmacao = ?',
-      [token, codigo],
-    );
+    const [usuarios] = token
+      ? await db.query(
+        'SELECT * FROM usuarios WHERE token_confirmacao = ? AND codigo_confirmacao = ?',
+        [token, codigoNormalizado],
+      )
+      : await db.query(
+        'SELECT * FROM usuarios WHERE LOWER(TRIM(email)) = LOWER(TRIM(?)) AND codigo_confirmacao = ?',
+        [email, codigoNormalizado],
+      );
 
     if (!usuarios.length) {
       return res.status(400).json({ error: 'Código ou token inválido' });

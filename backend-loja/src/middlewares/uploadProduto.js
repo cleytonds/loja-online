@@ -2,9 +2,10 @@ import multer from 'multer';
 import path from 'path';
 import fs from 'fs';
 import { randomUUID } from 'crypto';
-import { isImagemValida } from './uploadComprovante.js';
+import { isImagemValida } from '../utils/imageMagic.js';
+import { getUploadProductsDir } from '../config/runtime.js';
 
-const uploadDir = path.resolve('uploads', 'produtos');
+const uploadDir = getUploadProductsDir(process.env);
 
 fs.mkdirSync(uploadDir, { recursive: true });
 

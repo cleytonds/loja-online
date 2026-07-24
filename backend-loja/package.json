@@ -5,7 +5,8 @@
   "main": "src/server.js",
   "scripts": {
     "dev": "nodemon src/server.js",
-    "start": "node src/server.js"
+    "start": "node src/server.js",
+    "test:safe": "node --test tests/adminDashboard.test.js tests/auth.test.js tests/deployRuntime.test.js tests/httpSafety.test.js tests/idempotency.test.js tests/imageMagic.test.js tests/mercadoPagoExpiration.test.js tests/mercadoPagoMigration.test.js tests/mercadoPagoService.test.js tests/mercadoPagoWebhook.test.js tests/migrationsSequence.test.js tests/orderScheduler.test.js tests/pagamentos.test.js tests/pagamentosRoute.test.js tests/pedidosSecurity.test.js tests/performancePagination.test.js tests/productCreateTransaction.test.js tests/productsCatalog.test.js tests/rateLimit.test.js tests/securityHeaders.test.js tests/uploadProduto.test.js"
   },
   "dependencies": {
     "bcryptjs": "^3.0.3",
@@ -16,6 +17,7 @@
     "express-rate-limit": "^8.3.2",
     "helmet": "^8.1.0",
     "jsonwebtoken": "^9.0.3",
+    "mercadopago": "^3.2.0",
     "multer": "^2.1.1",
     "mysql2": "^3.18.2",
     "nodemailer": "^9.0.3"
