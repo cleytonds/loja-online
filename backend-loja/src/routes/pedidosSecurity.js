@@ -6,13 +6,6 @@ export function normalizeStatus(value) {
   return String(value ?? '').trim().toLowerCase();
 }
 
-export function exigeComprovanteParaConfirmacao({ currentStatus, novoStatus }) {
-  return (
-    normalizeStatus(currentStatus) === 'aguardando_confirmacao' &&
-    normalizeStatus(novoStatus) === 'pago'
-  );
-}
-
 export function validarTransicaoStatus({ user, currentStatus, novoStatus, expiresAt }) {
   const current = normalizeStatus(currentStatus);
   const next = normalizeStatus(novoStatus);
@@ -52,8 +45,14 @@ export function validarTransicaoStatus({ user, currentStatus, novoStatus, expire
   }
 
   const expiresAtDate = expiresAt ? new Date(expiresAt) : null;
+  const statusExpiraveis = ['pendente', 'aguardando_pagamento'];
 
-  if (expiresAtDate && !Number.isNaN(expiresAtDate.getTime()) && expiresAtDate.getTime() < Date.now()) {
+  if (
+    statusExpiraveis.includes(current) &&
+    expiresAtDate &&
+    !Number.isNaN(expiresAtDate.getTime()) &&
+    expiresAtDate.getTime() < Date.now()
+  ) {
     return {
       allowed: false,
       statusCode: 403,
@@ -61,18 +60,9 @@ export function validarTransicaoStatus({ user, currentStatus, novoStatus, expire
     };
   }
 
-  if (next === 'cancelado' && current !== 'aguardando_confirmacao') {
-    return {
-      allowed: false,
-      statusCode: 400,
-      message: 'Reprovação PIX só é permitida para pedidos aguardando confirmação',
-    };
-  }
-
   const allowedTransitions = {
-    // Pedidos WhatsApp são confirmados manualmente, sem comprovante PIX.
     pendente: ['pago', 'cancelado'],
-    aguardando_confirmacao: ['pago', 'cancelado'],
+    aguardando_confirmacao: [],
     pago: ['enviado'],
     enviado: ['entregue'],
     entregue: [],

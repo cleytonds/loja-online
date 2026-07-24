@@ -30,3 +30,6 @@ uploads/
 
 # Uploads gerados pelo sistema
 uploads/
+
+# Backups locais de operações de banco: manter fora do repositório e do deploy.
+backups/

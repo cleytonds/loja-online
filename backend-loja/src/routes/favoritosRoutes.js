@@ -7,8 +7,6 @@ const router = express.Router();
 // TOGGLE FAVORITO
 router.post('/:produtoId', verificarToken, async (req, res) => {
   try {
-    console.log('🔥 CHEGOU NA ROTA FAVORITOS');
-    console.log('USER AUTH:', req.user);
 
     const userId = req.user.id;
     const { produtoId } = req.params;
@@ -33,8 +31,7 @@ router.post('/:produtoId', verificarToken, async (req, res) => {
     ]);
 
     return res.json({ message: 'adicionado' });
-  } catch (err) {
-    console.log('🔥 ERRO FAVORITOS:', err);
+  } catch {
     return res.status(500).json({ error: 'erro favoritos' });
   }
 });
@@ -66,9 +63,7 @@ router.get('/', verificarToken, async (req, res) => {
     );
 
     res.json(rows);
-  } catch (err) {
-    console.log(err);
-
+  } catch {
     res.status(500).json({
       error: 'erro favoritos',
     });

@@ -1,7 +1,7 @@
 // src/utils/email.js
 import nodemailer from "nodemailer";
 
-function registrarErroSmtp(err, destinatario) {
+function registrarErroSmtp(err) {
   const tipo =
     err?.code === 'EAUTH'
       ? 'autenticacao'
@@ -15,7 +15,6 @@ function registrarErroSmtp(err, destinatario) {
 
   console.error('Falha no envio de e-mail', {
     tipo,
-    destinatario,
     code: err?.code,
     responseCode: err?.responseCode,
     command: err?.command,
@@ -32,7 +31,7 @@ export async function enviarEmail(destinatario, assunto, mensagem) {
   if (!host || !Number.isInteger(port) || !user || !pass || !from) {
     const error = new Error('Configuração SMTP incompleta');
     error.code = 'ESMTP_CONFIG';
-    registrarErroSmtp(error, destinatario);
+    registrarErroSmtp(error);
     throw error;
   }
 
@@ -58,9 +57,9 @@ export async function enviarEmail(destinatario, assunto, mensagem) {
 
   try {
     await transporter.sendMail(mailOptions);
-    console.log(`Email enviado para ${destinatario}`);
+    console.info('Email enviado');
   } catch (err) {
-    registrarErroSmtp(err, destinatario);
+    registrarErroSmtp(err);
     throw new Error("Não foi possível enviar o e-mail de recuperação.");
   }
 }

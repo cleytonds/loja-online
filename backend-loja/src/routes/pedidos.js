@@ -1,23 +1,19 @@
 import express from 'express';
 import db from '../config/database.js';
-import uploadComprovante, {
-  removerComprovante,
-  validarImagemComprovante,
-} from '../middlewares/uploadComprovante.js';
-import path from 'path';
-
 import { verificarToken } from '../middlewares/auth.js';
-import { isAdmin } from '../middlewares/isAdmin.js';
 import {
-  exigeComprovanteParaConfirmacao,
   isAdminUser,
   normalizeStatus,
   validarTransicaoStatus,
 } from './pedidosSecurity.js';
-import { buildPixConfig } from '../utils/pixConfig.js';
+import { buildAtendimentoConfig } from '../utils/atendimentoConfig.js';
 import { buildVendasSeries } from '../utils/adminDashboard.js';
 import { isDuplicateKeyError, normalizeIdempotencyKey } from '../utils/idempotency.js';
 import { startOrderScheduler } from '../utils/orderScheduler.js';
+import {
+  PRAZO_RESERVA_MERCADO_PAGO_MINUTOS,
+  prazoReservaMinutos,
+} from '../utils/orderExpiration.js';
 
 const router = express.Router();
 
@@ -29,22 +25,17 @@ function getPagination(query) {
   return { hasPagination, page, limit, offset: (page - 1) * limit };
 }
 
-const pixConfig = buildPixConfig(process.env);
+const atendimentoConfig = buildAtendimentoConfig(process.env);
 
-function requirePixKey(req, res) {
-  if (!pixConfig.pix_key) {
-    return res.status(500).json({ erro: 'PIX_KEY não configurado no servidor' });
+// Número público de atendimento. A fonte continua sendo exclusivamente
+// WHATSAPP_NUMERO no backend; não participa de criação ou alteração de pedido.
+router.get('/atendimento/whatsapp', (req, res) => {
+  if (!atendimentoConfig.whatsappNumber) {
+    return res.status(503).json({ erro: 'Atendimento via WhatsApp indisponível' });
   }
-  return null;
-}
 
-function requireWhatsAppNumber(req, res) {
-  if (!pixConfig.whatsapp_number) {
-    console.error('WHATSAPP_NUMERO ausente ou inválido na configuração do servidor');
-    return res.status(500).json({ erro: 'WHATSAPP_NUMERO não configurado no servidor' });
-  }
-  return null;
-}
+  return res.json({ whatsapp_number: atendimentoConfig.whatsappNumber });
+});
 
 /*
 =========================
@@ -52,7 +43,7 @@ CRIAR PEDIDO
 =========================
 */
 router.post('/', verificarToken, async (req, res) => {
-  const allowedPagamentos = ['pix', 'whatsapp'];
+  const allowedPagamentos = ['mercado_pago'];
   const { itens, pagamento } = req.body;
   const idempotencyKey = normalizeIdempotencyKey(req.get('X-Idempotency-Key'));
 
@@ -64,14 +55,12 @@ router.post('/', verificarToken, async (req, res) => {
     return res.status(400).json({ erro: 'Carrinho vazio' });
   }
 
-  if (!allowedPagamentos.includes(pagamento || 'pix')) {
+  if (!allowedPagamentos.includes(pagamento)) {
     return res.status(400).json({ erro: 'Pagamento inválido' });
   }
 
   // O frontend informa apenas identificação e quantidade. Preço é obtido do banco.
   // Agrupar antes de reservar impede que a mesma variação gere estoque negativo.
-  if (requireWhatsAppNumber(req, res)) return;
-
   const itensAgrupados = new Map();
 
   for (const item of itens) {
@@ -133,12 +122,11 @@ router.post('/', verificarToken, async (req, res) => {
       return res.json({
         pedido_id: pedidoExistente[0].id,
         total: Number(pedidoExistente[0].total),
-        pix_key: pixConfig.pix_key,
-        whatsapp_number: pixConfig.whatsapp_number,
       });
     }
 
     const { itens, pagamento } = req.body;
+    const prazoExpiracaoMinutos = prazoReservaMinutos(pagamento);
 
     if (!Array.isArray(itens) || itens.length === 0) {
       return res.status(400).json({
@@ -221,10 +209,10 @@ router.post('/', verificarToken, async (req, res) => {
       ?,
       ?,
       NOW(),
-      DATE_ADD(NOW(), INTERVAL 10 MINUTE)
+      DATE_ADD(NOW(), INTERVAL ${prazoExpiracaoMinutos} MINUTE)
       )
       `,
-        [usuario_id, total, pagamento || 'pix', idempotencyKey],
+        [usuario_id, total, pagamento, idempotencyKey],
       );
     } catch (err) {
       if (!isDuplicateKeyError(err)) throw err;
@@ -239,8 +227,6 @@ router.post('/', verificarToken, async (req, res) => {
         return res.json({
           pedido_id: pedidoDuplicado[0].id,
           total: Number(pedidoDuplicado[0].total),
-          pix_key: pixConfig.pix_key,
-          whatsapp_number: pixConfig.whatsapp_number,
         });
       }
 
@@ -286,8 +272,6 @@ router.post('/', verificarToken, async (req, res) => {
     res.json({
       pedido_id,
       total,
-      pix_key: pixConfig.pix_key,
-      whatsapp_number: pixConfig.whatsapp_number,
     });
   } catch (err) {
     if (connection) {
@@ -347,7 +331,10 @@ router.get('/meus', verificarToken, async (req, res) => {
         p.total,
         p.status,
         p.pagamento,
-        p.created_at
+        p.created_at,
+        p.expires_at,
+        p.mp_status,
+        p.pagamento_confirmado_em
       FROM pedidos p
       WHERE p.usuario_id = ?
       ORDER BY p.created_at DESC, p.id DESC${paginationSql}
@@ -366,14 +353,19 @@ router.get('/meus', verificarToken, async (req, res) => {
         SELECT 
           pi.pedido_id,
           pi.produto_id,
+          pi.variacao_id,
           pi.quantidade,
           pi.preco,
           pr.nome,
+          img.url AS imagem_principal,
           v.tamanho,
-          v.cor
+          v.cor,
+          v.estoque,
+          v.preco AS preco_atual
         FROM pedido_itens pi
         JOIN produtos pr ON pr.id = pi.produto_id
         JOIN produto_variacoes v ON v.id = pi.variacao_id
+        LEFT JOIN produto_imagens img ON img.produto_id = pr.id AND img.is_principal = 1
         WHERE pi.pedido_id IN (${placeholders})
         ORDER BY pi.pedido_id DESC
       `,
@@ -394,7 +386,7 @@ router.get('/meus', verificarToken, async (req, res) => {
     // preserva ordem de itens já retornada pelo JOIN (ORDER BY pi.pedido_id)
     for (const pedido of pedidos) {
       pedido.itens = mapa.get(pedido.id) || [];
-      pedido.whatsapp_number = pixConfig.whatsapp_number;
+      pedido.whatsapp_number = atendimentoConfig.whatsappNumber;
     }
 
     if (!pagination.hasPagination) return res.json(pedidos);
@@ -429,8 +421,8 @@ router.get('/', verificarToken, async (req, res) => {
 
     const tipo = String(req.query.tipo || '').trim().toLowerCase();
     const statusPorTipo = {
-      atuais: ['pendente', 'aguardando_confirmacao'],
-      historico: ['pago', 'enviado', 'entregue', 'cancelado', 'expirado'],
+      atuais: ['pendente', 'pago'],
+      historico: ['enviado', 'entregue'],
     };
 
     if (tipo && !statusPorTipo[tipo]) {
@@ -438,13 +430,33 @@ router.get('/', verificarToken, async (req, res) => {
     }
 
     const statusFiltro = statusPorTipo[tipo] || null;
-    const whereSql = statusFiltro ? ` WHERE p.status IN (${statusFiltro.map(() => '?').join(',')})` : '';
+    const reconciliacaoStatus = String(req.query.reconciliacao_status || '').trim().toLowerCase();
+    const reconciliacaoPermitidos = ['nenhuma', 'pendente', 'resolvida_estorno', 'resolvida_atendimento'];
+
+    if (reconciliacaoStatus && !reconciliacaoPermitidos.includes(reconciliacaoStatus)) {
+      return res.status(400).json({ erro: 'Status de reconciliação inválido' });
+    }
+
+    const whereParts = [];
+    const whereParams = [];
+    if (statusFiltro) {
+      whereParts.push(`p.status IN (${statusFiltro.map(() => '?').join(',')})`);
+      whereParams.push(...statusFiltro);
+    }
+    if (reconciliacaoStatus) {
+      whereParts.push('p.reconciliacao_status = ?');
+      whereParams.push(reconciliacaoStatus);
+    }
+    const whereSql = whereParts.length ? ` WHERE ${whereParts.join(' AND ')}` : '';
     const pagination = getPagination(req.query);
     const paginationSql = pagination.hasPagination ? ' LIMIT ? OFFSET ?' : '';
     const queryParams = [
-      ...(statusFiltro || []),
+      ...whereParams,
       ...(pagination.hasPagination ? [pagination.limit, pagination.offset] : []),
     ];
+    const orderSql = reconciliacaoStatus === 'pendente'
+      ? 'ORDER BY p.reconciliacao_em ASC, p.id ASC'
+      : 'ORDER BY p.created_at DESC, p.id DESC';
 
     const [pedidos] = await db.query(`
       SELECT 
@@ -456,10 +468,31 @@ router.get('/', verificarToken, async (req, res) => {
         p.total,
         p.status,
         p.pagamento,
-        p.created_at
+        p.created_at,
+        p.expires_at,
+        p.mp_payment_id,
+        p.mp_status,
+        p.mp_status_detail,
+        p.pagamento_confirmado_em,
+        p.pagamento_atualizado_em,
+        p.reconciliacao_status,
+        p.reconciliacao_motivo,
+        p.reconciliacao_em,
+        p.reconciliacao_resolvida_em,
+        p.reconciliacao_resolvida_por,
+        COALESCE(resumo.quantidade_produtos, 0) AS quantidade_produtos,
+        COALESCE(resumo.quantidade_pecas, 0) AS quantidade_pecas
       FROM pedidos p
-      JOIN usuarios u ON u.id = p.usuario_id${whereSql}
-      ORDER BY p.created_at DESC, p.id DESC${paginationSql}
+      JOIN usuarios u ON u.id = p.usuario_id
+      LEFT JOIN (
+        SELECT
+          pedido_id,
+          COUNT(*) AS quantidade_produtos,
+          COALESCE(SUM(quantidade), 0) AS quantidade_pecas
+        FROM pedido_itens
+        GROUP BY pedido_id
+      ) resumo ON resumo.pedido_id = p.id${whereSql}
+      ${orderSql}${paginationSql}
     `, queryParams);
 
     const pedidoIds = pedidos.map((p) => p.id);
@@ -468,7 +501,7 @@ router.get('/', verificarToken, async (req, res) => {
       if (pagination.hasPagination) {
         const [countRows] = await db.query(
           `SELECT COUNT(*) AS total FROM pedidos p${whereSql}`,
-          statusFiltro || [],
+          whereParams,
         );
         return res.json({
           data: [],
@@ -524,7 +557,7 @@ router.get('/', verificarToken, async (req, res) => {
 
     const [countRows] = await db.query(
       `SELECT COUNT(*) AS total FROM pedidos p${whereSql}`,
-      statusFiltro || [],
+      whereParams,
     );
     return res.json({
       data: pedidos,
@@ -538,6 +571,171 @@ router.get('/', verificarToken, async (req, res) => {
   } catch (err) {
     console.error(err);
     res.status(500).json({ erro: 'Erro ao listar pedidos' });
+  }
+});
+
+/*
+=========================
+DETALHES ADMINISTRATIVOS DO PEDIDO
+=========================
+*/
+
+router.get('/:id/detalhes', verificarToken, async (req, res) => {
+  try {
+    if (!isAdminUser(req)) {
+      return res.status(403).json({ erro: 'Acesso negado' });
+    }
+
+    const pedidoId = Number.parseInt(req.params.id, 10);
+    if (!Number.isInteger(pedidoId) || pedidoId <= 0) {
+      return res.status(400).json({ erro: 'Pedido inválido' });
+    }
+
+    const [pedidos] = await db.query(
+      `
+        SELECT
+          p.id,
+          p.usuario_id,
+          p.total,
+          p.status,
+          p.pagamento,
+          p.created_at,
+          p.expires_at,
+          p.pagamento_confirmado_em,
+          p.pagamento_atualizado_em,
+          p.mp_payment_id,
+          p.mp_status,
+          p.mp_status_detail,
+          p.reconciliacao_status,
+          p.reconciliacao_motivo,
+          p.reconciliacao_em,
+          p.reconciliacao_resolvida_em,
+          p.reconciliacao_resolvida_por,
+          u.nome AS usuario_nome,
+          u.email AS usuario_email,
+          u.celular AS usuario_celular,
+          u.rua AS endereco_rua,
+          u.numero AS endereco_numero,
+          u.bairro AS endereco_bairro,
+          u.cidade AS endereco_cidade,
+          u.estado AS endereco_estado,
+          u.cep AS endereco_cep
+        FROM pedidos p
+        JOIN usuarios u ON u.id = p.usuario_id
+        WHERE p.id = ?
+      `,
+      [pedidoId],
+    );
+
+    if (!pedidos.length) {
+      return res.status(404).json({ erro: 'Pedido não encontrado' });
+    }
+
+    const pedido = pedidos[0];
+    const [itens] = await db.query(
+      `
+        SELECT
+          pi.produto_id,
+          pi.variacao_id,
+          pi.quantidade,
+          pi.preco,
+          pr.nome,
+          v.tamanho,
+          v.cor,
+          img.url AS imagem_principal
+        FROM pedido_itens pi
+        JOIN produtos pr ON pr.id = pi.produto_id
+        LEFT JOIN produto_variacoes v ON v.id = pi.variacao_id
+        LEFT JOIN produto_imagens img ON img.id = (
+          SELECT MIN(imagem.id)
+          FROM produto_imagens imagem
+          WHERE imagem.produto_id = pr.id
+            AND imagem.is_principal = 1
+        )
+        WHERE pi.pedido_id = ?
+        ORDER BY pi.id ASC
+      `,
+      [pedidoId],
+    );
+
+    return res.json({ ...pedido, itens });
+  } catch (err) {
+    console.error(err);
+    return res.status(500).json({ erro: 'Erro ao buscar detalhes do pedido' });
+  }
+});
+
+/*
+=========================
+RESOLVER RECONCILIAÇÃO ADMINISTRATIVA
+=========================
+*/
+
+router.put('/:id/reconciliacao', verificarToken, async (req, res) => {
+  let connection;
+
+  try {
+    if (!isAdminUser(req)) {
+      return res.status(403).json({ erro: 'Ação não permitida' });
+    }
+
+    const pedidoId = Number.parseInt(req.params.id, 10);
+    const resolucao = String(req.body?.resolucao || '').trim().toLowerCase();
+    const observacao = String(req.body?.observacao || '').trim().slice(0, 255);
+    const resolucoesPermitidas = ['resolvida_estorno', 'resolvida_atendimento'];
+
+    if (!Number.isInteger(pedidoId) || pedidoId <= 0) {
+      return res.status(400).json({ erro: 'Pedido inválido' });
+    }
+    if (!resolucoesPermitidas.includes(resolucao)) {
+      return res.status(400).json({ erro: 'Resolução de reconciliação inválida' });
+    }
+
+    connection = await db.getConnection();
+    await connection.beginTransaction();
+    const [pedidos] = await connection.query(
+      `SELECT id, reconciliacao_status FROM pedidos WHERE id = ? FOR UPDATE`,
+      [pedidoId],
+    );
+
+    if (!pedidos.length) {
+      await connection.rollback();
+      return res.status(404).json({ erro: 'Pedido não encontrado' });
+    }
+    if (pedidos[0].reconciliacao_status !== 'pendente') {
+      await connection.rollback();
+      return res.status(409).json({ erro: 'Pedido não possui reconciliação pendente' });
+    }
+
+    const [updateResult] = await connection.query(
+      `UPDATE pedidos
+       SET reconciliacao_status = ?,
+           reconciliacao_motivo = CASE WHEN ? <> '' THEN ? ELSE reconciliacao_motivo END,
+           reconciliacao_resolvida_em = NOW(),
+           reconciliacao_resolvida_por = ?
+       WHERE id = ? AND reconciliacao_status = 'pendente'`,
+      [resolucao, observacao, observacao, req.user.id, pedidoId],
+    );
+
+    if (!updateResult.affectedRows) {
+      await connection.rollback();
+      return res.status(409).json({ erro: 'Reconciliação atualizada por outra operação' });
+    }
+
+    await connection.commit();
+    return res.json({ ok: true, reconciliacao_status: resolucao });
+  } catch (err) {
+    if (connection) {
+      try {
+        await connection.rollback();
+      } catch (_) {
+        // noop
+      }
+    }
+    console.error(err);
+    return res.status(500).json({ erro: 'Erro ao resolver reconciliação' });
+  } finally {
+    if (connection) connection.release();
   }
 });
 
@@ -561,7 +759,7 @@ router.put('/:id/status', verificarToken, async (req, res) => {
     await connection.beginTransaction();
 
     const [rows] = await connection.query(
-      `SELECT id, status, expires_at, comprovante FROM pedidos WHERE id=? FOR UPDATE`,
+      `SELECT id, status, expires_at, pagamento FROM pedidos WHERE id=? FOR UPDATE`,
       [req.params.id],
     );
 
@@ -574,6 +772,7 @@ router.put('/:id/status', verificarToken, async (req, res) => {
 
     const pedido = rows[0];
     const currentStatus = normalizeStatus(pedido.status);
+
     const validation = validarTransicaoStatus({
       user: req.user,
       currentStatus,
@@ -587,13 +786,6 @@ router.put('/:id/status', verificarToken, async (req, res) => {
         erro: validation.message,
         atual: validation.atual,
         novo: validation.novo,
-      });
-    }
-
-    if (exigeComprovanteParaConfirmacao(validation) && !pedido.comprovante) {
-      await connection.rollback();
-      return res.status(400).json({
-        erro: 'Aprovação PIX exige um comprovante enviado',
       });
     }
 
@@ -652,7 +844,10 @@ async function expirarPedidosPendentes() {
 SELECT id
 FROM pedidos
 WHERE status='pendente'
-AND expires_at < NOW()
+AND expires_at <= NOW()
+AND pagamento='mercado_pago'
+AND (mp_status IS NULL OR LOWER(mp_status) <> 'approved')
+AND pagamento_confirmado_em IS NULL
 
 `,
     );
@@ -671,12 +866,36 @@ AND expires_at < NOW()
           FROM pedidos
           WHERE id = ?
             AND status = 'pendente'
+            AND expires_at <= NOW()
+            AND pagamento = 'mercado_pago'
+            AND (mp_status IS NULL OR LOWER(mp_status) <> 'approved')
+            AND pagamento_confirmado_em IS NULL
           FOR UPDATE
           `,
           [pedido.id],
         );
 
         if (!pedidoLocked.length) {
+          await connection.rollback();
+          continue;
+        }
+
+        const [pedidoExpirado] = await connection.query(
+          `
+UPDATE pedidos
+SET status='expirado'
+WHERE id=?
+AND status='pendente'
+AND expires_at <= NOW()
+AND pagamento='mercado_pago'
+AND (mp_status IS NULL OR LOWER(mp_status) <> 'approved')
+AND pagamento_confirmado_em IS NULL
+
+`,
+          [pedido.id],
+        );
+
+        if (pedidoExpirado.affectedRows !== 1) {
           await connection.rollback();
           continue;
         }
@@ -710,17 +929,6 @@ WHERE id=?
           );
         }
 
-        await connection.query(
-          `
-UPDATE pedidos
-SET status='expirado'
-WHERE id=?
-AND status='pendente'
-
-`,
-          [pedido.id],
-        );
-
         await connection.commit();
       } catch (errPedido) {
         await connection.rollback();
@@ -743,331 +951,16 @@ AND status='pendente'
   }
 }
 
-startOrderScheduler(expirarPedidosPendentes);
-
-// =====================================================
-// PIX FLOW (dados do pagamento + upload do comprovante)
-// =====================================================
-
-function padStatus(status) {
-  return String(status).trim().toLowerCase();
-}
-
-async function validarPedidoParaComprovante(req, res, next) {
-  try {
-    const [rows] = await db.query(
-      `
-      SELECT usuario_id, status, expires_at, comprovante
-      FROM pedidos
-      WHERE id = ?
-      `,
-      [req.params.id],
-    );
-
-    if (!rows.length) return res.status(404).json({ erro: 'Pedido nÃ£o encontrado' });
-
-    const pedido = rows[0];
-
-    if (String(pedido.usuario_id) !== String(req.user.id)) {
-      return res.status(403).json({ erro: 'Acesso negado' });
-    }
-
-    if (padStatus(pedido.status) !== 'pendente') {
-      return res.status(400).json({ erro: 'Pedido nÃ£o estÃ¡ pendente' });
-    }
-
-    if (new Date(pedido.expires_at).getTime() < Date.now()) {
-      return res.status(400).json({ erro: 'Pedido expirado' });
-    }
-
-    if (pedido.comprovante) {
-      return res.status(400).json({ erro: 'Comprovante jÃ¡ enviado' });
-    }
-
-    return next();
-  } catch (err) {
-    return next(err);
-  }
-}
-
-router.get('/:id/pix', verificarToken, async (req, res) => {
-  try {
-    requirePixKey(req, res);
-    if (res.headersSent) return;
-    requireWhatsAppNumber(req, res);
-    if (res.headersSent) return;
-
-    const pedidoId = req.params.id;
-    const usuarioId = req.user.id;
-
-    const [rows] = await db.query(
-      `
-  SELECT id, usuario_id, total, status, expires_at
-  FROM pedidos
-  WHERE id = ? AND usuario_id = ?
-  `,
-      [pedidoId, usuarioId],
-    );
-
-    if (!rows.length) {
-      return res.status(404).json({
-        erro: 'Pedido não encontrado',
-      });
-    }
-
-    const pedido = rows[0];
-
-    //  REGRA CRÍTICA: BLOQUEIA EXPIRADO
-    if (pedido.status === 'expirado') {
-      return res.status(400).json({
-        erro: 'Pedido expirado. Não é possível pagar novamente.',
-      });
-    }
-
-    //  segurança: usuário dono do pedido
-    if (pedido.status !== 'pendente') {
-      return res.status(400).json({
-        erro: 'Somente pedidos pendentes podem ser pagos',
-      });
-    }
-
-    const tempoRestanteMs = new Date(pedido.expires_at).getTime() - Date.now();
-
-    const tempoRestante = Math.max(0, tempoRestanteMs);
-
-    return res.json({
-      pedido: Number(pedido.id),
-      valor: Number(pedido.total),
-      pix_key: pixConfig.pix_key,
-      whatsapp_number: pixConfig.whatsapp_number,
-      tempo_restante: tempoRestante,
-      status: padStatus(pedido.status),
-    });
-  } catch (err) {
-    console.error('ERRO PIX GET:', err);
-    return res.status(500).json({ erro: 'Erro ao buscar dados PIX' });
-  }
-});
-
-router.post(
-  '/:id/pix/comprovante',
-  verificarToken,
-  validarPedidoParaComprovante,
-  uploadComprovante.single('comprovante'),
-  validarImagemComprovante,
-  async (req, res) => {
-    let connection;
-
-    try {
-      requirePixKey(req, res);
-      if (res.headersSent) return;
-
-      const pedidoId = req.params.id;
-      const usuarioId = req.user.id;
-
-      if (!req.file) {
-        return res.status(400).json({
-          erro: 'Comprovante é obrigatório',
-        });
-      }
-
-      // Validação da extensão
-      const allowedExt = ['.jpg', '.jpeg', '.png', '.webp'];
-      const ext = path.extname(req.file.originalname || '').toLowerCase();
-
-      if (!allowedExt.includes(ext)) {
-        return res.status(400).json({
-          erro: 'Tipo de arquivo inválido',
-        });
-      }
-
-      connection = await db.getConnection();
-      await connection.beginTransaction();
-
-      const [rows] = await connection.query(
-        `
-        SELECT
-          id,
-          usuario_id,
-          total,
-          status,
-          expires_at,
-          comprovante
-        FROM pedidos
-        WHERE id = ?
-        FOR UPDATE
-        `,
-        [pedidoId],
-      );
-
-      if (!rows.length) {
-        await connection.rollback();
-        return res.status(404).json({
-          erro: 'Pedido não encontrado',
-        });
-      }
-
-      const pedido = rows[0];
-
-      if (String(pedido.usuario_id) !== String(usuarioId)) {
-        await connection.rollback();
-        return res.status(403).json({
-          erro: 'Acesso negado',
-        });
-      }
-
-      if (padStatus(pedido.status) !== 'pendente') {
-        await connection.rollback();
-        return res.status(400).json({
-          erro: 'Pedido não está pendente',
-        });
-      }
-
-      if (new Date(pedido.expires_at).getTime() < Date.now()) {
-        await connection.rollback();
-        return res.status(400).json({
-          erro: 'Pedido expirado',
-        });
-      }
-
-      if (pedido.comprovante) {
-        await connection.rollback();
-        return res.status(400).json({
-          erro: 'Comprovante já enviado',
-        });
-      }
-
-      const comprovantePath = `uploads/comprovantes/${req.file.filename}`;
-
-      const [updateResult] = await connection.query(
-        `
-        UPDATE pedidos
-        SET
-          comprovante = ?,
-          status = 'aguardando_confirmacao'
-        WHERE id = ?
-          AND status = 'pendente'
-        `,
-        [comprovantePath, pedidoId],
-      );
-
-      if (!updateResult.affectedRows) {
-        await connection.rollback();
-        return res.status(400).json({
-          erro: 'Não foi possível atualizar o pedido',
-        });
-      }
-
-      const [itens] = await connection.query(
-        `
-        SELECT
-          pi.quantidade,
-          pi.preco,
-          pr.nome,
-          v.tamanho,
-          v.cor
-        FROM pedido_itens pi
-        JOIN produtos pr
-          ON pr.id = pi.produto_id
-        LEFT JOIN produto_variacoes v
-          ON v.id = pi.variacao_id
-        WHERE pi.pedido_id = ?
-        `,
-        [pedidoId],
-      );
-
-      const itensTexto = itens
-        .map((item) => {
-          const tamanho = item.tamanho || '';
-          const cor = item.cor || '';
-
-          return `• ${item.nome}
-${tamanho ? `Tamanho: ${tamanho}` : ''}
-${cor ? `Cor: ${cor}` : ''}
-Quantidade: ${item.quantidade}
-Valor: R$ ${Number(item.preco * item.quantidade).toFixed(2)}`;
-        })
-        .join('\n\n');
-
-      const mensagem =
-        `🛍️ NOVO PEDIDO - DL MODAS\n\n` +
-        `Pedido: #${pedidoId}\n\n` +
-        `💰 Total: R$ ${Number(pedido.total).toFixed(2)}\n\n` +
-        `📦 ITENS:\n\n${itensTexto}\n\n` +
-        `💳 Pagamento: PIX\n\n` +
-        `📄 O comprovante será enviado nesta conversa.\n\n` +
-        `⏳ Status: Aguardando confirmação.`;
-
-      await connection.commit();
-
-      return res.json({
-        mensagem,
-      });
-    } catch (err) {
-      if (connection) {
-        await connection.rollback();
-      }
-
-      if (req.file?.path) {
-        removerComprovante(req.file);
-      }
-
-      console.error('ERRO PIX POST COMP:', err);
-
-      return res.status(500).json({
-        erro: 'Erro ao enviar comprovante',
-      });
-    } finally {
-      if (connection) {
-        connection.release();
-      }
-    }
-  },
+startOrderScheduler(
+  expirarPedidosPendentes,
+  (process.argv.includes('--test') || process.env.NODE_TEST_CONTEXT)
+    ? { ...process.env, NODE_ENV: 'test' }
+    : process.env,
 );
 
-/*
-=========================
-COMPROVANTE PIX (PRIVADO)
-=========================
-*/
-router.get('/:id/comprovante', verificarToken, async (req, res) => {
-  try {
-    const pedidoId = req.params.id;
-    const usuarioId = req.user.id;
-    const isAdminUser = req.user?.tipo === 'admin';
-
-    const [rows] = await db.query(
-      `
-      SELECT id, usuario_id, comprovante
-      FROM pedidos
-      WHERE id = ?
-      `,
-      [pedidoId],
-    );
-
-    if (!rows.length) {
-      return res.status(404).json({ erro: 'Pedido não encontrado' });
-    }
-
-    const pedido = rows[0];
-
-    const podeAcessar = isAdminUser || String(pedido.usuario_id) === String(usuarioId);
-
-    if (!podeAcessar) {
-      return res.status(403).json({ erro: 'Acesso negado' });
-    }
-
-    if (!pedido.comprovante) {
-      return res.status(404).json({ erro: 'Comprovante não encontrado' });
-    }
-
-    const fileOnDisk = path.resolve(process.cwd(), pedido.comprovante);
-
-    return res.sendFile(fileOnDisk);
-  } catch (err) {
-    console.error('ERRO GET COMPROVANTE:', err);
-    return res.status(500).json({ erro: 'Erro ao buscar comprovante' });
-  }
-});
-
+export {
+  expirarPedidosPendentes,
+  prazoReservaMinutos,
+  PRAZO_RESERVA_MERCADO_PAGO_MINUTOS,
+};
 export default router;
