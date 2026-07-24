@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { FaWhatsapp } from 'react-icons/fa';
 import api from '../services/api.js';
 import { abrirAtendimentoWhatsApp } from '../utils/whatsapp.js';
 
@@ -25,6 +26,7 @@ export default function BotaoAtendimentoWhatsApp({ numero, mensagem, texto = 'DÃ
 
   return (
     <button type="button" className="btn-whatsapp-atendimento" onClick={abrirAtendimento} disabled={abrindo}>
+      <FaWhatsapp aria-hidden="true" />
       {abrindo ? 'Abrindo atendimento...' : texto}
     </button>
   );

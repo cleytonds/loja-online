@@ -3,7 +3,9 @@ import assert from 'node:assert/strict';
 
 import {
   abrirAtendimentoWhatsApp,
+  montarLinkWhatsApp,
   montarMensagemEntregaPedido,
+  pedidoPodeCombinarEntregaMercadoPago,
   pedidoPodeTratarEntrega,
 } from './whatsapp.js';
 
@@ -39,5 +41,21 @@ test('gera URL de atendimento codificada sem alterar pedido', () => {
   assert.match(mensagem, /Forma de pagamento: Mercado Pago/);
   assert.match(mensagem, /Quantidade: 1/);
   assert.equal(url, `https://wa.me/5511999999999?text=${encodeURIComponent(mensagem)}`);
+  assert.equal(montarLinkWhatsApp({ numero: '5511999999999', mensagem }), url);
   assert.deepEqual(chamadas[0].slice(1), ['_blank', 'noopener,noreferrer']);
+});
+
+test('só permite entrega Mercado Pago após confirmação persistida', () => {
+  const pedidoBase = {
+    status: 'pago',
+    pagamento: 'mercado_pago',
+    mp_status: 'approved',
+    pagamento_confirmado_em: '2026-07-23 10:00:00',
+  };
+
+  assert.equal(pedidoPodeCombinarEntregaMercadoPago(pedidoBase), true);
+  assert.equal(pedidoPodeCombinarEntregaMercadoPago({ ...pedidoBase, mp_status: 'pending' }), false);
+  assert.equal(pedidoPodeCombinarEntregaMercadoPago({ ...pedidoBase, status: 'pendente' }), false);
+  assert.equal(pedidoPodeCombinarEntregaMercadoPago({ ...pedidoBase, pagamento_confirmado_em: null }), false);
+  assert.equal(pedidoPodeCombinarEntregaMercadoPago({ ...pedidoBase, pagamento: 'pix' }), false);
 });

@@ -5,7 +5,7 @@ import { useNavigate } from 'react-router-dom';
 import BotaoAtendimentoWhatsApp from '../components/BotaoAtendimentoWhatsApp.jsx';
 import { CarrinhoContext } from '../context/CarrinhoContext';
 import { AuthContext } from '../context/AuthContext';
-import { montarMensagemEntregaPedido, pedidoPodeTratarEntrega } from '../utils/whatsapp.js';
+import { montarMensagemEntregaPedido, pedidoPodeCombinarEntregaMercadoPago } from '../utils/whatsapp.js';
 
 function formatarTempoRestante(expiresAt, agora) {
   const totalSegundos = Math.max(0, Math.ceil((new Date(expiresAt).getTime() - agora) / 1000));
@@ -46,6 +46,8 @@ export default function MeusPedidos({ usuario_id }) {
     total: Number(pedido.total),
     status: pedido.status,
     pagamento: pedido.pagamento,
+    mp_status: pedido.mp_status,
+    pagamento_confirmado_em: pedido.pagamento_confirmado_em,
     criado_em: pedido.created_at,
     expires_at: pedido.expires_at,
     itens: pedido.itens || [],
@@ -63,26 +65,6 @@ export default function MeusPedidos({ usuario_id }) {
     const dateB = new Date(b.criado_em).getTime();
     return ordenarData === 'asc' ? dateA - dateB : dateB - dateA;
   });
-
-  const cancelarPedido = async (pedido_id) => {
-    try {
-      await api.put(`/pedidos/cancelar/${pedido_id}`);
-      setPedidos((prev) =>
-        prev.map((p) => (p.pedido_id === pedido_id ? { ...p, status: 'cancelado' } : p)),
-      );
-    } catch {
-      alert('Erro ao cancelar pedido');
-    }
-  };
-
-  const repetirPedido = async (pedido_id) => {
-    try {
-      const res = await api.get('/pedidos/meus');
-      setPedidos(Array.isArray(res.data) ? res.data : []);
-    } catch {
-      alert('Erro ao repetir pedido');
-    }
-  };
 
   const abrirModal = (pedido) => setModalPedido(pedido);
   const fecharModal = () => setModalPedido(null);
@@ -171,6 +153,8 @@ export default function MeusPedidos({ usuario_id }) {
               </button>
 
               {pedido.status === 'pendente' && pedido.pagamento === 'mercado_pago'
+                && String(pedido.mp_status || '').toLowerCase() !== 'approved'
+                && !pedido.pagamento_confirmado_em
                 && !(pedido.expires_at && new Date(pedido.expires_at).getTime() <= agora) && (
                 <>
                   <p>Pedido expira em {formatarTempoRestante(pedido.expires_at, agora)}</p>
@@ -190,7 +174,11 @@ export default function MeusPedidos({ usuario_id }) {
 
               {pedido.pagamento === 'mercado_pago'
                 && (pedido.status === 'expirado'
-                  || (pedido.status === 'pendente' && pedido.expires_at && new Date(pedido.expires_at).getTime() <= agora)) && (
+                  || (pedido.status === 'pendente'
+                    && String(pedido.mp_status || '').toLowerCase() !== 'approved'
+                    && !pedido.pagamento_confirmado_em
+                    && pedido.expires_at
+                    && new Date(pedido.expires_at).getTime() <= agora)) && (
                 <>
                   <p className="pedido-somente-leitura">Pedido expirado</p>
                   <p className="pedido-somente-leitura">
@@ -210,37 +198,15 @@ export default function MeusPedidos({ usuario_id }) {
                 </>
               )}
 
-              {pedido.status === 'pendente' && pedido.pagamento === 'pix' && (
-                <button
-                  className="btn-pagamento"
-                  onClick={() =>
-                    navigate(`/pagamento/${pedido.pedido_id}`, {
-                      state: pedido,
-                    })
-                  }
-                >
-                  Pagar com PIX
-                </button>
-              )}
-
-              {!['pago', 'enviado', 'entregue', 'cancelado', 'expirado'].includes(pedido.status) && (
+              {pedidoPodeCombinarEntregaMercadoPago(pedido) && (
                 <>
-                  <button className="btn-repetir" onClick={() => repetirPedido(pedido.pedido_id)}>
-                    Repetir
-                  </button>
-
-                  <button className="btn-cancelar" onClick={() => cancelarPedido(pedido.pedido_id)}>
-                    Cancelar
-                  </button>
+                  <p className="pedido-entrega-confirmada">Pagamento confirmado. Combine a entrega com a loja.</p>
+                  <BotaoAtendimentoWhatsApp
+                    numero={pedido.whatsapp_number}
+                    texto="Combinar entrega pelo WhatsApp"
+                    mensagem={montarMensagemEntregaPedido({ pedido, nomeCliente: user?.nome })}
+                  />
                 </>
-              )}
-
-              {pedidoPodeTratarEntrega(pedido.status) && (
-                <BotaoAtendimentoWhatsApp
-                  numero={pedido.whatsapp_number}
-                  texto="Tratar entrega pelo WhatsApp"
-                  mensagem={montarMensagemEntregaPedido({ pedido, nomeCliente: user?.nome })}
-                />
               )}
             </div>
           </div>

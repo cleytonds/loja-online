@@ -1,25 +1,95 @@
 .pagamento-retorno {
   width: min(100% - 32px, 620px);
   margin: 56px auto;
-  padding: 32px;
-  text-align: center;
-  background: #fff;
-  border: 1px solid #e7e7e7;
-  border-radius: 10px;
   box-sizing: border-box;
 }
 
-.pagamento-retorno p {
-  margin: 16px 0 28px;
-  line-height: 1.55;
+.pagamento-retorno-card {
+  display: grid;
+  gap: 18px;
+  padding: 32px;
+  text-align: center;
+  background: var(--surface);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  box-shadow: var(--shadow);
 }
 
+.pagamento-retorno h1,
+.pagamento-retorno p { margin: 0; }
+
+.pagamento-retorno p { line-height: 1.55; }
+
+.pagamento-retorno-carregando {
+  color: var(--primary-dark);
+  font-weight: 700;
+}
+
+.pagamento-retorno-resumo {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  margin: 0;
+  text-align: left;
+}
+
+.pagamento-retorno-resumo div {
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--secondary-light);
+}
+
+.pagamento-retorno-resumo dt {
+  margin-bottom: 4px;
+  color: var(--text-muted);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.pagamento-retorno-resumo dd {
+  margin: 0;
+  color: var(--text);
+  font-weight: 700;
+}
+
+.btn-whatsapp-entrega,
+.btn-tentar-confirmacao,
 .pagamento-retorno .btn-primary {
-  display: inline-block;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 44px;
+  box-sizing: border-box;
+  border: 0;
+  border-radius: 10px;
+  padding: 11px 18px;
+  color: #fff;
+  font-weight: 700;
   text-decoration: none;
+  cursor: pointer;
+  transition: background-color .2s ease, box-shadow .2s ease, transform .2s ease;
 }
 
-.pagamento-retorno { background: var(--background); color: var(--text); }
-.pagamento-retorno > * { background: var(--surface); border-color: var(--border); box-shadow: var(--shadow); }
-.pagamento-retorno .btn-primary { background: var(--primary); }
-.pagamento-retorno .btn-primary:hover { background: var(--primary-dark); }
+.btn-whatsapp-entrega {
+  background: var(--primary);
+  box-shadow: 0 4px 12px rgba(200, 162, 74, .24);
+}
+
+.btn-whatsapp-entrega:hover { background: var(--primary-dark); transform: translateY(-1px); }
+.btn-tentar-confirmacao { background: #475569; }
+.btn-tentar-confirmacao:hover { background: #334155; }
+.pagamento-retorno .btn-primary { background: var(--secondary-medium); color: var(--text); }
+.pagamento-retorno .btn-primary:hover { background: var(--secondary); }
+.pagamento-retorno-indisponivel { color: var(--text-muted); font-size: 14px; }
+
+@media (max-width: 560px) {
+  .pagamento-retorno { width: min(100% - 24px, 620px); margin: 28px auto; }
+  .pagamento-retorno-card { padding: 24px 18px; }
+  .pagamento-retorno-resumo { grid-template-columns: 1fr; }
+  .btn-whatsapp-entrega,
+  .btn-tentar-confirmacao,
+  .pagamento-retorno .btn-primary { width: 100%; }
+}

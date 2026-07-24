@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useContext } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { FiCheckCircle, FiEye, FiRotateCcw, FiTruck } from 'react-icons/fi';
 import api from '../services/api';
 import { montarUrlImagem } from '../utils/imagem.js';
 
@@ -124,6 +125,7 @@ export default function Admin() {
   const [pedidoDetalhes, setPedidoDetalhes] = useState(null);
   const [carregandoDetalhes, setCarregandoDetalhes] = useState(false);
   const [erroDetalhes, setErroDetalhes] = useState('');
+  const [atualizandoPedidoId, setAtualizandoPedidoId] = useState(null);
 
   const { logout } = useContext(AuthContext);
 
@@ -309,7 +311,10 @@ export default function Admin() {
   // =========================
 
   async function atualizarStatus(id, status) {
+    if (atualizandoPedidoId === id) return;
+
     try {
+      setAtualizandoPedidoId(id);
       const token = localStorage.getItem('token');
 
       await api.put(
@@ -333,6 +338,8 @@ export default function Admin() {
     } catch (err) {
       console.error(err.response?.data);
       alert(JSON.stringify(err.response?.data));
+    } finally {
+      setAtualizandoPedidoId(null);
     }
   }
 
@@ -447,16 +454,18 @@ export default function Admin() {
   }
 
   function renderizarAcoesPedido(pedido) {
-    if (pedido.pagamento === 'mercado_pago' && pedido.status === 'pendente') {
-      return null;
+    const bloqueado = atualizandoPedidoId === pedido.id;
+
+    if (pedido.status === 'pendente') {
+      return <button className="pedido-acao pedido-acao-confirmar" onClick={() => atualizarStatus(pedido.id, 'pago')} disabled={bloqueado}><FiCheckCircle aria-hidden="true" />Marcar como pago</button>;
     }
 
     if (pedido.status === 'pago') {
-      return <button className="pedido-acao" onClick={() => atualizarStatus(pedido.id, 'enviado')}>Marcar como enviado</button>;
+      return <button className="pedido-acao" onClick={() => atualizarStatus(pedido.id, 'enviado')} disabled={bloqueado}><FiTruck aria-hidden="true" />Marcar como enviado</button>;
     }
 
     if (pedido.status === 'enviado') {
-      return <button className="pedido-acao" onClick={() => atualizarStatus(pedido.id, 'entregue')}>Marcar como entregue</button>;
+      return <button className="pedido-acao pedido-acao-entregue" onClick={() => atualizarStatus(pedido.id, 'entregue')} disabled={bloqueado}><FiTruck aria-hidden="true" />Marcar como entregue</button>;
     }
 
     return null;
@@ -486,14 +495,17 @@ export default function Admin() {
         ) : null}
 
         <div className="pedido-card-acoes">
-          <button className="pedido-acao pedido-acao-detalhes" onClick={() => abrirDetalhes(pedido.id)}>Ver detalhes</button>
-          {pedido.reconciliacao_status === 'pendente' ? (
-            <>
-              <button className="pedido-acao pedido-acao-estorno" onClick={() => resolverReconciliacao(pedido.id, 'resolvida_estorno')}>Registrar estorno</button>
-              <button className="pedido-acao pedido-acao-atendimento" onClick={() => resolverReconciliacao(pedido.id, 'resolvida_atendimento')}>Registrar atendimento</button>
-            </>
-          ) : null}
-          {!somenteLeitura && renderizarAcoesPedido(pedido)}
+          <span className="pedido-acoes-titulo">Ações</span>
+          <div className="pedido-acoes-lista">
+            <button className="pedido-acao pedido-acao-detalhes" onClick={() => abrirDetalhes(pedido.id)}><FiEye aria-hidden="true" />Ver detalhes</button>
+            {renderizarAcoesPedido(pedido)}
+            {pedido.reconciliacao_status === 'pendente' ? (
+              <>
+                <button className="pedido-acao pedido-acao-atendimento" onClick={() => resolverReconciliacao(pedido.id, 'resolvida_atendimento')}><FiCheckCircle aria-hidden="true" />Registrar atendimento</button>
+                <button className="pedido-acao pedido-acao-estorno" onClick={() => resolverReconciliacao(pedido.id, 'resolvida_estorno')}><FiRotateCcw aria-hidden="true" />Registrar estorno</button>
+              </>
+            ) : null}
+          </div>
         </div>
       </article>
     );

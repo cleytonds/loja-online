@@ -498,25 +498,86 @@ select {
 }
 
 .pedido-card-acoes {
+  grid-column: 1 / -1;
+  display: grid;
+  gap: 10px;
+  align-self: stretch;
+  padding: 14px 0 0;
+  border-top: 1px solid #e2e8f0;
+}
+
+.pedido-acoes-titulo {
+  color: #475569;
+  font-size: 12px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: .04em;
+}
+
+.pedido-acoes-lista {
   display: flex;
   flex-wrap: wrap;
-  justify-content: flex-end;
-  gap: 8px;
+  gap: 12px;
 }
 
 .pedido-acao {
-  border: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  min-height: 42px;
+  border: 1px solid transparent;
   border-radius: 10px;
-  padding: 10px 12px;
+  padding: 10px 14px;
   background: #2563eb;
   color: #fff;
   cursor: pointer;
-  font-weight: 700;
+  font-weight: 600;
+  line-height: 1;
+  box-shadow: 0 2px 6px rgba(15, 23, 42, 0.12);
+  transition: background-color .2s ease, box-shadow .2s ease, transform .2s ease;
 }
 
-.pedido-acao-detalhes { background: #475569; }
-.pedido-acao-confirmar { background: #16a34a; }
-.pedido-acao-reprovar { background: #dc2626; }
+.pedido-acao:hover:not(:disabled) {
+  box-shadow: 0 5px 12px rgba(15, 23, 42, 0.18);
+  transform: translateY(-1px);
+}
+
+.pedido-acao:disabled {
+  cursor: not-allowed;
+  opacity: .65;
+}
+
+.pedido-acao svg { flex: 0 0 auto; font-size: 16px; }
+.pedido-acao-detalhes { background: #374151; }
+.pedido-acao-detalhes:hover:not(:disabled) { background: #1f2937; }
+.pedido-acao-confirmar,
+.pedido-acao-atendimento { background: #16a34a; }
+.pedido-acao-confirmar:hover:not(:disabled),
+.pedido-acao-atendimento:hover:not(:disabled) { background: #15803d; }
+.pedido-acao-reprovar,
+.pedido-acao-estorno { background: #dc2626; }
+.pedido-acao-reprovar:hover:not(:disabled),
+.pedido-acao-estorno:hover:not(:disabled) { background: #b91c1c; }
+.pedido-acao-entregue { background: #2563eb; }
+.pedido-acao-entregue:hover:not(:disabled) { background: #1d4ed8; }
+.pedido-reconciliacao-alerta,
+.pedido-reconciliacao-intro {
+  margin: 0;
+  color: #9a3412;
+  font-size: 13px;
+  font-weight: 700;
+}
+.pedido-reconciliacao-alerta {
+  padding: 10px 12px;
+  border: 1px solid #fed7aa;
+  border-radius: 10px;
+  background: #fff7ed;
+}
+.pedido-reconciliacao-intro {
+  margin: 0 0 18px;
+  font-weight: 500;
+}
 .pedido-aguardando-mercado-pago {
   color: #92400e;
   font-size: 13px;
@@ -651,14 +712,14 @@ select {
 @media (max-width: 900px) {
   .pedido-card-horizontal { grid-template-columns: 1fr; }
   .pedido-card-resumo { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  .pedido-card-acoes { justify-content: flex-start; }
   .pedido-aguardando-mercado-pago { text-align: left; }
 }
 
 @media (max-width: 600px) {
   .pedido-card-resumo,
   .pedido-modal-secoes { grid-template-columns: 1fr; }
-  .pedido-card-acoes .pedido-acao { width: 100%; }
+  .pedido-acoes-lista { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .pedido-acoes-lista .pedido-acao { width: 100%; }
   .pedido-modal { padding: 20px; }
   .pedido-modal-cabecalho {
     gap: 8px;

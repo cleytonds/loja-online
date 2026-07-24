@@ -8,7 +8,7 @@ import logoDayaneLima from "../assets/logo-dayane-lima-header.png";
 
 export default function Header() {
   const { carrinho, toggleCarrinho } = useContext(CarrinhoContext);
-  const { user } = useContext(AuthContext); // 👈 pega usuário
+  const { user, logout } = useContext(AuthContext); // 👈 pega usuário
   const navigate = useNavigate();
   const location = useLocation();
 
@@ -17,7 +17,7 @@ export default function Header() {
   const token = localStorage.getItem("token");
 
   function sair() {
-    localStorage.removeItem("token");
+    logout();
     navigate("/login");
   }
 
