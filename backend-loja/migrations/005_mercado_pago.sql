@@ -4,12 +4,6 @@
 
 -- Não remova nem altere duplicidades automaticamente. Se qualquer consulta
 -- abaixo retornar linhas, saneie operacionalmente antes de criar o índice único.
-SELECT mp_payment_id, COUNT(*) AS quantidade
-FROM pedidos
-WHERE mp_payment_id IS NOT NULL
-GROUP BY mp_payment_id
-HAVING COUNT(*) > 1;
-
 SET @schema_name = DATABASE();
 SELECT COUNT(*) INTO @has_pedidos_table
 FROM information_schema.TABLES
@@ -44,9 +38,39 @@ SELECT COUNT(*) INTO @has_updated_at FROM information_schema.COLUMNS WHERE TABLE
 SET @sql = IF(@has_updated_at = 0, 'ALTER TABLE pedidos ADD COLUMN pagamento_atualizado_em DATETIME NULL', 'SELECT ''005: pagamento_atualizado_em já existe'' AS migration_notice');
 PREPARE migration_statement FROM @sql; EXECUTE migration_statement; DEALLOCATE PREPARE migration_statement;
 
+-- Consulta duplicidades somente depois de garantir a coluna em banco novo.
+SELECT mp_payment_id, COUNT(*) AS quantidade
+FROM pedidos
+WHERE mp_payment_id IS NOT NULL
+GROUP BY mp_payment_id
+HAVING COUNT(*) > 1;
+
+SELECT COUNT(*) INTO @mp_payment_duplicate_groups
+FROM (
+  SELECT mp_payment_id
+  FROM pedidos
+  WHERE mp_payment_id IS NOT NULL
+  GROUP BY mp_payment_id
+  HAVING COUNT(*) > 1
+) AS duplicate_mp_payment_ids;
+
 SELECT COUNT(*) INTO @has_unique_payment
-FROM (SELECT INDEX_NAME FROM information_schema.STATISTICS WHERE TABLE_SCHEMA = @schema_name AND TABLE_NAME = 'pedidos' AND NON_UNIQUE = 0 GROUP BY INDEX_NAME HAVING GROUP_CONCAT(COLUMN_NAME ORDER BY SEQ_IN_INDEX SEPARATOR ',') = 'mp_payment_id') AS matching_unique_indexes;
-SET @sql = IF(@has_unique_payment = 0, 'ALTER TABLE pedidos ADD UNIQUE KEY uq_pedidos_mp_payment_id (mp_payment_id)', 'SELECT ''005: unique de mp_payment_id já existe'' AS migration_notice');
+FROM (
+  SELECT INDEX_NAME
+  FROM information_schema.STATISTICS
+  WHERE TABLE_SCHEMA = @schema_name AND TABLE_NAME = 'pedidos' AND NON_UNIQUE = 0
+  GROUP BY INDEX_NAME
+  HAVING GROUP_CONCAT(COLUMN_NAME ORDER BY SEQ_IN_INDEX SEPARATOR ',') = 'mp_payment_id'
+) AS matching_unique_indexes;
+SET @sql = IF(
+  @has_unique_payment = 0 AND @mp_payment_duplicate_groups = 0,
+  'ALTER TABLE pedidos ADD UNIQUE KEY uq_pedidos_mp_payment_id (mp_payment_id)',
+  IF(
+    @has_unique_payment = 1,
+    'SELECT ''005: unique de mp_payment_id já existe'' AS migration_notice',
+    'SELECT ''005: duplicidades de mp_payment_id encontradas; índice único não foi criado'' AS migration_notice'
+  )
+);
 PREPARE migration_statement FROM @sql; EXECUTE migration_statement; DEALLOCATE PREPARE migration_statement;
 
 SELECT COUNT(*) INTO @has_preference_index
@@ -127,9 +151,25 @@ FROM pagamento_eventos
 GROUP BY provedor, evento_id
 HAVING COUNT(*) > 1;
 
+SELECT COUNT(*) INTO @event_duplicate_groups
+FROM (
+  SELECT provedor, evento_id
+  FROM pagamento_eventos
+  GROUP BY provedor, evento_id
+  HAVING COUNT(*) > 1
+) AS duplicate_event_ids;
+
 SELECT COUNT(*) INTO @has_event_unique
 FROM (SELECT INDEX_NAME FROM information_schema.STATISTICS WHERE TABLE_SCHEMA = @schema_name AND TABLE_NAME = 'pagamento_eventos' AND NON_UNIQUE = 0 GROUP BY INDEX_NAME HAVING GROUP_CONCAT(COLUMN_NAME ORDER BY SEQ_IN_INDEX SEPARATOR ',') = 'provedor,evento_id') AS matching_unique_indexes;
-SET @sql = IF(@has_event_unique = 0, 'ALTER TABLE pagamento_eventos ADD UNIQUE KEY uq_pagamento_eventos_provedor_evento (provedor, evento_id)', 'SELECT ''005: unique de evento já existe'' AS migration_notice');
+SET @sql = IF(
+  @has_event_unique = 0 AND @event_duplicate_groups = 0,
+  'ALTER TABLE pagamento_eventos ADD UNIQUE KEY uq_pagamento_eventos_provedor_evento (provedor, evento_id)',
+  IF(
+    @has_event_unique = 1,
+    'SELECT ''005: unique de evento já existe'' AS migration_notice',
+    'SELECT ''005: duplicidades de evento encontradas; índice único não foi criado'' AS migration_notice'
+  )
+);
 PREPARE migration_statement FROM @sql; EXECUTE migration_statement; DEALLOCATE PREPARE migration_statement;
 
 SELECT COUNT(*) INTO @has_event_pedido_index
