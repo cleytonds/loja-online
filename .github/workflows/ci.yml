@@ -1,0 +1,101 @@
+name: CI
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  quality:
+    name: Integridade do diff
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+
+      - name: Verificar espacos e marcadores de conflito
+        run: git diff --check HEAD^ HEAD
+
+  frontend:
+    name: Frontend - contratos e build
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: Frontend-loja
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Configurar Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: Frontend-loja/package-lock.json
+
+      - name: Instalar dependencias
+        run: npm ci
+
+      - name: Executar testes de contrato
+        run: node --test tests/celular.test.js tests/paymentReturn.test.js tests/verificarCodigo.contract.test.mjs src/utils/whatsapp.test.js
+
+      - name: Gerar build de producao
+        run: npm run build
+
+  backend:
+    name: Backend - testes seguros
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: backend-loja
+    env:
+      NODE_ENV: test
+      DB_HOST: 127.0.0.1
+      DB_PORT: '3306'
+      DB_USER: test
+      DB_PASSWORD: test
+      DB_NAME: test
+      JWT_SECRET: ci-test-secret
+      FRONT_URL: https://loja.test
+      BACKEND_URL: https://api.loja.test
+      PUBLIC_API_URL: https://api.loja.test
+      CORS_ORIGINS: https://loja.test
+      MERCADO_PAGO_ACCESS_TOKEN: TEST-ci-token
+      MERCADO_PAGO_WEBHOOK_SECRET: ci-webhook-secret
+      MP_ENVIRONMENT: sandbox
+      UPLOAD_DIR: /tmp/dl-modas-uploads
+      EMAIL_PROVIDER: smtp
+      EMAIL_FROM: no-reply@example.test
+      EMAIL_FROM_NAME: DL Modas CI
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Configurar Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: backend-loja/package-lock.json
+
+      - name: Instalar dependencias
+        run: npm ci
+
+      - name: Executar suite segura
+        run: npm run test:safe
+
+      - name: Executar testes isolados de cadastro e e-mail
+        run: node --test tests/cadastroFlow.test.js tests/emailProvider.test.js
