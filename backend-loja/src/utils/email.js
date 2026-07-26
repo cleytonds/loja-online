@@ -1,6 +1,10 @@
 // src/utils/email.js
 import nodemailer from "nodemailer";
 
+// O cadastro depende deste serviço, portanto o tempo de espera precisa ser
+// curto o suficiente para não manter a interface bloqueada quando o SMTP cair.
+const SMTP_TIMEOUT_MS = 12000;
+
 function registrarErroSmtp(err) {
   const tipo =
     err?.code === 'EAUTH'
@@ -43,9 +47,9 @@ export async function enviarEmail(destinatario, assunto, mensagem) {
       user,
       pass,
     },
-    connectionTimeout: 60000,
-    greetingTimeout: 60000,
-    socketTimeout: 60000,
+    connectionTimeout: SMTP_TIMEOUT_MS,
+    greetingTimeout: SMTP_TIMEOUT_MS,
+    socketTimeout: SMTP_TIMEOUT_MS,
   });
 
   const mailOptions = {

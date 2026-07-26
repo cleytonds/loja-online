@@ -50,6 +50,14 @@ router.post('/cadastro', async (req, res) => {
     );
 
     if (usuarios.length > 0) {
+      if (Number(usuarios[0].ativo) !== 1) {
+        return res.status(409).json({
+          erro: 'Esta conta já foi criada e aguarda confirmação. Reenvie o código para continuar.',
+          cadastroPendente: true,
+          podeReenviarCodigo: true,
+        });
+      }
+
       return res.status(400).json({ error: 'Email já cadastrado' });
     }
 
@@ -85,7 +93,12 @@ router.post('/cadastro', async (req, res) => {
         `,
       );
     } catch (erroEmail) {
-      console.error(' ERRO AO ENVIAR EMAIL:', erroEmail);
+      console.error('ERRO AO ENVIAR EMAIL:', erroEmail?.message);
+      return res.status(503).json({
+        erro: 'Sua conta foi criada, mas não foi possível enviar o código de confirmação. Tente reenviar o código em alguns instantes.',
+        cadastroPendente: true,
+        podeReenviarCodigo: true,
+      });
     }
 
     return res.status(201).json({

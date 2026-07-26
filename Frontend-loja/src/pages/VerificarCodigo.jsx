@@ -8,7 +8,7 @@ export default function VerificarCodigo() {
   const navigate = useNavigate();
   const email = location.state?.email;
   const [codigo, setCodigo] = useState('');
-  const [mensagem, setMensagem] = useState('');
+  const [mensagem, setMensagem] = useState(() => location.state?.aviso || '');
   const [erro, setErro] = useState('');
   const [loading, setLoading] = useState(false);
 
