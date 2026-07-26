@@ -69,7 +69,7 @@ export default function Home() {
   function ProdutoCard({ produto }) {
     return (
       <Link className="card-produto" to={`/produto/${produto.id}`}>
-        <img src={`${api.defaults.baseURL}${produto.imagem_principal}`} alt={produto.nome} />
+        <img loading="lazy" src={`${api.defaults.baseURL}${produto.imagem_principal}`} alt={produto.nome} />
 
         <h3>{produto.nome}</h3>
 

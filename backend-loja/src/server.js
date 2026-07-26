@@ -6,6 +6,7 @@ import cors from 'cors';
 import path from 'path';
 import helmet from 'helmet';
 import rateLimit from 'express-rate-limit';
+import compression from 'compression';
 
 import authRoutes from './routes/authRoutes.js';
 import produtosRoutes from './routes/products.routes.js';
@@ -14,6 +15,27 @@ import usuariosRoutes from './routes/usuariosRoutes.js';
 import favoritosRoutes from './routes/favoritosRoutes.js';
 
 const app = express();
+
+app.use(
+  compression({
+    filter: (req, res) => {
+      if (req.path.startsWith('/uploads/')) return false;
+      return compression.filter(req, res);
+    },
+  }),
+);
+
+export function buildHelmetConfig() {
+  return {
+    contentSecurityPolicy: false,
+    crossOriginEmbedderPolicy: false,
+    crossOriginResourcePolicy: {
+      policy: 'cross-origin',
+    },
+    referrerPolicy: { policy: 'no-referrer-when-downgrade' },
+    frameguard: { action: 'sameorigin' },
+  };
+}
 
 function requireEnv(name) {
   const value = process.env[name];
@@ -52,15 +74,7 @@ if (process.env.NODE_ENV !== 'production') {
 // SECURITY HEADERS
 // =====================================================
 
-app.use(
-  helmet({
-    contentSecurityPolicy: false,
-    crossOriginEmbedderPolicy: false,
-    crossOriginResourcePolicy: {
-      policy: 'cross-origin',
-    },
-  }),
-);
+app.use(helmet(buildHelmetConfig()));
 
 // =====================================================
 // CORS (somente origens configuradas)
@@ -121,43 +135,49 @@ app.use(
 // ROTAS
 // =====================================================
 
-const rateLimiter15m = {
-  windowMs: 15 * 60 * 1000,
-  max: 20,
-  standardHeaders: 'draft-7',
-  legacyHeaders: false,
-  message: { erro: 'Muitas requisições. Tente novamente mais tarde.' },
-};
+export function buildRateLimitConfig() {
+  const base = {
+    windowMs: 15 * 60 * 1000,
+    standardHeaders: 'draft-7',
+    legacyHeaders: false,
+    message: { erro: 'Muitas requisições. Tente novamente mais tarde.' },
+  };
 
-const rateLimiterLogin = rateLimit(rateLimiter15m);
-const rateLimiterCadastro = rateLimit({
-  ...rateLimiter15m,
-  max: 10,
-  message: { erro: 'Muitas requisições. Aguarde e tente novamente.' },
-});
-const rateLimiterReenviar = rateLimit({
-  ...rateLimiter15m,
-  max: 5,
-  message: { erro: 'Muitas requisições. Aguarde e tente novamente.' },
-});
-const rateLimiterPedidos = rateLimit({
-  ...rateLimiter15m,
-  max: 30,
-  message: { erro: 'Muitas requisições. Aguarde e tente novamente.' },
-});
-const rateLimiterPixComprovante = rateLimit({
-  ...rateLimiter15m,
-  max: 10,
-  message: { erro: 'Muitas requisições. Aguarde e tente novamente.' },
-});
+  return {
+    login: { max: 20, middleware: rateLimit({ ...base, max: 20 }) },
+    cadastro: {
+      max: 10,
+      middleware: rateLimit({ ...base, max: 10, message: { erro: 'Muitas requisições. Aguarde e tente novamente.' } }),
+    },
+    reenviar: {
+      max: 5,
+      middleware: rateLimit({ ...base, max: 5, message: { erro: 'Muitas requisições. Aguarde e tente novamente.' } }),
+    },
+    verificarCodigo: {
+      max: 10,
+      middleware: rateLimit({ ...base, max: 10, message: { erro: 'Muitas requisições. Aguarde e tente novamente.' } }),
+    },
+    pedidos: {
+      max: 30,
+      middleware: rateLimit({ ...base, max: 30, message: { erro: 'Muitas requisições. Aguarde e tente novamente.' } }),
+    },
+    pixComprovante: {
+      max: 10,
+      middleware: rateLimit({ ...base, max: 10, message: { erro: 'Muitas requisições. Aguarde e tente novamente.' } }),
+    },
+  };
+}
 
-app.use('/auth/login', rateLimiterLogin);
-app.use('/auth/cadastro', rateLimiterCadastro);
-app.use('/auth/reenviar-codigo', rateLimiterReenviar);
+const rateLimiters = buildRateLimitConfig();
+
+app.use('/auth/login', rateLimiters.login.middleware);
+app.use('/auth/cadastro', rateLimiters.cadastro.middleware);
+app.use('/auth/reenviar-codigo', rateLimiters.reenviar.middleware);
+app.use('/auth/verificar-codigo', rateLimiters.verificarCodigo.middleware);
 
 // Aplica SOMENTE em POST (evita limitar GET/PUT/DELETE)
-app.post('/pedidos', rateLimiterPedidos);
-app.post('/pedidos/:id/pix/comprovante', rateLimiterPixComprovante);
+app.post('/pedidos', rateLimiters.pedidos.middleware);
+app.post('/pedidos/:id/pix/comprovante', rateLimiters.pixComprovante.middleware);
 
 app.use('/auth', authRoutes);
 app.use('/produtos', produtosRoutes);
@@ -199,6 +219,10 @@ app.use((err, req, res, next) => {
 
 const PORT = process.env.PORT || 3000;
 
-app.listen(PORT, '0.0.0.0', () => {
-  console.log(`API rodando na porta ${PORT}`);
-});
+if (process.env.NODE_ENV !== 'test') {
+  app.listen(PORT, '0.0.0.0', () => {
+    console.log(`API rodando na porta ${PORT}`);
+  });
+}
+
+export default app;

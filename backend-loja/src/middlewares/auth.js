@@ -1,24 +1,63 @@
 import jwt from 'jsonwebtoken';
+import db from '../config/database.js';
 
 function requireJwtSecret() {
   const secret = process.env.JWT_SECRET;
   if (!secret || String(secret).trim() === '') {
-    // Falha clara de configuração (sem fallback)
     throw new Error('JWT_SECRET não definido no servidor');
   }
   return secret;
 }
 
-//  Middleware para verificar se o usuário está autenticado
-export function verificarToken(req, res, next) {
+export function validarPayloadToken(payload) {
+  if (!payload || typeof payload !== 'object') {
+    return false;
+  }
+
+  if (!Number.isInteger(payload.id) || payload.id <= 0) {
+    return false;
+  }
+
+  if (!['admin', 'cliente'].includes(payload.tipo)) {
+    return false;
+  }
+
+  return true;
+}
+
+export function montarUsuarioAutenticado(payload, usuarioDb) {
+  if (!validarPayloadToken(payload)) {
+    return null;
+  }
+
+  if (!usuarioDb || Number(usuarioDb.id) !== Number(payload.id)) {
+    return null;
+  }
+
+  if (usuarioDb.ativo !== 1) {
+    return null;
+  }
+
+  if (usuarioDb.tipo !== payload.tipo) {
+    return null;
+  }
+
+  return {
+    id: Number(usuarioDb.id),
+    nome: usuarioDb.nome,
+    email: usuarioDb.email,
+    tipo: usuarioDb.tipo,
+    ativo: Number(usuarioDb.ativo),
+  };
+}
+
+export async function verificarToken(req, res, next) {
   const authHeader = req.headers.authorization;
 
-  //  Se não tiver token
   if (!authHeader) {
     return res.status(401).json({ error: 'Token não fornecido' });
   }
 
-  //  Formato esperado: "Bearer TOKEN"
   const partes = authHeader.split(' ');
 
   if (partes.length !== 2) {
@@ -27,18 +66,30 @@ export function verificarToken(req, res, next) {
 
   const [bearer, token] = partes;
 
-  //  Se não começar com Bearer
   if (bearer !== 'Bearer') {
     return res.status(401).json({ error: 'Token inválido' });
   }
 
   try {
-    //  Verifica token
     const decoded = jwt.verify(token, requireJwtSecret());
 
-    //  Salva dados do usuário na requisição
-    req.user = decoded;
+    if (!validarPayloadToken(decoded)) {
+      return res.status(401).json({ error: 'Token inválido' });
+    }
 
+    const [rows] = await db.query('SELECT id, nome, email, tipo, ativo FROM usuarios WHERE id = ?', [decoded.id]);
+
+    if (!rows.length) {
+      return res.status(401).json({ error: 'Token inválido' });
+    }
+
+    const usuarioAutenticado = montarUsuarioAutenticado(decoded, rows[0]);
+
+    if (!usuarioAutenticado) {
+      return res.status(401).json({ error: 'Token inválido' });
+    }
+
+    req.user = usuarioAutenticado;
     next();
   } catch (err) {
     return res.status(401).json({ error: 'Token inválido ou expirado' });

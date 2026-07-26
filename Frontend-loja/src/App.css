@@ -290,7 +290,10 @@ button.comprar:hover {
 
 /* Status */
 .status-pendente { color:orange; font-weight:bold; }
-.status-concluido { color:green; font-weight:bold; }
+.status-aguardando_confirmacao { color:#8a2be2; font-weight:bold; }
+.status-pago { color:#0f766e; font-weight:bold; }
+.status-enviado { color:#2563eb; font-weight:bold; }
+.status-entregue { color:green; font-weight:bold; }
 .status-cancelado { color:red; font-weight:bold; }
 
 /* Itens dentro do pedido */

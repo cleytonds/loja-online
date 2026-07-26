@@ -2,6 +2,8 @@ import { useLocation, useNavigate } from 'react-router-dom';
 import api from '../services/api';
 import './Pagamento.css';
 import { useParams } from 'react-router-dom';
+import { useEffect, useState } from 'react';
+import { montarUrlWhatsApp } from '../utils/whatsapp.js';
 
 export default function Pagamento() {
   const { id } = useParams();
@@ -11,8 +13,73 @@ export default function Pagamento() {
   const salvo = sessionStorage.getItem('pedido_pagamento');
   const pedido = location.state || (salvo ? JSON.parse(salvo) : null);
   const pedidoId = pedido?.pedido_id || pedido?.id;
+  const [pixData, setPixData] = useState({ pix_key: '', whatsapp_number: '' });
+  const [deadlineMs, setDeadlineMs] = useState(null);
+  const [segundosRestantes, setSegundosRestantes] = useState(null);
 
-  console.log('PEDIDO RECEBIDO:', pedido);
+  const pedidoExpirado = segundosRestantes === 0;
+
+  function formatarTempoRestante(segundos) {
+    if (segundos === null) return '--:--';
+
+    const minutos = Math.floor(segundos / 60);
+    const segundosFormatados = segundos % 60;
+    return `${String(minutos).padStart(2, '0')}:${String(segundosFormatados).padStart(2, '0')}`;
+  }
+
+  useEffect(() => {
+    async function carregarPix() {
+      try {
+        const token = localStorage.getItem('token');
+        const res = await api.get(`/pedidos/${pedidoId}/pix`, {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        });
+
+        setPixData({
+          pix_key: res.data?.pix_key || '',
+          whatsapp_number: res.data?.whatsapp_number || '',
+        });
+
+        const tempoRestante = Number(res.data?.tempo_restante);
+        if (Number.isFinite(tempoRestante)) {
+          const novoDeadline = Date.now() + Math.max(0, tempoRestante);
+          setDeadlineMs(novoDeadline);
+          setSegundosRestantes(Math.max(0, Math.ceil((novoDeadline - Date.now()) / 1000)));
+        }
+      } catch (err) {
+        console.error('Erro ao carregar dados PIX', err);
+        if (/expirado/i.test(err.response?.data?.erro || '')) {
+          setSegundosRestantes(0);
+        }
+      }
+    }
+
+    if (pedidoId) {
+      carregarPix();
+    }
+  }, [pedidoId]);
+
+  useEffect(() => {
+    if (deadlineMs === null) return undefined;
+
+    const atualizarContador = () => {
+      const proximoTempo = Math.max(0, Math.ceil((deadlineMs - Date.now()) / 1000));
+      setSegundosRestantes(proximoTempo);
+      return proximoTempo;
+    };
+
+    if (atualizarContador() === 0) return undefined;
+
+    const interval = window.setInterval(() => {
+      if (atualizarContador() === 0) {
+        window.clearInterval(interval);
+      }
+    }, 1000);
+
+    return () => window.clearInterval(interval);
+  }, [deadlineMs]);
 
   if (!pedido) {
     return (
@@ -24,6 +91,8 @@ export default function Pagamento() {
   }
 
   async function confirmarPix() {
+    if (pedidoExpirado) return;
+
     try {
       const token = localStorage.getItem('token');
 
@@ -58,40 +127,24 @@ export default function Pagamento() {
 
       sessionStorage.removeItem('pedido_pagamento');
 
-      // ==========================
-      // MONTA ITENS
-      // ==========================
-      const itensTexto = (pedidoAtual.itens || [])
-        .map(
-          (i) =>
-            `- ${i.nome} (${i.tamanho || '-'} / ${i.cor || '-'}) x${i.quantidade} = R$ ${(i.preco * i.quantidade).toFixed(2)}`,
-        )
-        .join('\n');
+      const pedidoPayload = {
+        id: pedidoAtual.id,
+        pedido_id: pedidoAtual.id,
+        total: Number(pedidoAtual.total),
+        valor: Number(pedidoAtual.total),
+        itens: pedidoAtual.itens || [],
+      };
 
-      // ==========================
-      // WHATSAPP
-      // ==========================
-      const numeroWhats = '81993563122';
-
-      const mensagem =
-        ` NOVO PEDIDO FINALIZAR WHATSAPP - DL MODAS\n\n` +
-        `Pedido: #${pedidoAtual.id}\n\n` +
-        `Valor:\n${Number(pedidoAtual.total).toLocaleString('pt-BR', {
-          style: 'currency',
-          currency: 'BRL',
-        })}\n\n` +
-        ` PRODUTOS:\n${itensTexto}\n\n` +
-        ` Status:\nAguardando confirmação\n\n` +
-        `Cliente aguardando para finalizar o pagamento via WhatsApp.`;
-
-      const url = `https://wa.me/55${numeroWhats}?text=${encodeURIComponent(mensagem)}`;
-
-      window.open(url, '_blank');
+      montarUrlWhatsApp({
+        pedido: pedidoPayload,
+        itens: pedidoPayload.itens,
+        numero: pixData.whatsapp_number,
+      });
 
       navigate('/perfil');
     } catch (err) {
       console.error('ERRO PIX:', err);
-      alert('Erro ao processar pagamento');
+      alert(err.message || 'Erro ao processar pagamento');
     }
   }
 
@@ -109,15 +162,43 @@ export default function Pagamento() {
           })}
         </h2>
 
-        <p>Chave PIX:</p>
-        <strong>dayaneferreiral1905@gmail.com</strong>
+        <div
+          className={`contador-expiracao ${
+            pedidoExpirado
+              ? 'contador-expirado'
+              : (segundosRestantes ?? Infinity) <= 60
+                ? 'contador-critico'
+                : (segundosRestantes ?? Infinity) <= 120
+                  ? 'contador-alerta'
+                  : ''
+          }`}
+          aria-live="polite"
+        >
+          {pedidoExpirado ? (
+            <>
+              <span>Pedido expirado</span>
+              <small>Este pedido expirou. Crie um novo pedido para continuar.</small>
+            </>
+          ) : (
+            <>
+              <span>Pedido expira em</span>
+              <strong>{formatarTempoRestante(segundosRestantes)}</strong>
+            </>
+          )}
+        </div>
 
-        <button onClick={() => navigator.clipboard.writeText('dayaneferreiral1905@gmail.com')}>
+        <p>Chave PIX:</p>
+        <strong>{pixData.pix_key || 'Carregando...'}</strong>
+
+        <button
+          disabled={pedidoExpirado}
+          onClick={() => navigator.clipboard.writeText(pixData.pix_key || '')}
+        >
           Copiar chave PIX
         </button>
 
         {/*  AGORA SÓ FLUXO LIMPO */}
-        <button onClick={confirmarPix}>Já paguei - enviar comprovante</button>
+        <button disabled={pedidoExpirado} onClick={confirmarPix}>Já paguei - enviar comprovante</button>
       </div>
     </div>
   );

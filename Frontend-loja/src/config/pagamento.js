@@ -4,8 +4,4 @@ export const PAGAMENTO = {
     tipo: 'Email',
     nome: 'Dayane Ferreira',
   },
-
-  whatsapp: {
-    numero: '5581993563122',
-  },
 };
