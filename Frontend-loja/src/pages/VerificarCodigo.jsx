@@ -14,6 +14,26 @@ function mensagemDeErro(error, fallback) {
   return fallback;
 }
 
+function mensagemDeErroReenvio(error) {
+  const status = error?.response?.status;
+
+  if (!error?.response) {
+    if (error?.code === 'ECONNABORTED' || /timeout/i.test(error?.message || '')) {
+      return 'Não foi possível conectar ao serviço de e-mail. Tente novamente em alguns instantes.';
+    }
+
+    return 'Erro de conexão. Verifique sua internet e tente novamente.';
+  }
+
+  if (status === 404) return 'Página não encontrada.';
+  if (status >= 500) return 'Não foi possível reenviar o código agora. Tente novamente em alguns instantes.';
+
+  const erro = error.response?.data?.error;
+  if (erro === 'Conta já ativada') return 'Esta conta já está ativada.';
+
+  return 'Não foi possível reenviar o código agora. Tente novamente em alguns instantes.';
+}
+
 export default function VerificarCodigo() {
   const location = useLocation();
   const navigate = useNavigate();
@@ -40,7 +60,7 @@ export default function VerificarCodigo() {
       const resposta = await api.post('/auth/reenviar-codigo', { email });
       setMensagem(resposta.data.mensagem || 'Código reenviado com sucesso!');
     } catch (error) {
-      setErro(mensagemDeErro(error, 'Não foi possível reenviar o código.'));
+      setErro(mensagemDeErroReenvio(error));
     } finally {
       setReenviando(false);
     }

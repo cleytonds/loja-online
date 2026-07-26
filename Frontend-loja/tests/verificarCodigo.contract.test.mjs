@@ -18,6 +18,9 @@ test('reenvio usa botão sem submit e estados independentes', async () => {
   assert.match(page, /event\?\.stopPropagation\(\)/);
   assert.match(page, /setReenviando\(false\)/);
   assert.match(page, /reenviando \? 'Reenviando\.\.\.'/);
+  assert.match(page, /if \(status === 404\) return 'Página não encontrada\.'/);
+  assert.match(page, /status >= 500/);
+  assert.match(page, /Erro de conexão\. Verifique sua internet e tente novamente\./);
 });
 
 test('confirmação permanece submit e exige código antes da API', async () => {
