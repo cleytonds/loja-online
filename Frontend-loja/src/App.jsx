@@ -1,4 +1,5 @@
 import { HashRouter as Router, Routes, Route } from 'react-router-dom';
+import { lazy, Suspense } from 'react';
 
 import Home from './pages/Home.jsx';
 import Produtos from './pages/produtos.jsx';
@@ -6,25 +7,28 @@ import Login from './pages/Login.jsx';
 import Cadastro from './pages/Cadastro.jsx';
 import Carrinho from './pages/Carrinho.jsx';
 import Confirmacao from './pages/Confirmacao.jsx';
-import MeusPedidos from './pages/MeusPedidos.jsx';
-import EsqueciSenha from './pages/EsqueciSenha.jsx';
-import RedefinirSenha from './pages/RedefinirSenha.jsx';
-import Busca from './pages/Busca.jsx';
-import Perfil from './pages/Perfil.jsx';
-import Favoritos from './pages/Favoritos.jsx';
-import Admin from './pages/Admin.jsx';
-import ProdutoDetalhe from './pages/ProdutoDetalhe';
-import EditarProduto from './pages/EditarProduto';
 
 import PrivateRoute from './routes/PrivateRoute';
 import AdminRoute from './routes/AdminRoute';
 
 import Header from './components/Header';
+import Footer from './components/Footer';
 import MiniCarrinho from './components/MiniCarrinho';
 
 import { CarrinhoProvider } from './context/CarrinhoContext';
 import { AuthProvider } from './context/AuthContext';
-import Pagamento from './pages/Pagamento';
+
+const MeusPedidos = lazy(() => import('./pages/MeusPedidos.jsx'));
+const EsqueciSenha = lazy(() => import('./pages/EsqueciSenha.jsx'));
+const VerificarCodigo = lazy(() => import('./pages/VerificarCodigo.jsx'));
+const RedefinirSenha = lazy(() => import('./pages/RedefinirSenha.jsx'));
+const Busca = lazy(() => import('./pages/Busca.jsx'));
+const Perfil = lazy(() => import('./pages/Perfil.jsx'));
+const Favoritos = lazy(() => import('./pages/Favoritos.jsx'));
+const Admin = lazy(() => import('./pages/Admin.jsx'));
+const ProdutoDetalhe = lazy(() => import('./pages/ProdutoDetalhe'));
+const EditarProduto = lazy(() => import('./pages/EditarProduto'));
+const PagamentoRetorno = lazy(() => import('./pages/PagamentoRetorno'));
 
 import './App.css';
 
@@ -37,6 +41,7 @@ export default function App() {
           <MiniCarrinho />
 
           <main className="main-content">
+            <Suspense fallback={<p>Carregando...</p>}>
             <Routes>
               {/* PÁGINAS PÚBLICAS */}
               <Route path="/" element={<Home />} />
@@ -47,11 +52,16 @@ export default function App() {
               <Route path="/confirmar/:token" element={<Confirmacao />} />
               <Route path="/meus-pedidos" element={<MeusPedidos />} />
               <Route path="/esqueci-senha" element={<EsqueciSenha />} />
+              <Route path="/verificar" element={<VerificarCodigo />} />
               <Route path="/redefinir-senha/:token" element={<RedefinirSenha />} />
               <Route path="/busca" element={<Busca />} />
               <Route path="/produto/:id" element={<ProdutoDetalhe />} />
               <Route path="/admin/produto/:id" element={<EditarProduto />} />
-              <Route path="/pagamento/:id" element={<Pagamento />} />
+              <Route path="/pagamento/sucesso" element={<PagamentoRetorno />} />
+              <Route path="/pagamento/retorno" element={<PagamentoRetorno />} />
+              <Route path="/pagamento-retorno" element={<PagamentoRetorno />} />
+              <Route path="/pagamento/pendente" element={<PagamentoRetorno />} />
+              <Route path="/pagamento/falhou" element={<PagamentoRetorno />} />
 
               {/* USUÁRIO LOGADO */}
               <Route
@@ -82,9 +92,10 @@ export default function App() {
                 }
               />
             </Routes>
+            </Suspense>
           </main>
 
-          <footer className="footer">© {new Date().getFullYear()} DLmodas</footer>
+          <Footer />
         </CarrinhoProvider>
       </AuthProvider>
     </Router>

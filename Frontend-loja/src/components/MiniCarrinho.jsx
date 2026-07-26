@@ -2,7 +2,7 @@ import { useContext } from 'react';
 import { CarrinhoContext } from '../context/CarrinhoContext';
 import { useNavigate } from 'react-router-dom';
 import './MiniCarrinho.css';
-import api from '../services/api';
+import ImagemProduto from './ImagemProduto.jsx';
 
 export default function MiniCarrinho() {
   const {
@@ -50,13 +50,6 @@ export default function MiniCarrinho() {
             const id = item.variacao_id;
             const nome = item.nome;
 
-            const imagem =
-              typeof item.imagem === 'string'
-                ? item.imagem.startsWith('http')
-                  ? item.imagem
-                  : `${api.defaults.baseURL}${item.imagem}`
-                : 'https://via.placeholder.com/60';
-
             const preco = Number(item.preco) || 0;
             const quantidade = Number(item.quantidade) || 0;
             const estoque = Number(
@@ -66,7 +59,7 @@ export default function MiniCarrinho() {
             return (
               <div key={id} className="item">
                 {/* IMAGEM */}
-                <img src={imagem} alt={nome} />
+                <ImagemProduto url={item.imagem} alt={nome} />
 
                 {/* INFO */}
                 <div className="info">

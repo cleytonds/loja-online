@@ -8,6 +8,7 @@ import jwt from 'jsonwebtoken';
 import crypto from 'crypto';
 import { enviarEmail } from '../utils/email.js';
 import { verificarToken } from '../middlewares/auth.js';
+import { normalizarCelularBrasileiro } from '../utils/celular.js';
 
 const router = express.Router();
 
@@ -16,6 +17,27 @@ const router = express.Router();
 // =========================
 router.post('/cadastro', async (req, res) => {
   const { nome, email, senha } = req.body;
+  const celular = normalizarCelularBrasileiro(req.body?.celular);
+
+  if (!nome || typeof nome !== 'string' || nome.trim().length < 2) {
+    return res.status(400).json({ error: 'Nome inválido' });
+  }
+
+  if (!email || typeof email !== 'string') {
+    return res.status(400).json({ error: 'Email inválido' });
+  }
+
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim().toLowerCase())) {
+    return res.status(400).json({ error: 'Email inválido' });
+  }
+
+  if (!senha || typeof senha !== 'string' || senha.trim().length < 8) {
+    return res.status(400).json({ error: 'Senha inválida' });
+  }
+
+  if (!celular) {
+    return res.status(400).json({ erro: 'Informe um celular válido com DDD.' });
+  }
 
   try {
     //  normaliza email
@@ -28,6 +50,14 @@ router.post('/cadastro', async (req, res) => {
     );
 
     if (usuarios.length > 0) {
+      if (Number(usuarios[0].ativo) !== 1) {
+        return res.status(409).json({
+          erro: 'Esta conta já foi criada e aguarda confirmação. Reenvie o código para continuar.',
+          cadastroPendente: true,
+          podeReenviarCodigo: true,
+        });
+      }
+
       return res.status(400).json({ error: 'Email já cadastrado' });
     }
 
@@ -41,9 +71,9 @@ router.post('/cadastro', async (req, res) => {
     //  salva no banco
     await db.query(
       `INSERT INTO usuarios 
-      (nome, email, senha, ativo, token_confirmacao, codigo_confirmacao, tipo) 
-      VALUES (?, ?, ?, 0, ?, ?, 'cliente')`,
-      [nome, emailNormalizado, hashSenha, tokenConfirmacao, codigo],
+      (nome, email, senha, celular, ativo, token_confirmacao, codigo_confirmacao, tipo)
+      VALUES (?, ?, ?, ?, 0, ?, ?, 'cliente')`,
+      [nome, emailNormalizado, hashSenha, celular, tokenConfirmacao, codigo],
     );
 
     //  link de confirmação
@@ -63,7 +93,12 @@ router.post('/cadastro', async (req, res) => {
         `,
       );
     } catch (erroEmail) {
-      console.error(' ERRO AO ENVIAR EMAIL:', erroEmail);
+      console.error('ERRO AO ENVIAR EMAIL:', erroEmail?.message);
+      return res.status(503).json({
+        erro: 'Sua conta foi criada, mas não foi possível enviar o código de confirmação. Tente reenviar o código em alguns instantes.',
+        cadastroPendente: true,
+        podeReenviarCodigo: true,
+      });
     }
 
     return res.status(201).json({
@@ -79,14 +114,17 @@ router.post('/cadastro', async (req, res) => {
 //  LOGIN
 // =========================
 router.post('/login', async (req, res) => {
-  const { email, senha } = req.body;
+  const email = typeof req.body?.email === 'string' ? req.body.email.trim().toLowerCase() : '';
+  const senha = typeof req.body?.senha === 'string' ? req.body.senha : '';
+
+  if (!email || !senha) {
+    return res.status(400).json({ error: 'Email e senha sao obrigatorios' });
+  }
 
   try {
-    const emailNormalizado = email.trim().toLowerCase();
-
     const [usuarios] = await db.query(
       'SELECT * FROM usuarios WHERE LOWER(TRIM(email)) = LOWER(TRIM(?))',
-      [emailNormalizado],
+      [email],
     );
 
     if (!usuarios.length) {
@@ -142,7 +180,13 @@ router.get('/me', verificarToken, async (req, res) => {
       return res.status(404).json({ error: 'Usuário não encontrado' });
     }
 
-    return res.json(usuarios[0]);
+    return res.json({
+      id: usuarios[0].id,
+      nome: usuarios[0].nome,
+      email: usuarios[0].email,
+      tipo: usuarios[0].tipo,
+      ativo: usuarios[0].ativo,
+    });
   } catch (err) {
     console.error(' ERRO /ME:', err);
     return res.status(500).json({ error: 'Erro ao buscar usuário' });
@@ -153,13 +197,23 @@ router.get('/me', verificarToken, async (req, res) => {
 //  CONFIRMAR CONTA
 // =========================
 router.post('/verificar-codigo', async (req, res) => {
-  const { token, codigo } = req.body;
+  const { token, codigo, email } = req.body;
+  const codigoNormalizado = String(codigo || '').replace(/\D/g, '');
+
+  if (!/^\d{6}$/.test(codigoNormalizado) || (!token && !email)) {
+    return res.status(400).json({ error: 'Código ou token inválido' });
+  }
 
   try {
-    const [usuarios] = await db.query(
-      'SELECT * FROM usuarios WHERE token_confirmacao = ? AND codigo_confirmacao = ?',
-      [token, codigo],
-    );
+    const [usuarios] = token
+      ? await db.query(
+        'SELECT * FROM usuarios WHERE token_confirmacao = ? AND codigo_confirmacao = ?',
+        [token, codigoNormalizado],
+      )
+      : await db.query(
+        'SELECT * FROM usuarios WHERE LOWER(TRIM(email)) = LOWER(TRIM(?)) AND codigo_confirmacao = ?',
+        [email, codigoNormalizado],
+      );
 
     if (!usuarios.length) {
       return res.status(400).json({ error: 'Código ou token inválido' });
@@ -203,11 +257,6 @@ router.post('/reenviar-codigo', async (req, res) => {
     const novoCodigo = Math.floor(100000 + Math.random() * 900000).toString();
     const novoToken = crypto.randomBytes(32).toString('hex');
 
-    await db.query(
-      'UPDATE usuarios SET codigo_confirmacao = ?, token_confirmacao = ? WHERE id = ?',
-      [novoCodigo, novoToken, usuario.id],
-    );
-
     const link = `${process.env.FRONT_URL}/#/confirmar/${novoToken}`;
 
     await enviarEmail(
@@ -221,10 +270,126 @@ router.post('/reenviar-codigo', async (req, res) => {
       `,
     );
 
+    await db.query(
+      'UPDATE usuarios SET codigo_confirmacao = ?, token_confirmacao = ? WHERE id = ?',
+      [novoCodigo, novoToken, usuario.id],
+    );
+
     return res.json({ mensagem: 'Código reenviado com sucesso!' });
   } catch (err) {
     console.error(' ERRO REENVIO:', err);
-    return res.status(500).json({ error: 'Erro interno' });
+    return res.status(503).json({
+      error: 'Não foi possível enviar o código de confirmação. Tente novamente em alguns instantes.',
+    });
+  }
+});
+
+// =========================
+//  RECUPERACAO DE SENHA
+// =========================
+router.post('/solicitar-recuperacao', async (req, res) => {
+  const email = typeof req.body?.email === 'string' ? req.body.email.trim().toLowerCase() : '';
+  const mensagemSegura = 'Se o e-mail estiver cadastrado, você receberá as instruções de recuperação.';
+
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+    return res.json({ mensagem: mensagemSegura });
+  }
+
+  try {
+    const [usuarios] = await db.query(
+      'SELECT id, email FROM usuarios WHERE LOWER(TRIM(email)) = LOWER(TRIM(?))',
+      [email],
+    );
+
+    if (!usuarios.length) {
+      return res.json({ mensagem: mensagemSegura });
+    }
+
+    const usuario = usuarios[0];
+    const token = crypto.randomBytes(32).toString('hex');
+    const link = `${process.env.FRONT_URL.replace(/\/$/, '')}/#/redefinir-senha/${token}`;
+
+    await db.query(
+      `
+      UPDATE usuarios
+      SET token_redefinicao = ?, token_redefinicao_expira_em = DATE_ADD(NOW(), INTERVAL 1 HOUR)
+      WHERE id = ?
+      `,
+      [token, usuario.id],
+    );
+
+    try {
+      await enviarEmail(
+        usuario.email,
+        'Recuperação de senha - DLmodas',
+        `
+        <div style="font-family: Arial, sans-serif; padding: 20px">
+          <h2>Recuperação de senha</h2>
+          <p>Recebemos uma solicitação para redefinir a senha da sua conta.</p>
+          <p><a href="${link}">Redefinir minha senha</a></p>
+          <p>Este link expira em 1 hora. Se você não fez esta solicitação, ignore este e-mail.</p>
+        </div>
+        `,
+      );
+    } catch (err) {
+      await db.query(
+        'UPDATE usuarios SET token_redefinicao = NULL, token_redefinicao_expira_em = NULL WHERE id = ? AND token_redefinicao = ?',
+        [usuario.id, token],
+      );
+      console.error('ERRO RECUPERACAO SENHA:', err?.message);
+      return res.status(500).json({ erro: 'Não foi possível enviar o e-mail de recuperação.' });
+    }
+
+    return res.json({ mensagem: mensagemSegura });
+  } catch (err) {
+    console.error('ERRO SOLICITAR RECUPERACAO:', err);
+    return res.status(500).json({ erro: 'Não foi possível enviar o e-mail de recuperação.' });
+  }
+});
+
+router.post('/redefinir-senha/:token', async (req, res) => {
+  const token = String(req.params.token || '').trim();
+  const novaSenha = typeof req.body?.novaSenha === 'string' ? req.body.novaSenha : '';
+
+  if (!token || novaSenha.trim().length < 8) {
+    return res.status(400).json({ erro: 'Token inválido ou expirado.' });
+  }
+
+  try {
+    const [usuarios] = await db.query(
+      `
+      SELECT id
+      FROM usuarios
+      WHERE token_redefinicao = ?
+        AND token_redefinicao_expira_em > NOW()
+      `,
+      [token],
+    );
+
+    if (!usuarios.length) {
+      return res.status(400).json({ erro: 'Token inválido ou expirado.' });
+    }
+
+    const novaSenhaHash = await bcrypt.hash(novaSenha, 10);
+    const [updateResult] = await db.query(
+      `
+      UPDATE usuarios
+      SET senha = ?, token_redefinicao = NULL, token_redefinicao_expira_em = NULL
+      WHERE id = ?
+        AND token_redefinicao = ?
+        AND token_redefinicao_expira_em > NOW()
+      `,
+      [novaSenhaHash, usuarios[0].id, token],
+    );
+
+    if (!updateResult.affectedRows) {
+      return res.status(400).json({ erro: 'Token inválido ou expirado.' });
+    }
+
+    return res.json({ mensagem: 'Senha redefinida com sucesso!' });
+  } catch (err) {
+    console.error('ERRO REDEFINIR SENHA:', err);
+    return res.status(500).json({ erro: 'Não foi possível redefinir a senha.' });
   }
 });
 

@@ -1,8 +1,12 @@
 import { useContext, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { FiTrash2 } from 'react-icons/fi';
 
 import { CarrinhoContext } from '../context/CarrinhoContext';
 import api from '../services/api';
+import ImagemProduto from '../components/ImagemProduto.jsx';
+import { getErrorMessage } from '../utils/frontendState.js';
+import BotaoAtendimentoWhatsApp from '../components/BotaoAtendimentoWhatsApp.jsx';
 
 import './Carrinho.css';
 
@@ -24,23 +28,13 @@ export default function Carrinho() {
     0,
   );
 
-  async function finalizarCompra(metodo) {
+  async function finalizarCompra() {
     if (finalizando) return;
 
     if (!carrinho.length) {
       alert('Carrinho vazio');
       return;
     }
-    const itensSnapshot = carrinho.map((item) => ({
-      produto_id: item.produto_id,
-      variacao_id: item.variacao_id,
-      quantidade: item.quantidade,
-      preco: Number(item.preco),
-
-      nome: item.nome,
-      cor: item.cor,
-      tamanho: item.tamanho,
-    }));
 
     const token = localStorage.getItem('token');
 
@@ -51,8 +45,9 @@ export default function Carrinho() {
 
     setFinalizando(true);
 
+    let etapa = 'criação do pedido';
+
     try {
-      // snapshot seguro (evita mutação e bugs de estado)
       const itensSnapshot = carrinho.map((item) => ({
         produto_id: item.produto_id,
         variacao_id: item.variacao_id,
@@ -63,15 +58,18 @@ export default function Carrinho() {
         tamanho: item.tamanho,
       }));
 
+      const idempotencyKey = crypto.randomUUID();
+
       const res = await api.post(
         '/pedidos',
         {
           itens: itensSnapshot,
-          pagamento: metodo,
+          pagamento: 'mercado_pago',
         },
         {
           headers: {
             Authorization: `Bearer ${token}`,
+            'X-Idempotency-Key': idempotencyKey,
           },
         },
       );
@@ -82,60 +80,42 @@ export default function Carrinho() {
         throw new Error('Pedido não retornou ID');
       }
 
-      // =========================
-      // PIX
-      // =========================
-      if (metodo === 'pix') {
-        const pedidoPagamento = {
-          id: pedidoId,
-          pedido_id: pedidoId,
-          total: Number(res.data.total),
-          status: 'pendente',
-        };
+      etapa = 'criação da preferência do Mercado Pago';
 
-        sessionStorage.setItem('pedido_pagamento', JSON.stringify(pedidoPagamento));
+      const preferencia = await api.post(
+        `/pagamentos/mercado-pago/preferencia/${pedidoId}`,
+        {},
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        },
+      );
 
-        limparCarrinho();
+      const checkoutUrl = preferencia.data?.checkoutUrl;
 
-        navigate(`/pagamento/${pedidoId}`, {
-          state: pedidoPagamento,
-        });
-
-        return;
+      if (typeof checkoutUrl !== 'string' || !checkoutUrl.trim()) {
+        throw new Error('Checkout Mercado Pago indisponível');
       }
 
-      // =========================
-      // WHATSAPP
-      // =========================
-      if (metodo === 'whatsapp') {
-        const itensTexto = itensSnapshot
-          .map(
-            (i) =>
-              `- ${i.nome} (${i.tamanho || '-'} / ${i.cor || '-'}) x${i.quantidade} = ${formatarPreco(
-                i.preco * i.quantidade,
-              )}`,
-          )
-          .join('\n');
-
-        const mensagem =
-          ` NOVO PEDIDO FINALIZAR WHATSAPP - DL MODAS\n\n` +
-          `Pedido: #${pedidoId}\n\n` +
-          `Valor:\n${formatarPreco(total)}\n\n` +
-          ` PRODUTOS:\n${itensTexto}\n\n` +
-          ` Status:\nAguardando confirmação\n\n` +
-          `Cliente aguardando para finalizar o pagamento via WhatsApp.`;
-
-        //  LIMPA PRIMEIRO
-        limparCarrinho();
-
-        //  DEPOIS ABRE WHATSAPP
-        window.open(`https://wa.me/5581993563122?text=${encodeURIComponent(mensagem)}`, '_blank');
-
-        return;
-      }
+      limparCarrinho();
+      window.location.assign(checkoutUrl);
     } catch (err) {
-      console.error('ERRO CHECKOUT:', err);
-      alert('Erro ao criar pedido');
+      console.error('ERRO CHECKOUT:', {
+        etapa,
+        status: err.response?.status,
+        resposta: err.response?.data,
+        url: err.config?.url,
+        metodo: err.config?.method,
+        mensagem: err.message,
+      });
+
+      const mensagemBackend =
+        err.response?.data?.erro ||
+        err.response?.data?.message ||
+        getErrorMessage(err, 'Erro ao iniciar pagamento');
+
+      alert(`${etapa}: ${mensagemBackend}`);
     } finally {
       setFinalizando(false);
     }
@@ -154,56 +134,62 @@ export default function Carrinho() {
     <div className="carrinho-container">
       <h1 className="carrinho-titulo">Carrinho de compras</h1>
 
+      <div className="carrinho-layout">
       <div className="lista-carrinho">
         {carrinho.map((item) => (
           <div className="carrinho-item" key={item.variacao_id}>
             <div className="item-info">
-              <img
-                src={item.imagem ? `${api.defaults.baseURL}${item.imagem}` : '/placeholder.png'}
-                alt={item.nome}
-              />
+              <ImagemProduto url={item.imagem} alt={item.nome} />
 
-              <div>
+              <div className="item-detalhes">
                 <h2>{item.nome}</h2>
 
                 <p>
                   {item.tamanho} • {item.cor}
                 </p>
 
-                <strong>{formatarPreco(item.preco)}</strong>
+                <strong className="item-preco-unitario">{formatarPreco(item.preco)}</strong>
               </div>
             </div>
 
-            <div className="item-quantidade">
-              <button onClick={() => diminuirQuantidade(item.variacao_id)}>-</button>
+            <div className="item-quantidade" aria-label={`Quantidade de ${item.nome}`}>
+              <button type="button" onClick={() => diminuirQuantidade(item.variacao_id)} aria-label="Diminuir quantidade">−</button>
 
               <span>{item.quantidade}</span>
 
-              <button onClick={() => aumentarQuantidade(item.variacao_id)}>+</button>
+              <button type="button" onClick={() => aumentarQuantidade(item.variacao_id)} aria-label="Aumentar quantidade">+</button>
             </div>
 
             <div className="item-acoes">
               <strong>{formatarPreco(item.preco * item.quantidade)}</strong>
 
-              <button onClick={() => removerDoCarrinho(item.variacao_id)}>Remover</button>
+              <button type="button" onClick={() => removerDoCarrinho(item.variacao_id)}>
+                <FiTrash2 aria-hidden="true" />
+                Remover
+              </button>
             </div>
           </div>
         ))}
       </div>
 
-      <div className="carrinho-resumo">
+      <aside className="carrinho-resumo">
+        <h2>Resumo do pedido</h2>
         <div className="resumo-linha">
+          <span>Subtotal</span>
+          <span>{formatarPreco(total)}</span>
+        </div>
+
+        <div className="resumo-linha resumo-total">
           <span>Total</span>
           <span>{formatarPreco(total)}</span>
         </div>
 
-        <button disabled={finalizando} onClick={() => finalizarCompra('pix')}>
-          {finalizando ? 'Processando...' : 'Finalizar com PIX'}
+        <button className="btn-finalizar" disabled={finalizando} onClick={finalizarCompra}>
+          {finalizando ? 'Processando...' : 'Pagar com PIX ou cartão'}
         </button>
 
-        <button disabled={finalizando} onClick={() => finalizarCompra('whatsapp')}>
-          Finalizar no WhatsApp
-        </button>
+        <BotaoAtendimentoWhatsApp mensagem="Olá! Tenho uma dúvida sobre uma compra na DL Modas." />
+      </aside>
       </div>
     </div>
   );

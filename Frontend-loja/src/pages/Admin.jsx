@@ -2,7 +2,9 @@
 
 import { useEffect, useState, useContext } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { FiCheckCircle, FiEye, FiRotateCcw, FiTruck } from 'react-icons/fi';
 import api from '../services/api';
+import { montarUrlImagem } from '../utils/imagem.js';
 
 import {
   BarChart,
@@ -20,6 +22,51 @@ import {
 import { AuthContext } from '../context/AuthContext';
 
 import './Admin.css';
+
+const STATUS_CONFIG = {
+  pendente: { label: 'Pendente', className: 'status-pendente' },
+  aguardando_confirmacao: { label: 'Aguardando confirmação', className: 'status-aguardando' },
+  pago: { label: 'Pago', className: 'status-pago' },
+  enviado: { label: 'Enviado', className: 'status-enviado' },
+  entregue: { label: 'Entregue', className: 'status-entregue' },
+  cancelado: { label: 'Cancelado', className: 'status-cancelado' },
+  expirado: { label: 'Expirado', className: 'status-expirado' },
+};
+
+function formatarMoeda(valor) {
+  return Number(valor || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+}
+
+function formatarData(data) {
+  return data ? new Date(data).toLocaleString('pt-BR') : 'Não informado';
+}
+
+function formatarPagamento(pagamento) {
+  const labels = {
+    mercado_pago: 'Mercado Pago',
+    pix: 'PIX',
+    whatsapp: 'WhatsApp',
+    cartao_credito: 'Cartão de crédito',
+  };
+
+  return labels[pagamento] || 'Não informado';
+}
+
+function ImagemItemPedido({ url, nome }) {
+  const [falhouAoCarregar, setFalhouAoCarregar] = useState(false);
+  const src = montarUrlImagem(url);
+
+  if (!src || falhouAoCarregar) {
+    return (
+      <div className="pedido-modal-sem-imagem" role="img" aria-label={`Imagem indisponível de ${nome}`}>
+        <span aria-hidden="true">▧</span>
+        <span>Imagem indisponível</span>
+      </div>
+    );
+  }
+
+  return <img src={src} alt={nome} onError={() => setFalhouAoCarregar(true)} />;
+}
 
 export default function Admin() {
   const navigate = useNavigate();
@@ -63,10 +110,22 @@ export default function Admin() {
   // =========================
 
   const [vendas, setVendas] = useState([]);
+  const [carregandoVendas, setCarregandoVendas] = useState(false);
+  const [erroVendas, setErroVendas] = useState('');
 
   const [estoque, setEstoque] = useState([]);
+  const [carregandoEstoque, setCarregandoEstoque] = useState(false);
+  const [erroEstoque, setErroEstoque] = useState('');
 
-  const [pedidos, setPedidos] = useState([]);
+  const [pedidosAtuais, setPedidosAtuais] = useState([]);
+  const [historicoPedidos, setHistoricoPedidos] = useState([]);
+  const [reconciliacoesPendentes, setReconciliacoesPendentes] = useState([]);
+  const [carregandoPedidos, setCarregandoPedidos] = useState(false);
+  const [erroPedidos, setErroPedidos] = useState('');
+  const [pedidoDetalhes, setPedidoDetalhes] = useState(null);
+  const [carregandoDetalhes, setCarregandoDetalhes] = useState(false);
+  const [erroDetalhes, setErroDetalhes] = useState('');
+  const [atualizandoPedidoId, setAtualizandoPedidoId] = useState(null);
 
   const { logout } = useContext(AuthContext);
 
@@ -79,7 +138,7 @@ export default function Admin() {
   useEffect(() => {
     carregarProdutos();
     carregarCategorias();
-    carregarPedidos();
+    carregarPedidos('atuais');
     carregarVendas();
     carregarEstoque();
   }, []);
@@ -127,16 +186,19 @@ export default function Admin() {
   // =========================
 
   async function carregarVendas() {
-    try {
-      const res = await api.get('/vendas', {
-        headers: {
-          Authorization: `Bearer ${localStorage.getItem('token')}`,
-        },
-      });
+    setCarregandoVendas(true);
+    setErroVendas('');
 
-      setVendas(res.data);
+    try {
+      const res = await api.get('/pedidos/vendas');
+
+      setVendas(Array.isArray(res.data) ? res.data : []);
     } catch (err) {
       console.log('Erro vendas', err);
+      setErroVendas('Não foi possível carregar as vendas.');
+      setVendas([]);
+    } finally {
+      setCarregandoVendas(false);
     }
   }
 
@@ -146,6 +208,9 @@ export default function Admin() {
   // =========================
 
   async function carregarEstoque() {
+    setCarregandoEstoque(true);
+    setErroEstoque('');
+
     try {
       const res = await api.get('/produtos');
 
@@ -166,8 +231,10 @@ export default function Admin() {
       setEstoque(lista);
     } catch (err) {
       console.log('Erro estoque', err);
-
+      setErroEstoque('Não foi possível carregar o estoque.');
       setEstoque([]);
+    } finally {
+      setCarregandoEstoque(false);
     }
   }
 
@@ -175,17 +242,36 @@ export default function Admin() {
   // PEDIDOS
   // =========================
 
-  async function carregarPedidos() {
-    try {
-      const res = await api.get('/pedidos', {
-        headers: {
-          Authorization: `Bearer ${localStorage.getItem('token')}`,
-        },
-      });
+  async function carregarPedidos(tipo = 'atuais') {
+    setCarregandoPedidos(true);
+    setErroPedidos('');
 
-      setPedidos(res.data);
+    try {
+      const url = tipo === 'reconciliacoes'
+        ? '/pedidos?reconciliacao_status=pendente'
+        : `/pedidos?tipo=${tipo}`;
+      const res = await api.get(url);
+      const lista = Array.isArray(res.data) ? res.data : res.data?.data || [];
+
+      if (tipo === 'reconciliacoes') {
+        setReconciliacoesPendentes(lista);
+      } else if (tipo === 'historico') {
+        setHistoricoPedidos(lista);
+      } else {
+        setPedidosAtuais(lista);
+      }
     } catch (err) {
       console.log(err);
+      setErroPedidos('Não foi possível carregar os pedidos.');
+      if (tipo === 'reconciliacoes') {
+        setReconciliacoesPendentes([]);
+      } else if (tipo === 'historico') {
+        setHistoricoPedidos([]);
+      } else {
+        setPedidosAtuais([]);
+      }
+    } finally {
+      setCarregandoPedidos(false);
     }
   }
 
@@ -225,7 +311,10 @@ export default function Admin() {
   // =========================
 
   async function atualizarStatus(id, status) {
+    if (atualizandoPedidoId === id) return;
+
     try {
+      setAtualizandoPedidoId(id);
       const token = localStorage.getItem('token');
 
       await api.put(
@@ -238,19 +327,43 @@ export default function Admin() {
         },
       );
 
-      await carregarPedidos();
+      await Promise.all([carregarPedidos('atuais'), carregarPedidos('historico')]);
       await carregarEstoque();
+
+      setPedidoDetalhes((pedido) => (
+        pedido?.id === id ? { ...pedido, status } : pedido
+      ));
 
       alert('Status atualizado!');
     } catch (err) {
       console.error(err.response?.data);
       alert(JSON.stringify(err.response?.data));
+    } finally {
+      setAtualizandoPedidoId(null);
     }
   }
 
   // =========================
   // CRIAR PRODUTO
   // =========================
+
+  async function resolverReconciliacao(id, resolucao) {
+    const observacao = window.prompt('Observação opcional para a reconciliação:') || '';
+
+    try {
+      await api.put(`/pedidos/${id}/reconciliacao`, { resolucao, observacao });
+      await Promise.all([
+        carregarPedidos('reconciliacoes'),
+        carregarPedidos('atuais'),
+        carregarPedidos('historico'),
+      ]);
+      setPedidoDetalhes((pedido) => (
+        pedido?.id === id ? { ...pedido, reconciliacao_status: resolucao } : pedido
+      ));
+    } catch (err) {
+      alert(err.response?.data?.erro || 'Não foi possível resolver a reconciliação.');
+    }
+  }
 
   async function criarProduto(e) {
     e.preventDefault();
@@ -314,6 +427,90 @@ export default function Admin() {
   function editar(id) {
     navigate(`/admin/produto/${id}`);
   }
+
+  async function abrirDetalhes(id) {
+    setCarregandoDetalhes(true);
+    setErroDetalhes('');
+    setPedidoDetalhes(null);
+
+    try {
+      const res = await api.get(`/pedidos/${id}/detalhes`);
+      setPedidoDetalhes(res.data);
+    } catch (err) {
+      setErroDetalhes(err.response?.data?.erro || 'Não foi possível carregar os detalhes do pedido.');
+    } finally {
+      setCarregandoDetalhes(false);
+    }
+  }
+
+  function fecharDetalhes() {
+    setPedidoDetalhes(null);
+    setErroDetalhes('');
+  }
+
+  function renderizarBadgeStatus(status) {
+    const config = STATUS_CONFIG[status] || { label: status || 'Não informado', className: 'status-desconhecido' };
+    return <span className={`pedido-status ${config.className}`}>{config.label}</span>;
+  }
+
+  function renderizarAcoesPedido(pedido) {
+    const bloqueado = atualizandoPedidoId === pedido.id;
+
+    if (pedido.status === 'pendente') {
+      return <button className="pedido-acao pedido-acao-confirmar" onClick={() => atualizarStatus(pedido.id, 'pago')} disabled={bloqueado}><FiCheckCircle aria-hidden="true" />Marcar como pago</button>;
+    }
+
+    if (pedido.status === 'pago') {
+      return <button className="pedido-acao" onClick={() => atualizarStatus(pedido.id, 'enviado')} disabled={bloqueado}><FiTruck aria-hidden="true" />Marcar como enviado</button>;
+    }
+
+    if (pedido.status === 'enviado') {
+      return <button className="pedido-acao pedido-acao-entregue" onClick={() => atualizarStatus(pedido.id, 'entregue')} disabled={bloqueado}><FiTruck aria-hidden="true" />Marcar como entregue</button>;
+    }
+
+    return null;
+  }
+
+  function renderizarCardPedido(pedido, somenteLeitura = false) {
+    return (
+      <article key={pedido.id} className={`pedido-card-horizontal${somenteLeitura ? ' pedido-card-readonly' : ''}`}>
+        <div className="pedido-card-cabecalho">
+          <strong>Pedido #{pedido.id}</strong>
+          {renderizarBadgeStatus(pedido.status)}
+        </div>
+
+        <div className="pedido-card-resumo">
+          <p><span>Cliente</span>{pedido.usuario_nome || 'Não informado'}</p>
+          <p><span>Valor total</span>{formatarMoeda(pedido.total)}</p>
+          <p><span>Forma de pagamento</span>{formatarPagamento(pedido.pagamento)}</p>
+          <p><span>Produtos</span>{Number(pedido.quantidade_produtos || pedido.itens?.length || 0)}</p>
+          <p><span>Peças</span>{Number(pedido.quantidade_pecas || pedido.itens?.reduce((total, item) => total + Number(item.quantidade || 0), 0) || 0)}</p>
+          <p><span>Data do pedido</span>{formatarData(pedido.created_at)}</p>
+        </div>
+
+        {pedido.reconciliacao_status === 'pendente' ? (
+          <p className="pedido-reconciliacao-alerta">
+            Pagamento aprovado após expiração. Requer reconciliação operacional.
+          </p>
+        ) : null}
+
+        <div className="pedido-card-acoes">
+          <span className="pedido-acoes-titulo">Ações</span>
+          <div className="pedido-acoes-lista">
+            <button className="pedido-acao pedido-acao-detalhes" onClick={() => abrirDetalhes(pedido.id)}><FiEye aria-hidden="true" />Ver detalhes</button>
+            {renderizarAcoesPedido(pedido)}
+            {pedido.reconciliacao_status === 'pendente' ? (
+              <>
+                <button className="pedido-acao pedido-acao-atendimento" onClick={() => resolverReconciliacao(pedido.id, 'resolvida_atendimento')}><FiCheckCircle aria-hidden="true" />Registrar atendimento</button>
+                <button className="pedido-acao pedido-acao-estorno" onClick={() => resolverReconciliacao(pedido.id, 'resolvida_estorno')}><FiRotateCcw aria-hidden="true" />Registrar estorno</button>
+              </>
+            ) : null}
+          </div>
+        </div>
+      </article>
+    );
+  }
+
   return (
     <div className="admin-container">
       <h1>Painel Administrativo</h1>
@@ -339,8 +536,34 @@ export default function Admin() {
           Estoque
         </button>
 
-        <button className={tab === 'pedidos' ? 'active' : ''} onClick={() => setTab('pedidos')}>
+        <button
+          className={tab === 'pedidos' ? 'active' : ''}
+          onClick={() => {
+            setTab('pedidos');
+            carregarPedidos('atuais');
+          }}
+        >
           Pedidos
+        </button>
+
+        <button
+          className={tab === 'historico' ? 'active' : ''}
+          onClick={() => {
+            setTab('historico');
+            carregarPedidos('historico');
+          }}
+        >
+          Histórico de pedidos
+        </button>
+
+        <button
+          className={tab === 'reconciliacoes' ? 'active' : ''}
+          onClick={() => {
+            setTab('reconciliacoes');
+            carregarPedidos('reconciliacoes');
+          }}
+        >
+          Reconciliações
         </button>
       </div>
 
@@ -352,31 +575,33 @@ export default function Admin() {
         <div className="admin-produtos">
           <h2>Produtos cadastrados</h2>
 
-          {produtos.map((p) => (
-            <div key={p.id} className="produto-admin-item">
-              <strong>{p.nome}</strong>
+          <div className="admin-produtos-grid">
+            {produtos.map((p) => (
+              <div key={p.id} className="produto-admin-item">
+                <strong>{p.nome}</strong>
 
-              <p>R$ {p.variacoes?.length ? p.variacoes[0].preco : p.preco}</p>
+                <p>R$ {p.variacoes?.length ? p.variacoes[0].preco : p.preco}</p>
 
-              {p.variacoes?.map((v) => (
-                <p key={v.id}>
-                  {v.tamanho}
-                  {' | '}
-                  {v.cor}
+                {p.variacoes?.map((v) => (
+                  <p key={v.id}>
+                    {v.tamanho}
+                    {' | '}
+                    {v.cor}
 
-                  {' | R$ '}
-                  {v.preco}
+                    {' | R$ '}
+                    {v.preco}
 
-                  {' | Estoque '}
-                  {v.estoque}
-                </p>
-              ))}
+                    {' | Estoque '}
+                    {v.estoque}
+                  </p>
+                ))}
 
-              <button onClick={() => editar(p.id)}>Editar</button>
+                <button onClick={() => editar(p.id)}>Editar</button>
 
-              <button onClick={() => deletar(p.id)}>Excluir</button>
-            </div>
-          ))}
+                <button onClick={() => deletar(p.id)}>Excluir</button>
+              </div>
+            ))}
+          </div>
         </div>
       )}
 
@@ -487,17 +712,26 @@ export default function Admin() {
         <div className="admin-graficos">
           <h2>Vendas por mês</h2>
 
-          <ResponsiveContainer width="100%" height={300}>
-            <BarChart data={vendas}>
-              <XAxis dataKey="mes" />
+          {erroVendas ? <p>{erroVendas}</p> : null}
+          {carregandoVendas ? <p>Carregando vendas...</p> : null}
 
-              <YAxis />
+          {!carregandoVendas && !erroVendas && vendas.length === 0 ? (
+            <p>Nenhuma venda confirmada até o momento.</p>
+          ) : null}
 
-              <Tooltip />
+          {!carregandoVendas && vendas.length > 0 ? (
+            <ResponsiveContainer width="100%" height={300}>
+              <BarChart data={vendas}>
+                <XAxis dataKey="mes" />
 
-              <Bar dataKey="total" fill="#6366f1" />
-            </BarChart>
-          </ResponsiveContainer>
+                <YAxis />
+
+                <Tooltip />
+
+                <Bar dataKey="total" fill="#6366f1" />
+              </BarChart>
+            </ResponsiveContainer>
+          ) : null}
         </div>
       )}
       {/* =========================
@@ -508,25 +742,47 @@ export default function Admin() {
         <div className="admin-graficos">
           <h2>Controle de Estoque</h2>
 
-          <ResponsiveContainer width="100%" height={300}>
-            <PieChart>
-              <Pie
-                data={estoque}
-                dataKey="qtd"
-                nameKey="nome"
-                cx="50%"
-                cy="50%"
-                outerRadius={100}
-                label
-              >
-                {estoque.map((_, i) => (
-                  <Cell key={i} fill={COLORS[i % COLORS.length]} />
-                ))}
-              </Pie>
+          {erroEstoque ? <p>{erroEstoque}</p> : null}
+          {carregandoEstoque ? <p>Carregando estoque...</p> : null}
 
-              <Legend />
-            </PieChart>
-          </ResponsiveContainer>
+          {!carregandoEstoque && !erroEstoque && estoque.length === 0 ? (
+            <p>Nenhuma variação com estoque cadastrado.</p>
+          ) : null}
+
+          {!carregandoEstoque && estoque.length > 0 ? (
+            <>
+              <div className="estoque-grafico-container">
+                <ResponsiveContainer width="100%" height="100%">
+                  <PieChart>
+                    <Pie
+                      data={estoque}
+                      dataKey="qtd"
+                      nameKey="nome"
+                      cx="50%"
+                      cy="50%"
+                      outerRadius={100}
+                      label={false}
+                    >
+                      {estoque.map((_, i) => (
+                        <Cell key={i} fill={COLORS[i % COLORS.length]} />
+                      ))}
+                    </Pie>
+
+                    <Legend />
+                  </PieChart>
+                </ResponsiveContainer>
+              </div>
+
+              <div className="estoque-lista-mobile" aria-label="Lista de estoque por variação">
+                {estoque.map((variacao, index) => (
+                  <div className="estoque-linha-mobile" key={`${variacao.nome}-${index}`}>
+                    <span className="estoque-variacao-nome">{variacao.nome}</span>
+                    <strong className="estoque-variacao-quantidade">{Number(variacao.qtd || 0)}</strong>
+                  </div>
+                ))}
+              </div>
+            </>
+          ) : null}
         </div>
       )}
 
@@ -538,52 +794,122 @@ export default function Admin() {
         <div className="admin-pedidos">
           <h2>Pedidos</h2>
 
-          {pedidos.map((p) => (
-            <div key={p.id} className="pedido-card">
-              <p>
-                <strong>Pedido:</strong>#{p.id}
-              </p>
+          {erroPedidos ? <p>{erroPedidos}</p> : null}
+          {carregandoPedidos ? <p>Carregando pedidos...</p> : null}
 
-              <p>
-                <strong>Cliente:</strong>
+          {!carregandoPedidos && !erroPedidos && pedidosAtuais.length === 0 ? (
+            <p>Nenhum pedido encontrado.</p>
+          ) : null}
 
-                {p.usuario_nome}
-              </p>
+          <div className="admin-pedidos-grid">
+            {pedidosAtuais.map((pedido) => renderizarCardPedido(pedido))}
+          </div>
+        </div>
+      )}
 
-              <p>
-                <strong>Email:</strong>
+      {tab === 'historico' && (
+        <div className="admin-pedidos">
+          <h2>Histórico de pedidos</h2>
 
-                {p.usuario_email}
-              </p>
+          {erroPedidos ? <p>{erroPedidos}</p> : null}
+          {carregandoPedidos ? <p>Carregando pedidos...</p> : null}
 
-              <p>
-                <strong>Total:</strong>
-                R$ {p.total}
-              </p>
+          {!carregandoPedidos && !erroPedidos && historicoPedidos.length === 0 ? (
+            <p>Nenhum pedido finalizado encontrado.</p>
+          ) : null}
 
-              <p>
-                <strong>Status:</strong>
+          <div className="admin-pedidos-grid">
+            {historicoPedidos.map((pedido) => renderizarCardPedido(pedido, true))}
+          </div>
+        </div>
+      )}
 
-                {p.status}
-              </p>
+      {tab === 'reconciliacoes' && (
+        <div className="admin-pedidos">
+          <h2>Reconciliações pendentes</h2>
+          <p className="pedido-reconciliacao-intro">Pagamentos aprovados após a expiração não reativam o pedido nem o estoque. Registre o atendimento ou estorno após análise operacional.</p>
 
-              <button
-                onClick={() => {
-                  atualizarStatus(p.id, 'pago');
-                }}
-              >
-                Marcar Pago
-              </button>
+          {erroPedidos ? <p>{erroPedidos}</p> : null}
+          {carregandoPedidos ? <p>Carregando reconciliações...</p> : null}
+          {!carregandoPedidos && !erroPedidos && reconciliacoesPendentes.length === 0 ? <p>Nenhuma reconciliação pendente.</p> : null}
 
-              <button
-                onClick={() => {
-                  atualizarStatus(p.id, 'enviado');
-                }}
-              >
-                Enviado
-              </button>
-            </div>
-          ))}
+          <div className="admin-pedidos-grid">
+            {reconciliacoesPendentes.map((pedido) => renderizarCardPedido(pedido, true))}
+          </div>
+        </div>
+      )}
+
+      {(carregandoDetalhes || erroDetalhes || pedidoDetalhes) && (
+        <div className="pedido-modal-backdrop" role="presentation" onMouseDown={fecharDetalhes}>
+          <section
+            className="pedido-modal"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="pedido-modal-titulo"
+            onMouseDown={(event) => event.stopPropagation()}
+          >
+            <button className="pedido-modal-fechar" onClick={fecharDetalhes} aria-label="Fechar detalhes">×</button>
+            {carregandoDetalhes && <p>Carregando detalhes do pedido...</p>}
+            {erroDetalhes && <p className="pedido-modal-erro">{erroDetalhes}</p>}
+            {pedidoDetalhes && (
+              <>
+                <header className="pedido-modal-cabecalho">
+                  <div>
+                    <h2 id="pedido-modal-titulo">Pedido #{pedidoDetalhes.id}</h2>
+                    <p>{formatarData(pedidoDetalhes.created_at)}</p>
+                  </div>
+                  {renderizarBadgeStatus(pedidoDetalhes.status)}
+                </header>
+
+                <div className="pedido-modal-secoes">
+                  <section>
+                    <h3>Cliente</h3>
+                    <p><strong>Nome:</strong> {pedidoDetalhes.usuario_nome || 'Não informado'}</p>
+                    <p><strong>Telefone:</strong> {pedidoDetalhes.usuario_celular || 'Não informado'}</p>
+                    <p><strong>E-mail:</strong> {pedidoDetalhes.usuario_email || 'Não informado'}</p>
+                  </section>
+                  <section>
+                    <h3>Endereço</h3>
+                    <p><strong>Rua:</strong> {pedidoDetalhes.endereco_rua || 'Não informado'}</p>
+                    <p><strong>Número:</strong> {pedidoDetalhes.endereco_numero || 'Não informado'}</p>
+                    <p><strong>Bairro:</strong> {pedidoDetalhes.endereco_bairro || 'Não informado'}</p>
+                    <p><strong>Cidade:</strong> {[pedidoDetalhes.endereco_cidade, pedidoDetalhes.endereco_estado].filter(Boolean).join(' - ') || 'Não informado'}</p>
+                    <p><strong>CEP:</strong> {pedidoDetalhes.endereco_cep || 'Não informado'}</p>
+                  </section>
+                </div>
+
+                <section className="pedido-modal-itens">
+                  <h3>Itens</h3>
+                  {pedidoDetalhes.itens.map((item, index) => (
+                    <article className="pedido-modal-item" key={`${item.produto_id}-${item.variacao_id}-${index}`}>
+                      <ImagemItemPedido url={item.imagem_principal} nome={item.nome} />
+                      <div>
+                        <strong>{item.nome}</strong>
+                        <p>Cor: {item.cor || 'Não informada'}</p>
+                        <p>Tamanho: {item.tamanho || 'Não informado'}</p>
+                        <p>Quantidade: {item.quantidade}</p>
+                        <p>Preço unitário: {formatarMoeda(item.preco)}</p>
+                        <p>Subtotal: {formatarMoeda(Number(item.preco) * Number(item.quantidade))}</p>
+                      </div>
+                    </article>
+                  ))}
+                </section>
+
+                <footer className="pedido-modal-rodape">
+                  <p><strong>Valor total:</strong> {formatarMoeda(pedidoDetalhes.total)}</p>
+                  <p><strong>Forma de pagamento:</strong> {formatarPagamento(pedidoDetalhes.pagamento)}</p>
+                  <p><strong>Status:</strong> {STATUS_CONFIG[pedidoDetalhes.status]?.label || pedidoDetalhes.status}</p>
+                  <p><strong>Data do pagamento:</strong> {formatarData(pedidoDetalhes.pagamento_confirmado_em)}</p>
+                  {pedidoDetalhes.mp_payment_id && <p><strong>Código Mercado Pago:</strong> {pedidoDetalhes.mp_payment_id}</p>}
+                  <div className="pedido-modal-acoes">
+                    {['entregue', 'cancelado', 'expirado'].includes(pedidoDetalhes.status)
+                      ? <p className="pedido-modal-sem-acoes">Pedido finalizado — nenhuma ação disponível.</p>
+                      : renderizarAcoesPedido(pedidoDetalhes)}
+                  </div>
+                </footer>
+              </>
+            )}
+          </section>
         </div>
       )}
 

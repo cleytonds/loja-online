@@ -1,10 +1,13 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import api from '../services/api';
+import ImagemProduto from '../components/ImagemProduto.jsx';
 import './Favoritos.css';
 
 export default function Favoritos() {
   const [favoritos, setFavoritos] = useState([]);
+  const [removendoId, setRemovendoId] = useState(null);
+  const [erro, setErro] = useState('');
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -32,19 +35,25 @@ export default function Favoritos() {
     carregarFavoritos();
   }, []);
 
-  async function remover(id) {
+  async function remover(produtoId) {
+    if (removendoId !== null) return;
     const token = localStorage.getItem('token');
 
     try {
-      await api.delete(`/favoritos/${id}`, {
+      setRemovendoId(produtoId);
+      setErro('');
+      await api.post(`/favoritos/${produtoId}`, {}, {
         headers: {
           Authorization: `Bearer ${token}`,
         },
       });
 
-      setFavoritos((prev) => prev.filter((item) => item.id !== id));
+      setFavoritos((prev) => prev.filter((item) => item.id !== produtoId));
     } catch (err) {
       console.error(err);
+      setErro('Não foi possível remover dos favoritos. Tente novamente.');
+    } finally {
+      setRemovendoId(null);
     }
   }
 
@@ -60,15 +69,22 @@ export default function Favoritos() {
   return (
     <div className="favoritos-container">
       <h1 className="titulo">Meus Favoritos</h1>
+      {erro && <p role="alert">{erro}</p>}
 
       <div className="grid">
         {favoritos.map((item) => (
           <div key={item.id} className="card">
             <div className="img-box">
-              <img src={`${api.defaults.baseURL}${item.imagem_principal}`} alt={item.nome} />
+              <ImagemProduto url={item.imagem_principal} alt={item.nome} />
 
-              <button className="fav-remove" onClick={() => remover(item.id)}>
-                ♡
+              <button
+                className="fav-remove"
+                type="button"
+                aria-label="Remover dos favoritos"
+                disabled={removendoId === item.id}
+                onClick={() => remover(item.id)}
+              >
+                {removendoId === item.id ? '…' : '♥'}
               </button>
             </div>
 

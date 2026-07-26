@@ -152,6 +152,13 @@
   color: #999;
 }
 
+.meus-pedidos-grid {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 16px;
+  align-items: start;
+}
+
 /* =========================
    BOTÃO BUSCAR
 ========================= */
@@ -180,16 +187,111 @@
   border-radius: 14px;
   margin-top: 12px;
   transition: 0.2s;
+  width: 100%;
+  box-sizing: border-box;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+.meus-pedidos-grid .order-card {
+  margin-top: 0;
 }
 
 .order-card:hover {
   transform: translateY(-2px);
 }
 
+.order-card-readonly {
+  border-color: rgba(148, 163, 184, 0.35);
+}
+
+.pedido-somente-leitura {
+  margin: 0 0 10px;
+  color: #94a3b8;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.pedido-itens-consulta {
+  margin-top: 14px;
+}
+
+.pedido-resumo-consulta {
+  padding-bottom: 14px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.pedido-resumo-consulta p {
+  margin: 6px 0;
+}
+
+.pedido-total-consulta {
+  font-size: 18px;
+  font-weight: 700;
+  color: #fff;
+}
+
+.pedido-item-consulta {
+  display: flex;
+  gap: 10px;
+  padding: 10px 0;
+  border-top: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.pedido-item-consulta img {
+  width: 64px;
+  height: 64px;
+  flex: 0 0 64px;
+  object-fit: cover;
+  border-radius: 8px;
+}
+
+.pedido-item-consulta p {
+  margin: 3px 0;
+  overflow-wrap: anywhere;
+}
+
 .order-header {
   display: flex;
   justify-content: space-between;
   margin-bottom: 8px;
+  gap: 8px;
+}
+
+.order-header strong,
+.status,
+.acoes-pedido button {
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+.acoes-pedido {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.acoes-pedido button {
+  max-width: 100%;
+  white-space: normal;
+}
+
+@media (max-width: 1399px) {
+  .meus-pedidos-grid {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 1099px) {
+  .meus-pedidos-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 767px) {
+  .meus-pedidos-grid {
+    grid-template-columns: 1fr;
+  }
 }
 
 /* =========================
@@ -259,6 +361,55 @@
   color: white;
 }
 
+.modal-editar-cadastro {
+  max-height: calc(100vh - 32px);
+  overflow-y: auto;
+}
+
+.campo-cadastro {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 14px;
+  text-align: left;
+}
+
+.campo-cadastro label {
+  color: #e5e7eb;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.campo-cadastro input {
+  box-sizing: border-box;
+  height: 42px;
+  margin: 0;
+}
+
+.campo-cadastro input::placeholder {
+  color: #8b93a3;
+}
+
+.erro-cadastro,
+.mensagem-cadastro {
+  color: #fca5a5;
+  font-size: 12px;
+}
+
+.mensagem-cadastro {
+  margin: 14px 0 0;
+}
+
+.acoes-cadastro {
+  display: flex;
+  gap: 10px;
+  margin-top: 20px;
+}
+
+.acoes-cadastro button {
+  flex: 1;
+}
+
 /* =========================
    BOTÕES MODAL
 ========================= */
@@ -283,16 +434,78 @@
 @media (max-width: 768px) {
   .dashboard {
     flex-direction: column;
+    min-height: auto;
   }
 
   .sidebar {
     width: 100%;
-    flex-direction: row;
-    overflow-x: auto;
+    box-sizing: border-box;
+    padding: 16px;
+    border-right: 0;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  }
+
+  .user-box {
+    margin: 0 0 14px;
+    padding: 4px 0;
+  }
+
+  .sidebar nav {
+    width: 100%;
+    gap: 6px;
+  }
+
+  .sidebar button {
+    width: 100%;
+    min-height: 44px;
+    padding: 12px 14px;
+  }
+
+  .logout {
+    margin-top: 12px;
   }
 
   .content {
     padding: 15px;
+    min-width: 0;
+  }
+
+  .content h2 {
+    font-size: 22px;
+  }
+
+  .pedidos-area,
+  .settings-card {
+    padding: 16px;
+  }
+
+  .pedidos-header {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  .buscar-pedidos {
+    width: 100%;
+  }
+
+  .order-card {
+    padding: 14px;
+  }
+
+  .pedido-item-consulta,
+  .pedido-item-consulta > div {
+    min-width: 0;
+  }
+
+  .pedido-item-consulta strong,
+  .pedido-item-consulta p {
+    overflow-wrap: anywhere;
+  }
+
+  .modal-editar-cadastro {
+    width: calc(100% - 32px);
+    padding: 18px;
   }
 }
 .btn-pagamento {
@@ -304,3 +517,37 @@
   border-radius: 6px;
   cursor: pointer;
 }
+.btn-whatsapp-atendimento {
+  margin-top: 6px;
+  padding: 8px 12px;
+  background: transparent;
+  color: #168a42;
+  border: 1px solid #25d366;
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+/* Identidade DL Modas */
+.dashboard, .content { background: var(--background); color: var(--text); }
+.sidebar { background: var(--surface); border-color: var(--border); }
+.avatar { background: var(--secondary); }
+.user-box p, .pedidos-header p, .empty-orders { color: var(--text-muted); }
+.sidebar button { color: var(--text); }
+.sidebar button:hover { background: var(--secondary-light); color: var(--primary-dark); }
+.sidebar button.ativo, .buscar-pedidos, .modal-card button { background: linear-gradient(135deg, var(--primary), var(--primary-dark)); color: #fff; }
+.logout, .logout:hover { background: var(--secondary-medium) !important; color: var(--text) !important; }
+.settings-card, .pedidos-area, .order-card, .modal-card { background: var(--surface); border-color: var(--border); box-shadow: var(--shadow); }
+.order-card-readonly { border-color: var(--border); }
+.pedido-somente-leitura, .pedido-item-consulta p { color: var(--text-muted); }
+.pedido-resumo-consulta, .pedido-item-consulta { border-color: var(--border); }
+.pedido-total-consulta, .campo-cadastro label { color: var(--text); }
+.status { background: var(--secondary); color: var(--text); }
+.status.pendente { background: #f8e7bd; color: #7c5a17; }
+.status.pago { background: #e1ecdf; color: #4b6b47; }
+.status.enviado { background: #f5dfb0; color: #856623; }
+.status.expirado { background: #f4d9dd; color: #98505d; }
+.modal-card input { background: var(--secondary-light); border-color: var(--border); color: var(--text); }
+.campo-cadastro input::placeholder { color: var(--text-muted); }
+.erro-cadastro, .mensagem-cadastro { color: var(--danger); }
+.btn-pagamento { background: var(--primary); }
+.btn-whatsapp-atendimento { color: var(--primary-dark); border-color: var(--primary); }

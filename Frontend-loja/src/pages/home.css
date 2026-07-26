@@ -3,7 +3,7 @@
 ========================= */
 
 .home {
-  background: #fafafa;
+  background: var(--background);
   width: 100%;
   overflow-x: hidden;
 }
@@ -69,38 +69,6 @@
   justify-content: space-between;
 }
 
-.arrow {
-  position: absolute;
-
-  top: 50%;
-
-  transform: translateY(-50%);
-
-  width: 45px;
-
-  height: 45px;
-
-  border-radius: 50%;
-
-  border: none;
-
-  cursor: pointer;
-
-  background: white;
-
-  box-shadow: 0 10px 30px #0003;
-
-  z-index: 5;
-}
-
-.arrow.left {
-  left: 25px;
-}
-
-.arrow.right {
-  right: 25px;
-}
-
 /* =========================
    PRODUTOS
 ========================= */
@@ -132,7 +100,7 @@
 
   text-decoration: none;
 
-  color: #111;
+  color: var(--text);
 
   box-shadow: 0 15px 45px rgba(0, 0, 0, 0.08);
 
@@ -170,7 +138,7 @@
 
   padding: 0 15px 20px;
 
-  color: #777;
+  color: var(--primary-dark);
 }
 
 /* =========================
@@ -180,7 +148,7 @@
 .cta {
   margin-top: 80px;
 
-  background: #111;
+  background: var(--primary-dark);
 
   color: white;
 
@@ -238,12 +206,6 @@
     height: 230px;
   }
 
-  .arrow {
-    width: 35px;
-
-    height: 35px;
-  }
-
   .grid-produtos {
     grid-template-columns: repeat(2, 1fr) !important;
 
@@ -288,6 +250,116 @@
     height: 160px;
   }
 }
+
+/* Carrossel de banners institucionais: a arte já contém toda a comunicação. */
+.banner-premium { display: none; }
+
+.hero {
+  width: 100%;
+  max-width: 100%;
+  height: auto;
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+  border-radius: 0 0 var(--radius-card) var(--radius-card);
+  background: transparent;
+  display: block;
+}
+
+.banner-slide {
+  position: relative;
+  width: 100%;
+  height: auto;
+  aspect-ratio: 1920 / 340;
+  margin: 0;
+  padding: 0;
+  background: var(--secondary-light);
+  overflow: hidden;
+  line-height: 0;
+}
+
+.banner-slide picture {
+  position: absolute;
+  inset: 0;
+  display: block;
+  width: 100%;
+  height: 100%;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity .45s ease;
+  will-change: opacity;
+}
+
+.banner-slide picture.ativo {
+  z-index: 1;
+  opacity: 1;
+}
+
+.hero .banner-imagem {
+  display: block;
+  width: 100%;
+  height: 100%;
+  max-width: 100%;
+  margin: 0;
+  object-fit: cover;
+  object-position: center;
+}
+
+.hero-indicadores {
+  position: absolute;
+  bottom: 12px;
+  left: 50%;
+  display: flex;
+  gap: 10px;
+  transform: translateX(-50%);
+}
+
+.hero-indicadores button {
+  width: 10px;
+  height: 10px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: var(--primary);
+  cursor: pointer;
+  opacity: 1;
+  transition: background var(--transition), transform var(--transition);
+}
+
+.hero-indicadores button.ativo {
+  background: var(--primary-dark);
+  transform: scale(1.08);
+}
+
+@media (max-width: 1024px) {
+  .hero { border-radius: 0 0 var(--radius) var(--radius); }
+}
+
+@media (max-width: 767px) {
+  .hero {
+    height: auto;
+    border-radius: 0;
+  }
+
+  .banner-slide {
+    height: auto;
+    aspect-ratio: 2 / 1;
+    background: #FFE6EC;
+  }
+
+  .banner-slide picture {
+    height: 100%;
+  }
+
+  .hero .banner-imagem {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    object-position: center;
+  }
+
+  .hero-indicadores { bottom: 7px; }
+}
 /* =========================
    AJUSTE FINAL RESPONSIVO
 ========================= */
@@ -312,6 +384,30 @@
 
 .card-produto {
   width: 100%;
+}
+
+/* Identidade DL Modas */
+.card-produto { background: var(--surface); color: var(--text); border: 1px solid var(--border); box-shadow: var(--shadow); }
+.card-produto:hover { box-shadow: var(--shadow-hover); }
+.card-produto span { color: var(--gold-dark); }
+.cta { background: linear-gradient(135deg, var(--gold-dark), var(--gold)); }
+.cta button { background: var(--surface); color: var(--gold-dark); }
+.banner-premium {
+  position: relative;
+  isolation: isolate;
+}
+
+.banner-premium::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(120deg, rgba(255, 248, 250, 0.82), rgba(247, 182, 194, 0.28));
+  z-index: 0;
+}
+
+.banner-premium-content {
+  position: relative;
+  z-index: 1;
 }
 
 /* =========================
@@ -352,21 +448,7 @@
   /* CARROSSEL */
 
   .hero {
-    height: 220px;
-
-    background-size: cover;
-
-    background-position: center;
-  }
-
-  /* SETAS */
-
-  .arrow {
-    width: 35px;
-
-    height: 35px;
-
-    font-size: 12px;
+    height: auto;
   }
 
   /* PRODUTOS LADO A LADO */

@@ -1,20 +1,24 @@
 import mysql from 'mysql2/promise';
 import dotenv from 'dotenv';
+import { buildDatabaseConfig } from './runtime.js';
 
 dotenv.config();
 
-const db = mysql.createPool({
-  host: process.env.DB_HOST,
-  user: process.env.DB_USER,
-  password: process.env.DB_PASSWORD,
-  database: process.env.DB_NAME,
-  port: Number(process.env.DB_PORT),
+function requireEnv(name) {
+  const value = process.env[name];
+  if (value === undefined || value === null || String(value).trim() === '') {
+    throw new Error(`${name} não definida no .env`);
+  }
+  return value;
+}
 
-  waitForConnections: true,
-  connectionLimit: 10,
-  queueLimit: 0,
-});
+// Variáveis obrigatórias do banco (sem fallback)
+requireEnv('DB_HOST');
+requireEnv('DB_USER');
+requireEnv('DB_PASSWORD');
+requireEnv('DB_NAME');
+requireEnv('DB_PORT');
 
-console.log('Pool MySQL carregado');
+const db = mysql.createPool(buildDatabaseConfig(process.env));
 
 export default db;

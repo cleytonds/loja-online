@@ -174,6 +174,30 @@
 }
 .btn-fechar:hover { background: #b02a37; }
 
+.btn-whatsapp-atendimento {
+  padding: 8px 12px;
+  border: 1px solid #25d366;
+  border-radius: 6px;
+  background: transparent;
+  color: #168a42;
+  cursor: pointer;
+}
+
+/* Identidade DL Modas */
+.meus-pedidos-container { background: var(--background); color: var(--text); }
+.pedido-card, .modal { background: var(--surface); border-color: var(--border); box-shadow: var(--shadow); }
+.pedido-card p, .meus-pedidos-container p { color: var(--text-muted); }
+.btn-detalhes, .btn-repetir { background: var(--primary); }
+.btn-detalhes:hover, .btn-repetir:hover { background: var(--primary-dark); }
+.btn-cancelar, .btn-fechar { background: var(--secondary-medium); color: var(--text); }
+.btn-whatsapp-atendimento { border-color: var(--primary); color: var(--primary-dark); }
+.pedido-entrega-confirmada {
+  width: 100%;
+  margin: 0;
+  color: var(--primary-dark);
+  font-weight: 600;
+}
+
 @keyframes slideDown {
   from { transform: translateY(-20px); opacity: 0; }
   to { transform: translateY(0); opacity: 1; }

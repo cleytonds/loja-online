@@ -1,16 +1,29 @@
-import React, { useEffect, useState } from 'react';
+import React, { useContext, useEffect, useState } from 'react';
 import './MeusPedidos.css';
 import api from '../services/api';
 import { useNavigate } from 'react-router-dom';
+import BotaoAtendimentoWhatsApp from '../components/BotaoAtendimentoWhatsApp.jsx';
+import { CarrinhoContext } from '../context/CarrinhoContext';
+import { AuthContext } from '../context/AuthContext';
+import { montarMensagemEntregaPedido, pedidoPodeCombinarEntregaMercadoPago } from '../utils/whatsapp.js';
+
+function formatarTempoRestante(expiresAt, agora) {
+  const totalSegundos = Math.max(0, Math.ceil((new Date(expiresAt).getTime() - agora) / 1000));
+  return `${String(Math.floor(totalSegundos / 60)).padStart(2, '0')}:${String(totalSegundos % 60).padStart(2, '0')}`;
+}
 
 export default function MeusPedidos({ usuario_id }) {
   const [pedidos, setPedidos] = useState([]);
   const [modalPedido, setModalPedido] = useState(null);
   const [filtroStatus, setFiltroStatus] = useState('todos');
   const [ordenarData, setOrdenarData] = useState('desc');
+  const [continuandoPedidoId, setContinuandoPedidoId] = useState(null);
+  const [agora, setAgora] = useState(Date.now());
+  const { restaurarPedidoExpirado } = useContext(CarrinhoContext);
+  const { user } = useContext(AuthContext);
   const navigate = useNavigate();
 
-  uuseEffect(() => {
+  useEffect(() => {
     async function carregarPedidos() {
       try {
         const res = await api.get('/pedidos/meus');
@@ -23,12 +36,22 @@ export default function MeusPedidos({ usuario_id }) {
     carregarPedidos();
   }, []);
 
-  const pedidosArray = pedidos.map((pedido) => ({
+  useEffect(() => {
+    const interval = window.setInterval(() => setAgora(Date.now()), 1000);
+    return () => window.clearInterval(interval);
+  }, []);
+
+  let pedidosArray = pedidos.map((pedido) => ({
     pedido_id: pedido.id,
     total: Number(pedido.total),
     status: pedido.status,
+    pagamento: pedido.pagamento,
+    mp_status: pedido.mp_status,
+    pagamento_confirmado_em: pedido.pagamento_confirmado_em,
     criado_em: pedido.created_at,
+    expires_at: pedido.expires_at,
     itens: pedido.itens || [],
+    whatsapp_number: pedido.whatsapp_number,
   }));
 
   // Filtro por status
@@ -43,55 +66,35 @@ export default function MeusPedidos({ usuario_id }) {
     return ordenarData === 'asc' ? dateA - dateB : dateB - dateA;
   });
 
-  const cancelarPedido = async (pedido_id) => {
-    try {
-      await api.put(`/pedidos/cancelar/${pedido_id}`);
-      setPedidos((prev) =>
-        prev.map((p) => (p.pedido_id === pedido_id ? { ...p, status: 'cancelado' } : p)),
-      );
-    } catch {
-      alert('Erro ao cancelar pedido');
-    }
-  };
-
-  const repetirPedido = async (pedido_id) => {
-    try {
-      const res = await api.get(`/pedidos/meus`);
-      alert(res.data.mensagem);
-      const resPedidos = await api.get(`/pedidos/meus/${usuario_id}`);
-      setPedidos(resPedidos.data);
-    } catch {
-      alert('Erro ao repetir pedido');
-    }
-  };
-
   const abrirModal = (pedido) => setModalPedido(pedido);
   const fecharModal = () => setModalPedido(null);
 
-  const finalizarWhatsApp = (pedido) => {
-    const itensTexto = pedido.itens
-      .map(
-        (item) =>
-          `- ${item.nome || 'Produto'} (${item.tamanho || '-'} / ${item.cor || '-'}) x${item.quantidade} = R$ ${(Number(item.preco) * Number(item.quantidade)).toFixed(2)}`,
-      )
-      .join('\n');
+  const continuarPagamentoMercadoPago = async (pedido) => {
+    try {
+      setContinuandoPedidoId(pedido.pedido_id);
+      const resposta = await api.post(`/pagamentos/mercado-pago/preferencia/${pedido.pedido_id}`);
+      const checkoutUrl = resposta.data?.checkoutUrl;
 
-    const mensagem =
-      ` NOVO PEDIDO FINALIZAR WHATSAPP - DL MODAS\n\n` +
-      `Pedido: #${pedidoAtual.id}\n\n` +
-      `Valor:\n${Number(pedidoAtual.total).toLocaleString('pt-BR', {
-        style: 'currency',
-        currency: 'BRL',
-      })}\n\n` +
-      ` PRODUTOS:\n${itensTexto}\n\n` +
-      ` Status:\nAguardando confirmação\n\n` +
-      `Cliente aguardando para finalizar o pagamento via WhatsApp.`;
+      if (typeof checkoutUrl !== 'string' || !checkoutUrl.trim()) {
+        throw new Error('Link de pagamento indisponível');
+      }
 
-    const numero = '5581993563122';
+      window.location.assign(checkoutUrl);
+    } catch (err) {
+      alert(err.message);
+    } finally {
+      setContinuandoPedidoId(null);
+    }
+  };
 
-    const url = `https://wa.me/${numero}?text=${encodeURIComponent(mensagem)}`;
-
-    window.open(url, '_blank');
+  const voltarAoCarrinho = (pedido) => {
+    const resultado = restaurarPedidoExpirado(pedido.pedido_id, pedido.itens);
+    if (resultado.jaRestaurado) {
+      alert('Os itens deste pedido já foram restaurados no carrinho.');
+    } else if (resultado.indisponiveis > 0) {
+      alert('Parte dos itens não pôde ser restaurada por falta de estoque.');
+    }
+    navigate('/carrinho');
   };
 
   return (
@@ -103,7 +106,10 @@ export default function MeusPedidos({ usuario_id }) {
         <select value={filtroStatus} onChange={(e) => setFiltroStatus(e.target.value)}>
           <option value="todos">Todos</option>
           <option value="pendente">Pendente</option>
-          <option value="concluido">Concluído</option>
+          <option value="aguardando_confirmacao">Aguardando confirmação</option>
+          <option value="pago">Pago</option>
+          <option value="enviado">Enviado</option>
+          <option value="entregue">Entregue</option>
           <option value="cancelado">Cancelado</option>
         </select>
 
@@ -146,32 +152,62 @@ export default function MeusPedidos({ usuario_id }) {
                 Detalhes
               </button>
 
-              {pedido.status === 'pendente' && (
+              {pedido.status === 'pendente' && pedido.pagamento === 'mercado_pago'
+                && String(pedido.mp_status || '').toLowerCase() !== 'approved'
+                && !pedido.pagamento_confirmado_em
+                && !(pedido.expires_at && new Date(pedido.expires_at).getTime() <= agora) && (
                 <>
+                  <p>Pedido expira em {formatarTempoRestante(pedido.expires_at, agora)}</p>
                   <button
                     className="btn-pagamento"
-                    onClick={() =>
-                      navigate(`/pagamento/${pedido.pedido_id}`, {
-                        state: pedido,
-                      })
-                    }
+                    onClick={() => continuarPagamentoMercadoPago(pedido)}
+                    disabled={continuandoPedidoId === pedido.pedido_id}
                   >
-                    Pagar com PIX
+                    {continuandoPedidoId === pedido.pedido_id ? 'Abrindo pagamento...' : 'Continuar pagamento'}
                   </button>
-
-                  <button className="btn-whatsapp" onClick={() => finalizarWhatsApp(pedido)}>
-                    Finalizar via WhatsApp
-                  </button>
+                  <BotaoAtendimentoWhatsApp
+                    numero={pedido.whatsapp_number}
+                    mensagem={`Olá! Estou com uma dúvida sobre o pedido #${pedido.pedido_id}.`}
+                  />
                 </>
               )}
 
-              <button className="btn-repetir" onClick={() => repetirPedido(pedido.pedido_id)}>
-                Repetir
-              </button>
+              {pedido.pagamento === 'mercado_pago'
+                && (pedido.status === 'expirado'
+                  || (pedido.status === 'pendente'
+                    && String(pedido.mp_status || '').toLowerCase() !== 'approved'
+                    && !pedido.pagamento_confirmado_em
+                    && pedido.expires_at
+                    && new Date(pedido.expires_at).getTime() <= agora)) && (
+                <>
+                  <p className="pedido-somente-leitura">Pedido expirado</p>
+                  <p className="pedido-somente-leitura">
+                    {pedido.status === 'expirado'
+                      ? 'O tempo para pagamento expirou. Os itens foram devolvidos ao seu carrinho.'
+                      : 'O tempo para pagamento expirou. Aguardando a devolução do estoque.'}
+                  </p>
+                  {pedido.status === 'expirado' && (
+                    <button className="btn-pagamento" onClick={() => voltarAoCarrinho(pedido)}>
+                      Voltar ao carrinho
+                    </button>
+                  )}
+                  <BotaoAtendimentoWhatsApp
+                    numero={pedido.whatsapp_number}
+                    mensagem={`Olá! Estou com uma dúvida sobre o pedido #${pedido.pedido_id}.`}
+                  />
+                </>
+              )}
 
-              <button className="btn-cancelar" onClick={() => cancelarPedido(pedido.pedido_id)}>
-                Cancelar
-              </button>
+              {pedidoPodeCombinarEntregaMercadoPago(pedido) && (
+                <>
+                  <p className="pedido-entrega-confirmada">Pagamento confirmado. Combine a entrega com a loja.</p>
+                  <BotaoAtendimentoWhatsApp
+                    numero={pedido.whatsapp_number}
+                    texto="Combinar entrega pelo WhatsApp"
+                    mensagem={montarMensagemEntregaPedido({ pedido, nomeCliente: user?.nome })}
+                  />
+                </>
+              )}
             </div>
           </div>
         ))
