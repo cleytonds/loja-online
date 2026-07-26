@@ -51,3 +51,21 @@ test('tela de verificação recebe o aviso e mantém a ação de reenviar códig
   assert.match(source, /location\.state\?\.aviso/);
   assert.match(source, /auth\/reenviar-codigo/);
 });
+
+test('reenvio preserva o codigo anterior quando o envio falha e grava o novo somente depois do aceite', async () => {
+  const source = await readFile(authRoutesPath, 'utf8');
+  const inicio = source.indexOf("router.post('/reenviar-codigo'");
+  const fim = source.indexOf("router.post('/solicitar-recuperacao'", inicio);
+  const reenvio = source.slice(inicio, fim);
+  const envio = reenvio.indexOf('await enviarEmail(');
+  const atualizacao = reenvio.indexOf('UPDATE usuarios SET codigo_confirmacao');
+
+  assert.ok(inicio >= 0);
+  assert.ok(envio >= 0);
+  assert.ok(atualizacao > envio);
+  assert.match(reenvio, /if \(usuario\.ativo === 1\)/);
+  assert.doesNotMatch(reenvio, /SET ativo\s*=/);
+  assert.match(reenvio, /res\.status\(503\)/);
+  assert.doesNotMatch(reenvio, /res\.json\(\{[^}]*novoCodigo/s);
+  assert.doesNotMatch(reenvio, /res\.json\(\{[^}]*novoToken/s);
+});

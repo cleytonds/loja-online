@@ -257,11 +257,6 @@ router.post('/reenviar-codigo', async (req, res) => {
     const novoCodigo = Math.floor(100000 + Math.random() * 900000).toString();
     const novoToken = crypto.randomBytes(32).toString('hex');
 
-    await db.query(
-      'UPDATE usuarios SET codigo_confirmacao = ?, token_confirmacao = ? WHERE id = ?',
-      [novoCodigo, novoToken, usuario.id],
-    );
-
     const link = `${process.env.FRONT_URL}/#/confirmar/${novoToken}`;
 
     await enviarEmail(
@@ -275,10 +270,17 @@ router.post('/reenviar-codigo', async (req, res) => {
       `,
     );
 
+    await db.query(
+      'UPDATE usuarios SET codigo_confirmacao = ?, token_confirmacao = ? WHERE id = ?',
+      [novoCodigo, novoToken, usuario.id],
+    );
+
     return res.json({ mensagem: 'Código reenviado com sucesso!' });
   } catch (err) {
     console.error(' ERRO REENVIO:', err);
-    return res.status(500).json({ error: 'Erro interno' });
+    return res.status(503).json({
+      error: 'Não foi possível enviar o código de confirmação. Tente novamente em alguns instantes.',
+    });
   }
 });
 
