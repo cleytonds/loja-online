@@ -58,10 +58,26 @@ Thumbs.db
 # ========================
 .history/
 
+# Bancos locais, rascunhos e backups operacionais
+.local-mariadb-teste/
+backend-loja/_tmp_*.mjs
+backend-loja/_tmp_*.js
+**/backups/
+**/dumps/
+*.dump
+*.sql.gz
+*.sql.zip
+*.bak
+*.tmp
+*.temp
+*.orig
+*.rej
+
 # ========================
 # Misc / Optional
 # ========================
 jspm_packages/
 .npm/
-.vercel
+.vercel/
+.railway/
 .env*
