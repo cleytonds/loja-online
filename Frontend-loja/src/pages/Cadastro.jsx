@@ -44,12 +44,21 @@ export default function Cadastro() {
       });
       navigate('/verificar', { state: { email: email.trim() } });
     } catch (error) {
-      const mensagem =
-        error.response?.data?.erro ||
-        error.response?.data?.error ||
+      const resposta = error.response?.data;
+      let mensagem =
+        typeof resposta?.erro === 'string'
+          ? resposta.erro
+          : typeof resposta?.error === 'string'
+            ? resposta.error
+            :
         'Não foi possível realizar o cadastro.';
       if (mensagem === 'Informe um celular válido com DDD.') setErroCelular(mensagem);
       else setErro(mensagem);
+      if (resposta?.cadastroPendente && resposta?.podeReenviarCodigo) {
+        navigate('/verificar', {
+          state: { email: email.trim(), aviso: mensagem },
+        });
+      }
     } finally {
       setLoading(false);
     }
