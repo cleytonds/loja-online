@@ -146,6 +146,7 @@ test('aprovação oficial antes do prazo recupera pedido expirado e reaplica som
       }
       if (sql.includes('UPDATE pedidos')) return [{ affectedRows: 1 }];
       if (sql.includes('FROM pedido_itens')) return [[{ variacao_id: 9, quantidade: 2 }]];
+      if (sql.includes('FROM produto_variacoes')) return [[{ id: 9, estoque: 2 }]];
       if (sql.includes('UPDATE produto_variacoes')) return [{ affectedRows: 1 }];
       throw new Error(`SQL inesperado: ${sql}`);
     },
@@ -163,7 +164,121 @@ test('aprovação oficial antes do prazo recupera pedido expirado e reaplica som
   assert.equal(resultado.status, 'pago');
   assert.equal(resultado.confirmado, true);
   assert.equal(resultado.estoqueReaplicado, true);
+  assert.equal(queries.filter(({ sql }) => sql.includes('FROM produto_variacoes') && sql.includes('FOR UPDATE')).length, 1);
   assert.equal(queries.filter(({ sql }) => sql.includes('UPDATE produto_variacoes')).length, 1);
+});
+
+test('aprovação antes do prazo com estoque indisponível mantém pedido expirado, cria reconciliação e processa o evento', async (t) => {
+  const originalValidate = WebhookSignatureValidator.validate;
+  const originalQuery = db.query;
+  const originalConnection = db.getConnection;
+  const originalGet = Payment.prototype.get;
+  const state = {
+    commits: 0,
+    rollbacks: 0,
+    updatesPedido: [],
+    updatesEstoque: 0,
+    eventParams: null,
+    processado: false,
+    consultasOficiais: 0,
+  };
+
+  WebhookSignatureValidator.validate = () => {};
+  Payment.prototype.get = async () => {
+    state.consultasOficiais += 1;
+    return ({
+    id: '77006',
+    status: 'approved',
+    status_detail: 'accredited',
+    external_reference: '100',
+    transaction_amount: 39.9,
+    currency_id: 'BRL',
+      date_approved: new Date(Date.now() - 30_000).toISOString(),
+    });
+  };
+  db.query = async (sql) => {
+    if (sql.includes('SELECT id, processado')) return [state.processado ? [{ id: 1, processado: 1 }] : []];
+    if (sql.includes('INSERT INTO pagamento_eventos')) return [{ insertId: 1 }];
+    if (sql.includes('UPDATE pagamento_eventos SET erro')) return [{ affectedRows: 1 }];
+    throw new Error(`SQL fora do fluxo esperado: ${sql}`);
+  };
+  db.getConnection = async () => ({
+    beginTransaction: async () => {},
+    commit: async () => { state.commits += 1; },
+    rollback: async () => { state.rollbacks += 1; },
+    release: () => {},
+    query: async (sql, params = []) => {
+      if (sql.includes('FROM pagamento_eventos')) return [[{ id: 1, processado: 0 }]];
+      if (sql.includes('FROM pedidos')) {
+        return [[{
+          id: 100,
+          status: 'expirado',
+          total: 39.9,
+          expires_at: new Date(Date.now() + 60_000),
+          pagamento: 'mercado_pago',
+          mp_payment_id: null,
+          reconciliacao_status: 'nenhuma',
+          reconciliacao_em: null,
+        }]];
+      }
+      if (sql.includes('FROM pedido_itens')) {
+        return [[{ variacao_id: 9, quantidade: 1 }, { variacao_id: 10, quantidade: 2 }]];
+      }
+      if (sql.includes('FROM produto_variacoes')) {
+        assert.match(sql, /FOR UPDATE/);
+        return [[{ id: 9, estoque: 5 }, { id: 10, estoque: 1 }]];
+      }
+      if (sql.includes('UPDATE produto_variacoes')) {
+        state.updatesEstoque += 1;
+        return [{ affectedRows: 1 }];
+      }
+      if (sql.includes('UPDATE pedidos')) {
+        state.updatesPedido.push({ sql, params });
+        return [{ affectedRows: 1 }];
+      }
+      if (sql.includes('UPDATE pagamento_eventos')) {
+        state.eventParams = params;
+        state.processado = true;
+        return [{ affectedRows: 1 }];
+      }
+      throw new Error(`SQL transacional inesperado: ${sql}`);
+    },
+  });
+  t.after(() => {
+    WebhookSignatureValidator.validate = originalValidate;
+    Payment.prototype.get = originalGet;
+    db.query = originalQuery;
+    db.getConnection = originalConnection;
+  });
+
+  const app = express(); app.use(express.json()); app.use('/pagamentos', router);
+  const result = await post(
+    app,
+    { id: 'evt-estoque-indisponivel', type: 'payment', data: { id: '77' } },
+    { 'x-signature': 'ok', 'x-request-id': 'r-estoque-indisponivel' },
+  );
+
+  assert.equal(result.status, 200);
+  assert.equal(state.commits, 1);
+  assert.equal(state.rollbacks, 0);
+  assert.equal(state.updatesEstoque, 0, 'nenhuma baixa parcial de estoque pode ocorrer');
+  assert.equal(state.updatesPedido.length, 1);
+  assert.doesNotMatch(state.updatesPedido[0].sql, /status\s*=\s*'pago'/);
+  assert.doesNotMatch(state.updatesPedido[0].sql, /pagamento_confirmado_em/);
+  assert.match(state.updatesPedido[0].sql, /reconciliacao_status\s*=\s*CASE/);
+  assert.match(String(state.updatesPedido[0].params.at(-3)), /reserva não restaurada por estoque indisponível/i);
+  assert.match(String(state.updatesPedido[0].params.at(-3)), /payment_id: 77006/);
+  assert.match(String(state.updatesPedido[0].params.at(-3)), /external_reference: 100/);
+  assert.equal(state.eventParams?.[2], 'mercado_pago');
+  assert.match(String(state.eventParams?.[1]), /reserva não restaurada por estoque indisponível/i);
+
+  const repetido = await post(
+    app,
+    { id: 'evt-estoque-indisponivel', type: 'payment', data: { id: '77' } },
+    { 'x-signature': 'ok', 'x-request-id': 'r-estoque-indisponivel' },
+  );
+  assert.equal(repetido.status, 200);
+  assert.equal(state.consultasOficiais, 1, 'evento processado não tenta reaplicar a reserva novamente');
 });
 
 test('webhook confirma pagamento approved uma única vez sem alterar estoque ou forma de pagamento', async (t) => {

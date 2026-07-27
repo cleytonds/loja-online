@@ -3,7 +3,11 @@ import crypto from 'crypto';
 import { WebhookSignatureValidator } from 'mercadopago';
 import db from '../config/database.js';
 import { verificarToken } from '../middlewares/auth.js';
-import { consultarPagamento, criarPreferencia } from '../services/mercadoPagoService.js';
+import {
+  consultarPagamento,
+  criarPreferencia,
+  obterAmbienteMercadoPago,
+} from '../services/mercadoPagoService.js';
 import { publicApiUrl } from '../config/runtime.js';
 
 const router = express.Router();
@@ -109,8 +113,9 @@ function paraCentavos(valor) {
 }
 
 function selecionarCheckoutUrl(preferencia, ambiente) {
-  const checkoutUrl = ambiente === 'teste'
-    ? (preferencia.sandboxCheckoutUrl || preferencia.checkoutUrl)
+  const ambienteMercadoPago = obterAmbienteMercadoPago({ MP_ENVIRONMENT: ambiente });
+  const checkoutUrl = ambienteMercadoPago === 'sandbox'
+    ? preferencia.sandboxCheckoutUrl
     : preferencia.checkoutUrl;
 
   return typeof checkoutUrl === 'string' && checkoutUrl.trim() ? checkoutUrl : null;
@@ -212,7 +217,14 @@ router.post('/mercado-pago/preferencia/:pedidoId', verificarToken, async (req, r
     return res.status(400).json({ erro: 'Pedido inválido' });
   }
 
-  const ambiente = process.env.NODE_ENV === 'production' ? 'producao' : 'teste';
+  let ambiente;
+  try {
+    ambiente = obterAmbienteMercadoPago();
+  } catch (error) {
+    console.error('Configuração de ambiente Mercado Pago inválida:', error.code || error.name || 'erro');
+    return res.status(500).json({ erro: 'Configuração de pagamento indisponível' });
+  }
+
   let connection;
 
   try {
@@ -267,6 +279,7 @@ router.post('/mercado-pago/preferencia/:pedidoId', verificarToken, async (req, r
       paymentMethods: configurarMeiosPagamento(process.env.MP_MAX_INSTALLMENTS),
       validade,
       opcoes: { idempotencyKey: `mercado-pago-preferencia:${pedidoId}` },
+      ambiente,
     });
 
     const checkoutUrl = selecionarCheckoutUrl(preferencia, ambiente);
@@ -456,16 +469,59 @@ async function reaplicarReservaDeEstoque(connection, pedidoId) {
     [pedidoId],
   );
 
+  const reservasPorVariacao = new Map();
   for (const item of itens) {
+    const variacaoId = Number(item.variacao_id);
+    const quantidade = Number(item.quantidade);
+    if (!Number.isSafeInteger(variacaoId) || variacaoId <= 0
+      || !Number.isSafeInteger(quantidade) || quantidade <= 0) {
+      throw new Error('Itens inválidos para restaurar reserva do pedido aprovado');
+    }
+
+    reservasPorVariacao.set(
+      variacaoId,
+      (reservasPorVariacao.get(variacaoId) || 0) + quantidade,
+    );
+  }
+
+  const variacoesIds = [...reservasPorVariacao.keys()].sort((a, b) => a - b);
+  if (!variacoesIds.length) return;
+
+  // Todas as linhas são bloqueadas e validadas antes de qualquer baixa. Assim,
+  // uma reserva restaurada nunca fica parcialmente aplicada.
+  const [variacoes] = await connection.query(
+    `SELECT id, estoque
+     FROM produto_variacoes
+     WHERE id IN (${variacoesIds.map(() => '?').join(', ')})
+     ORDER BY id ASC
+     FOR UPDATE`,
+    variacoesIds,
+  );
+  const estoquePorVariacao = new Map(
+    variacoes.map((variacao) => [Number(variacao.id), Number(variacao.estoque)]),
+  );
+
+  for (const variacaoId of variacoesIds) {
+    const estoque = estoquePorVariacao.get(variacaoId);
+    const quantidade = reservasPorVariacao.get(variacaoId);
+    if (!Number.isFinite(estoque) || estoque < quantidade) {
+      const error = new Error('Estoque insuficiente para restaurar reserva do pedido aprovado');
+      error.code = 'ESTOQUE_INSUFICIENTE_RESTAURACAO';
+      throw error;
+    }
+  }
+
+  for (const variacaoId of variacoesIds) {
+    const quantidade = reservasPorVariacao.get(variacaoId);
     const [updateEstoque] = await connection.query(
       `UPDATE produto_variacoes
        SET estoque = estoque - ?
-       WHERE id = ? AND estoque >= ?`,
-      [item.quantidade, item.variacao_id, item.quantidade],
+       WHERE id = ?`,
+      [quantidade, variacaoId],
     );
 
     if (updateEstoque.affectedRows !== 1) {
-      throw new Error('Estoque insuficiente para restaurar reserva do pedido aprovado');
+      throw new Error('Variação não encontrada ao restaurar reserva do pedido aprovado');
     }
   }
 }
@@ -521,7 +577,26 @@ async function aplicarResultadoPagamentoMercadoPago(connection, {
     && !pagamentoFoiAprovadoNoPrazo(pagamento, pedido);
   const reconciliacaoJaResolvida = ['resolvida_estorno', 'resolvida_atendimento']
     .includes(String(pedido.reconciliacao_status || '').trim().toLowerCase());
-  const reconciliacaoSql = pagamentoTardio
+  let estoqueIndisponivelAoRestaurarReserva = false;
+
+  // O scheduler pode expirar um pedido logo após a aprovação oficial. Nesse
+  // caso, a reserva só é restaurada se todas as variações continuarem
+  // disponíveis. A falha é operacional e exige reconciliação, não retry.
+  if (pedidoExpiradoComAprovacaoNoPrazo) {
+    try {
+      await reaplicarReservaDeEstoque(connection, pedidoId);
+    } catch (error) {
+      if (error?.code !== 'ESTOQUE_INSUFICIENTE_RESTAURACAO') throw error;
+      estoqueIndisponivelAoRestaurarReserva = true;
+    }
+  }
+
+  const confirmarPedidoComEstoque = confirmarPedido && !estoqueIndisponivelAoRestaurarReserva;
+  const requerReconciliacao = pagamentoTardio || estoqueIndisponivelAoRestaurarReserva;
+  const motivoReconciliacao = estoqueIndisponivelAoRestaurarReserva
+    ? `Pagamento aprovado antes da expiração; reserva não restaurada por estoque indisponível (payment_id: ${pagamento.paymentId}; external_reference: ${pagamento.externalReference || pedidoId})`
+    : 'Pagamento aprovado após expiração';
+  const reconciliacaoSql = requerReconciliacao
     ? `,
          reconciliacao_status = CASE
            WHEN reconciliacao_status IN ('resolvida_estorno', 'resolvida_atendimento') THEN reconciliacao_status
@@ -529,7 +604,7 @@ async function aplicarResultadoPagamentoMercadoPago(connection, {
          END,
          reconciliacao_motivo = CASE
            WHEN reconciliacao_status IN ('resolvida_estorno', 'resolvida_atendimento') THEN reconciliacao_motivo
-           ELSE 'Pagamento aprovado após expiração'
+           ELSE ?
          END,
          reconciliacao_em = CASE
            WHEN reconciliacao_status IN ('pendente', 'resolvida_estorno', 'resolvida_atendimento')
@@ -543,16 +618,17 @@ async function aplicarResultadoPagamentoMercadoPago(connection, {
          mp_status = ?,
          mp_status_detail = ?,
          pagamento_atualizado_em = NOW()
-         ${confirmarPedido ? ", pagamento_confirmado_em = COALESCE(pagamento_confirmado_em, ?), status = 'pago'" : ''}
+         ${confirmarPedidoComEstoque ? ", pagamento_confirmado_em = COALESCE(pagamento_confirmado_em, ?), status = 'pago'" : ''}
          ${reconciliacaoSql}
      WHERE id = ?
        AND (mp_payment_id IS NULL OR mp_payment_id = ?)
-       ${confirmarPedido ? "AND status IN ('pendente', 'expirado')" : ''}`,
+       ${confirmarPedidoComEstoque ? "AND status IN ('pendente', 'expirado')" : ''}`,
     [
       pagamento.paymentId,
       pagamento.status,
       pagamento.statusDetail,
-      ...(confirmarPedido ? [pagamento.dataAprovacao] : []),
+      ...(confirmarPedidoComEstoque ? [pagamento.dataAprovacao] : []),
+      ...(requerReconciliacao ? [motivoReconciliacao] : []),
       pedidoId,
       pagamento.paymentId,
     ],
@@ -562,24 +638,21 @@ async function aplicarResultadoPagamentoMercadoPago(connection, {
     throw new Error('Pedido atualizado por outra operação');
   }
 
-  // O scheduler devolve a reserva ao expirar. Se a API oficial comprovar que o
-  // pagamento foi aprovado antes do prazo, esta única baixa desfaz a devolução.
-  if (pedidoExpiradoComAprovacaoNoPrazo) {
-    await reaplicarReservaDeEstoque(connection, pedidoId);
-  }
-
   if (evento) {
+    const erroEvento = requerReconciliacao
+      ? reconciliacaoJaResolvida
+        ? 'Pagamento aprovado; reconciliação já resolvida'
+        : estoqueIndisponivelAoRestaurarReserva
+          ? motivoReconciliacao
+          : 'Pagamento aprovado após expiração; requer reconciliação operacional'
+      : null;
     await connection.query(
       `UPDATE pagamento_eventos
        SET pedido_id = ?, processado = 1, processado_em = NOW(), erro = ?
        WHERE provedor = ? AND evento_id = ?`,
       [
         pedidoId,
-        pagamentoTardio
-          ? reconciliacaoJaResolvida
-            ? 'Pagamento aprovado após expiração; reconciliação já resolvida'
-            : 'Pagamento aprovado após expiração; requer reconciliação operacional'
-          : null,
+        erroEvento,
         evento.provedor,
         evento.eventoId,
       ],
@@ -588,13 +661,14 @@ async function aplicarResultadoPagamentoMercadoPago(connection, {
 
   return {
     pedidoId: Number(pedido.id),
-    status: confirmarPedido ? 'pago' : pedido.status,
+    status: confirmarPedidoComEstoque ? 'pago' : pedido.status,
     mpStatus: pagamento.status,
     mpPaymentId: pagamento.paymentId,
-    confirmado: confirmarPedido,
-    reconciliado: pagamentoAprovado && (confirmarPedido || pedido.status === 'pago'),
-    estoqueReaplicado: pedidoExpiradoComAprovacaoNoPrazo,
+    confirmado: confirmarPedidoComEstoque,
+    reconciliado: pagamentoAprovado && (confirmarPedidoComEstoque || pedido.status === 'pago'),
+    estoqueReaplicado: pedidoExpiradoComAprovacaoNoPrazo && !estoqueIndisponivelAoRestaurarReserva,
     pagamentoTardio,
+    estoqueIndisponivelAoRestaurarReserva,
   };
 }
 

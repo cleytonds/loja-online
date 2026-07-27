@@ -6,9 +6,23 @@ process.env.MERCADO_PAGO_ACCESS_TOKEN ||= 'TEST-mercado-pago-access-token';
 
 const {
   MercadoPagoServiceError,
+  obterAmbienteMercadoPago,
   criarPreferencia,
   consultarPagamento,
 } = await import('../src/services/mercadoPagoService.js');
+
+test('aceita exclusivamente os ambientes sandbox e production', () => {
+  assert.equal(obterAmbienteMercadoPago({ MP_ENVIRONMENT: 'sandbox' }), 'sandbox');
+  assert.equal(obterAmbienteMercadoPago({ MP_ENVIRONMENT: 'production' }), 'production');
+  assert.throws(
+    () => obterAmbienteMercadoPago({ MP_ENVIRONMENT: 'homologacao' }),
+    (error) => error?.code === 'MP_ENVIRONMENT_INVALID',
+  );
+  assert.throws(
+    () => obterAmbienteMercadoPago({}),
+    /MP_ENVIRONMENT inválido/,
+  );
+});
 
 test('criarPreferencia inclui payer e preserva os demais campos em produção', async (t) => {
   const originalCreate = Preference.prototype.create;

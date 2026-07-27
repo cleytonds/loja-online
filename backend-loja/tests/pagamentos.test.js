@@ -66,18 +66,26 @@ test('normaliza barras finais nas URLs configuradas', () => {
   assert.equal(removerBarraFinal('https://loja.test///'), 'https://loja.test');
 });
 
-test('seleciona URL sandbox em teste e nunca aceita URL ausente', () => {
+test('seleciona checkout estritamente pelo ambiente Mercado Pago e nunca aceita URL ausente', () => {
   assert.equal(
-    selecionarCheckoutUrl({ sandboxCheckoutUrl: 'https://sandbox.test', checkoutUrl: 'https://producao.test' }, 'teste'),
+    selecionarCheckoutUrl({ sandboxCheckoutUrl: 'https://sandbox.test', checkoutUrl: 'https://producao.test' }, 'sandbox'),
     'https://sandbox.test',
   );
   assert.equal(
-    selecionarCheckoutUrl({ sandboxCheckoutUrl: null, checkoutUrl: 'https://producao.test' }, 'teste'),
+    selecionarCheckoutUrl({ sandboxCheckoutUrl: null, checkoutUrl: 'https://producao.test' }, 'sandbox'),
+    null,
+  );
+  assert.equal(
+    selecionarCheckoutUrl({ sandboxCheckoutUrl: 'https://sandbox.test', checkoutUrl: 'https://producao.test' }, 'production'),
     'https://producao.test',
   );
   assert.equal(
-    selecionarCheckoutUrl({ sandboxCheckoutUrl: 'https://sandbox.test', checkoutUrl: null }, 'producao'),
+    selecionarCheckoutUrl({ sandboxCheckoutUrl: 'https://sandbox.test', checkoutUrl: null }, 'production'),
     null,
+  );
+  assert.throws(
+    () => selecionarCheckoutUrl({ checkoutUrl: 'https://producao.test' }, 'teste'),
+    /MP_ENVIRONMENT inválido/,
   );
 });
 
