@@ -1,5 +1,11 @@
 import assert from 'node:assert/strict';
+import { createRequire } from 'node:module';
 import test from 'node:test';
+import { fileURLToPath } from 'node:url';
+import { build } from 'esbuild';
+import React from 'react';
+import { renderToString } from 'react-dom/server';
+import { MemoryRouter } from 'react-router-dom';
 import {
   classificarResultadoReconciliacao,
   dadosRetornoSaoValidos,
@@ -9,6 +15,46 @@ import {
   obterPedidoIdParaConsulta,
   reconciliarRetornoPagamento,
 } from '../src/utils/paymentReturn.js';
+
+test('PagamentoRetorno renderiza o link "Ver meus pedidos" com um componente React válido', async () => {
+  const resultado = await build({
+    entryPoints: [fileURLToPath(new URL('../src/pages/PagamentoRetorno.jsx', import.meta.url))],
+    bundle: true,
+    format: 'cjs',
+    platform: 'node',
+    jsx: 'automatic',
+    define: { 'import.meta.env.DEV': 'false' },
+    write: false,
+    loader: { '.css': 'text' },
+    external: ['react', 'react/jsx-runtime', 'react-dom', 'react-router-dom', 'react-icons/fa', 'axios'],
+    plugins: [{
+      name: 'mocks-pagamento-retorno',
+      setup(buildContext) {
+        buildContext.onResolve({ filter: /context\/AuthContext$/ }, () => ({ path: 'auth-context', namespace: 'mock' }));
+        buildContext.onResolve({ filter: /context\/CarrinhoContext$/ }, () => ({ path: 'carrinho-context', namespace: 'mock' }));
+        buildContext.onResolve({ filter: /services\/api$/ }, () => ({ path: 'api', namespace: 'mock' }));
+        buildContext.onLoad({ filter: /.*/, namespace: 'mock' }, ({ path }) => ({
+          contents: path === 'auth-context'
+            ? "const React = require('react'); exports.AuthContext = React.createContext({ user: null });"
+            : path === 'carrinho-context'
+              ? "const React = require('react'); exports.CarrinhoContext = React.createContext({ limparCarrinho: () => {} });"
+              : 'exports.default = { get: async () => ({ data: [] }), post: async () => ({ data: {} }) };',
+          loader: 'js',
+        }));
+      },
+    }],
+  });
+  const modulo = { exports: {} };
+  const require = createRequire(import.meta.url);
+  new Function('require', 'module', 'exports', resultado.outputFiles[0].text)(require, modulo, modulo.exports);
+  const arvore = React.createElement(
+    MemoryRouter,
+    { initialEntries: ['/pagamento/falhou'] },
+    React.createElement(modulo.exports.default),
+  );
+
+  assert.match(renderToString(arvore), /Ver meus pedidos/);
+});
 
 test('extrai retorno Mercado Pago dentro do hash do HashRouter', async () => {
   const parametros = extrairParametrosRetornoPagamento({

@@ -1,5 +1,5 @@
-import { Link, useContext, useEffect, useRef, useState } from 'react';
-import { useLocation } from 'react-router-dom';
+import { useContext, useEffect, useRef, useState } from 'react';
+import { Link, useLocation } from 'react-router-dom';
 import { FaWhatsapp } from 'react-icons/fa';
 import api from '../services/api';
 import { AuthContext } from '../context/AuthContext';

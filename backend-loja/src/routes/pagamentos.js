@@ -526,6 +526,27 @@ async function reaplicarReservaDeEstoque(connection, pedidoId) {
   }
 }
 
+function resumirErroWebhook(error, notificacao) {
+  const causa = error?.cause;
+  const resumo = {
+    formato: notificacao?.formato || null,
+    paymentId: notificacao?.recursoId ? String(notificacao.recursoId) : null,
+    name: error?.name || 'Error',
+    message: redigirTextoDiagnostico(error?.message || 'Erro sem mensagem'),
+    code: error?.code || null,
+    status: error?.status ?? error?.statusCode ?? error?.response?.status ?? null,
+    cause: causa?.message
+      ? redigirTextoDiagnostico(causa.message)
+      : (causa ? redigirTextoDiagnostico(String(causa)) : null),
+  };
+
+  if (process.env.NODE_ENV !== 'production' && error?.stack) {
+    resumo.stack = redigirTextoDiagnostico(error.stack);
+  }
+
+  return resumo;
+}
+
 /**
  * Aplica exclusivamente o resultado consultado na API oficial do Mercado Pago.
  * Webhook e reconciliação local compartilham esta mesma transação para não haver
@@ -860,7 +881,7 @@ router.post('/mercado-pago/webhook', async (req, res) => {
       `UPDATE pagamento_eventos SET erro = ? WHERE provedor = ? AND evento_id = ?`,
       ['Falha ao processar evento de pagamento', evento.provedor, evento.eventoId],
     ).catch(() => {});
-    console.error('Webhook Mercado Pago falhou:', error?.code || error?.name || 'erro');
+    console.error('Webhook Mercado Pago falhou:', resumirErroWebhook(error, notificacao));
     return res.status(500).json({ erro: 'Não foi possível processar o pagamento' });
   }
 });
@@ -869,6 +890,7 @@ export {
   configurarMeiosPagamento,
   montarItens,
   montarValidadePreferencia,
+  resumirErroWebhook,
   pedidoEstaPagavel,
   removerBarraFinal,
   selecionarCheckoutUrl,
