@@ -3,6 +3,7 @@ import { useLocation } from 'react-router-dom';
 import { FaWhatsapp } from 'react-icons/fa';
 import api from '../services/api';
 import { AuthContext } from '../context/AuthContext';
+import { CarrinhoContext } from '../context/CarrinhoContext';
 import { montarLinkWhatsApp, montarMensagemEntregaPedido } from '../utils/whatsapp.js';
 import {
   classificarResultadoReconciliacao,
@@ -11,6 +12,7 @@ import {
   mensagemErroReconciliacao,
   reconciliarRetornoPagamento,
 } from '../utils/paymentReturn.js';
+import { concluirTentativaCheckout } from '../utils/mercadoPagoCheckout.js';
 import './PagamentoRetorno.css';
 
 const mensagens = {
@@ -35,6 +37,7 @@ function obterListaPedidos(resposta) {
 export default function PagamentoRetorno() {
   const location = useLocation();
   const { user } = useContext(AuthContext);
+  const { limparCarrinho } = useContext(CarrinhoContext);
   const etapa = location.pathname.split('/').pop();
   const mensagemInicial = mensagens[etapa] || mensagens.pendente;
   const [mensagemAtual, setMensagemAtual] = useState(mensagemInicial);
@@ -82,6 +85,7 @@ export default function PagamentoRetorno() {
         setEstado(novoEstado);
 
         if (novoEstado === 'aprovado' && pedido) {
+          if (concluirTentativaCheckout(pedidoId)) limparCarrinho();
           setPedidoConfirmado(pedido);
           setMensagemAtual({
             titulo: 'Pagamento aprovado!',

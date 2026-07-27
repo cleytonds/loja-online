@@ -1,4 +1,4 @@
-import React, { useContext, useEffect, useState } from 'react';
+import React, { useContext, useEffect, useRef, useState } from 'react';
 import './MeusPedidos.css';
 import api from '../services/api';
 import { useNavigate } from 'react-router-dom';
@@ -6,6 +6,7 @@ import BotaoAtendimentoWhatsApp from '../components/BotaoAtendimentoWhatsApp.jsx
 import { CarrinhoContext } from '../context/CarrinhoContext';
 import { AuthContext } from '../context/AuthContext';
 import { montarMensagemEntregaPedido, pedidoPodeCombinarEntregaMercadoPago } from '../utils/whatsapp.js';
+import { criarBloqueioPagamentoPorPedido, redirecionarParaCheckout } from '../utils/mercadoPagoCheckout.js';
 
 function formatarTempoRestante(expiresAt, agora) {
   const totalSegundos = Math.max(0, Math.ceil((new Date(expiresAt).getTime() - agora) / 1000));
@@ -18,6 +19,7 @@ export default function MeusPedidos({ usuario_id }) {
   const [filtroStatus, setFiltroStatus] = useState('todos');
   const [ordenarData, setOrdenarData] = useState('desc');
   const [continuandoPedidoId, setContinuandoPedidoId] = useState(null);
+  const pagamentosEmAndamento = useRef(criarBloqueioPagamentoPorPedido());
   const [agora, setAgora] = useState(Date.now());
   const { restaurarPedidoExpirado } = useContext(CarrinhoContext);
   const { user } = useContext(AuthContext);
@@ -70,20 +72,27 @@ export default function MeusPedidos({ usuario_id }) {
   const fecharModal = () => setModalPedido(null);
 
   const continuarPagamentoMercadoPago = async (pedido) => {
+    const pedidoId = pedido.pedido_id;
+    if (!pagamentosEmAndamento.current.bloquear(pedidoId)) return;
+    let redirecionamentoIniciado = false;
     try {
-      setContinuandoPedidoId(pedido.pedido_id);
-      const resposta = await api.post(`/pagamentos/mercado-pago/preferencia/${pedido.pedido_id}`);
+      setContinuandoPedidoId(pedidoId);
+      const resposta = await api.post(`/pagamentos/mercado-pago/preferencia/${pedidoId}`);
       const checkoutUrl = resposta.data?.checkoutUrl;
 
       if (typeof checkoutUrl !== 'string' || !checkoutUrl.trim()) {
         throw new Error('Link de pagamento indisponível');
       }
 
-      window.location.assign(checkoutUrl);
+      redirecionarParaCheckout(checkoutUrl);
+      redirecionamentoIniciado = true;
     } catch (err) {
       alert(err.message);
     } finally {
-      setContinuandoPedidoId(null);
+      if (!redirecionamentoIniciado) {
+        pagamentosEmAndamento.current.liberar(pedidoId);
+        setContinuandoPedidoId(null);
+      }
     }
   };
 
