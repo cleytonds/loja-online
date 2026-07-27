@@ -13,7 +13,13 @@ import {
 import './Carrinho.css';
 
 export default function Carrinho() {
-  const { carrinho, removerDoCarrinho, aumentarQuantidade, diminuirQuantidade } = useContext(CarrinhoContext);
+  const {
+    carrinho,
+    removerDoCarrinho,
+    aumentarQuantidade,
+    diminuirQuantidade,
+    limparCarrinho,
+  } = useContext(CarrinhoContext);
   const navigate = useNavigate();
   const [finalizando, setFinalizando] = useState(false);
   const [checkoutPendente, setCheckoutPendente] = useState(null);
@@ -43,6 +49,9 @@ export default function Carrinho() {
         token,
         redirect: (url) => window.location.assign(url),
       });
+      // Pedido e preferência já foram criados antes do redirecionamento. A partir
+      // daqui o carrinho não pode mais iniciar outro pedido com os mesmos itens.
+      limparCarrinho();
     } catch (err) {
       console.error('ERRO CHECKOUT:', {
         status: err.response?.status,

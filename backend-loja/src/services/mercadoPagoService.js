@@ -109,6 +109,7 @@ async function criarPreferencia({
       external_reference: String(pedidoId),
       items: itens,
       back_urls: backUrls,
+      auto_return: 'approved',
       notification_url: notificationUrl,
       payment_methods: paymentMethods,
       expires: true,

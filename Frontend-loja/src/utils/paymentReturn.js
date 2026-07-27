@@ -25,6 +25,14 @@ export function dadosRetornoSaoValidos({ paymentId, pedidoId }) {
   return /^\d+$/.test(String(paymentId || '')) && /^\d+$/.test(String(pedidoId || ''));
 }
 
+export function obterPedidoIdParaConsulta(parametros = {}, tentativaCheckout = null) {
+  const pedidoDaUrl = String(parametros?.pedidoId || '');
+  if (/^\d+$/.test(pedidoDaUrl)) return pedidoDaUrl;
+
+  const pedidoDaTentativa = String(tentativaCheckout?.pedidoId || '');
+  return /^\d+$/.test(pedidoDaTentativa) ? pedidoDaTentativa : null;
+}
+
 export async function reconciliarRetornoPagamento(apiClient, { pedidoId, paymentId, token }) {
   const url = `/pagamentos/mercado-pago/${pedidoId}/reconciliar`;
   return apiClient.post(

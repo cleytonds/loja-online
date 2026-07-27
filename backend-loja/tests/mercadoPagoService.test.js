@@ -80,6 +80,7 @@ test('criarPreferencia inclui payer e preserva os demais campos em produção', 
   assert.equal(receivedPayload.body.metadata.pedido_id, '123');
   assert.equal(receivedPayload.body.metadata.valor_total, 50);
   assert.equal(receivedPayload.body.notification_url, 'https://api.loja.test/webhooks/mercado-pago');
+  assert.equal(receivedPayload.body.auto_return, 'approved');
   assert.deepEqual(receivedPayload.body.payment_methods, { installments: 12 });
   assert.deepEqual(receivedPayload.body.payer, { email: 'cliente@example.test' });
   assert.equal(receivedPayload.body.expires, true);
@@ -139,6 +140,7 @@ test('criarPreferencia omite payer somente em Sandbox e preserva os demais campo
       failure: 'https://loja.test/falha',
       pending: 'https://loja.test/pendente',
     },
+    auto_return: 'approved',
     notification_url: 'https://api.loja.test/webhooks/mercado-pago',
     payment_methods: { installments: 12 },
     expires: true,
