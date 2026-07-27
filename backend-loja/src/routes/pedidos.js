@@ -14,6 +14,7 @@ import {
   PRAZO_RESERVA_MERCADO_PAGO_MINUTOS,
   prazoReservaMinutos,
 } from '../utils/orderExpiration.js';
+import { obterPrecoEfetivo } from '../utils/produtoCatalog.js';
 
 const router = express.Router();
 
@@ -143,7 +144,7 @@ router.post('/', verificarToken, async (req, res) => {
     for (const item of itensNormalizados) {
       const [rows] = await connection.query(
         `
-        SELECT preco, estoque
+        SELECT preco, preco_promocional, estoque
         FROM produto_variacoes
         WHERE id=? AND produto_id=? AND ativo = 1
         FOR UPDATE
@@ -167,7 +168,7 @@ router.post('/', verificarToken, async (req, res) => {
         });
       }
 
-      const preco = Number(rows[0].preco);
+      const preco = obterPrecoEfetivo(rows[0]);
       const precoCentavos = Math.round(preco * 100);
 
       if (!Number.isSafeInteger(precoCentavos) || precoCentavos < 0) {

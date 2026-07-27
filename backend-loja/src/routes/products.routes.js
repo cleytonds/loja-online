@@ -5,9 +5,18 @@ import { isAdmin } from '../middlewares/isAdmin.js';
 import uploadProduto, { removerImagensProduto, validarImagensProduto } from '../middlewares/uploadProduto.js';
 import fs from 'fs';
 import path from 'path';
-import { buildVariacaoPlan, normalizeVariacoesPayload } from '../utils/produtoCatalog.js';
+import {
+  buildVariacaoPlan,
+  normalizeVariacoesPayload,
+  validarPrecoPromocional,
+} from '../utils/produtoCatalog.js';
 
 const router = express.Router();
+
+function normalizarAtivo(valor, fallback = 1) {
+  if (valor === undefined) return fallback;
+  return valor === false || Number(valor) === 0 ? 0 : 1;
+}
 
 // ===============================
 //  CATEGORIAS
@@ -91,7 +100,12 @@ router.get('/', async (req, res) => {
     const produtoIds = produtos.map((produto) => produto.id);
     const [variacoes] = produtoIds.length
       ? await db.query(`
-      SELECT id, produto_id, tamanho, cor, preco, estoque
+      SELECT id, produto_id, tamanho, cor, preco, preco_promocional,
+        CASE
+          WHEN preco_promocional > 0 AND preco_promocional < preco THEN preco_promocional
+          ELSE preco
+        END AS preco_efetivo,
+        estoque
       FROM produto_variacoes
       WHERE ativo = 1 AND produto_id IN (${produtoIds.map(() => '?').join(',')})
     `, produtoIds)
@@ -129,6 +143,46 @@ router.get('/', async (req, res) => {
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: 'Erro ao buscar produtos' });
+  }
+});
+
+// ===============================
+//  DETALHE ADMINISTRATIVO (INCLUI VARIAÇÕES INATIVAS)
+// ===============================
+router.get('/admin/:id', verificarToken, isAdmin, async (req, res) => {
+  const id = Number(req.params.id);
+  if (!Number.isInteger(id) || id <= 0) {
+    return res.status(400).json({ erro: 'ID inválido' });
+  }
+
+  try {
+    const [produtos] = await db.query(
+      `SELECT p.*, c.nome AS categoria_nome
+       FROM produtos p
+       LEFT JOIN categorias c ON c.id = p.categoria_id
+       WHERE p.id = ?`,
+      [id],
+    );
+
+    if (!produtos.length) return res.status(404).json({ erro: 'Produto não encontrado' });
+
+    const [imagens] = await db.query('SELECT * FROM produto_imagens WHERE produto_id = ?', [id]);
+    const [variacoes] = await db.query(
+      `SELECT id, produto_id, tamanho, cor, preco, preco_promocional,
+        CASE
+          WHEN preco_promocional > 0 AND preco_promocional < preco THEN preco_promocional
+          ELSE preco
+        END AS preco_efetivo,
+        estoque, ativo, sku
+       FROM produto_variacoes
+       WHERE produto_id = ?
+       ORDER BY ativo DESC, id ASC`,
+      [id],
+    );
+
+    return res.json({ ...produtos[0], imagens, variacoes });
+  } catch (err) {
+    return res.status(500).json({ erro: 'Erro ao buscar produto administrativo' });
   }
 });
 
@@ -178,7 +232,12 @@ router.get('/:id', async (req, res) => {
     const [variacoes] = await db.query(
       `
 
-      SELECT *
+      SELECT id, produto_id, tamanho, cor, preco, preco_promocional,
+        CASE
+          WHEN preco_promocional > 0 AND preco_promocional < preco THEN preco_promocional
+          ELSE preco
+        END AS preco_efetivo,
+        estoque, ativo, sku
       FROM produto_variacoes
       WHERE produto_id=? AND ativo = 1
 
@@ -207,11 +266,15 @@ router.post('/', verificarToken, isAdmin, uploadProduto.array('imagens'), valida
   try {
     const { nome, preco, descricao, categoria } = req.body;
 
-    const variacoes = req.body.variacoes ? JSON.parse(req.body.variacoes) : [];
+    const variacoes = normalizeVariacoesPayload(req.body.variacoes ? JSON.parse(req.body.variacoes) : []);
     if (!Array.isArray(variacoes) || variacoes.length === 0) {
       return res.status(400).json({
         error: 'Produto precisa de pelo menos uma variação',
       });
+    }
+    variacoes.forEach(validarPrecoPromocional);
+    if (!variacoes.some((variacao) => normalizarAtivo(variacao.ativo) === 1)) {
+      return res.status(400).json({ error: 'Produto precisa de pelo menos uma variação ativa' });
     }
     connection = await db.getConnection();
     await connection.beginTransaction();
@@ -245,10 +308,10 @@ router.post('/', verificarToken, isAdmin, uploadProduto.array('imagens'), valida
       await connection.query(
         `
         INSERT INTO produto_variacoes
-        (produto_id, tamanho, cor, preco, estoque)
-        VALUES (?, ?, ?, ?, ?)
+        (produto_id, tamanho, cor, preco, preco_promocional, estoque)
+        VALUES (?, ?, ?, ?, ?, ?)
       `,
-        [produtoId, v.tamanho, v.cor, v.preco, v.estoque],
+        [produtoId, v.tamanho, v.cor, v.preco, v.preco_promocional, v.estoque],
       );
     }
 
@@ -263,6 +326,9 @@ router.post('/', verificarToken, isAdmin, uploadProduto.array('imagens'), valida
       }
     }
     removerImagensProduto(req.files);
+    if (err?.statusCode === 400) {
+      return res.status(400).json({ error: err.message });
+    }
     console.error('ERRO BACKEND:', err);
     res.status(500).json({ error: 'Erro ao criar produto' });
   } finally {
@@ -280,7 +346,7 @@ router.put('/:id', verificarToken, isAdmin, uploadProduto.array('imagens'), vali
     return res.status(400).json({ erro: 'ID inválido' });
   }
 
-  const connection = await db.getConnection();
+  let connection;
   let novasImagens = [];
 
   try {
@@ -293,6 +359,9 @@ router.put('/:id', verificarToken, isAdmin, uploadProduto.array('imagens'), vali
     } = req.body;
 
     const lista = normalizeVariacoesPayload(variacoes ? JSON.parse(variacoes) : []);
+    lista.forEach(validarPrecoPromocional);
+
+    connection = await db.getConnection();
 
     await connection.beginTransaction();
 
@@ -306,55 +375,78 @@ router.put('/:id', verificarToken, isAdmin, uploadProduto.array('imagens'), vali
     );
 
     const [atuais] = await connection.query(
-      `SELECT id, tamanho, cor, preco, estoque FROM produto_variacoes WHERE produto_id=? AND ativo = 1`,
+      `SELECT id, tamanho, cor, preco, preco_promocional, estoque, ativo
+       FROM produto_variacoes
+       WHERE produto_id=?`,
       [id],
     );
 
     const plan = buildVariacaoPlan(atuais, lista);
 
+    const atuaisPorId = new Map(atuais.map((variacao) => [Number(variacao.id), variacao]));
+    const idsParaInativar = new Set(plan.deletions.map(Number));
     for (const variacao of plan.updates) {
+      if (normalizarAtivo(variacao.ativo) === 0) idsParaInativar.add(Number(variacao.id));
+    }
+
+    const ativasRestantes = atuais.filter((variacao) => (
+      Number(variacao.ativo) === 1 && !idsParaInativar.has(Number(variacao.id))
+    )).length + plan.inserts.filter((variacao) => normalizarAtivo(variacao.ativo) === 1).length;
+
+    if (ativasRestantes < 1) {
+      await connection.rollback();
+      return res.status(409).json({ erro: 'O produto precisa manter ao menos uma variação ativa' });
+    }
+
+    for (const variacao of plan.updates) {
+      const atual = atuaisPorId.get(Number(variacao.id));
+      const ativo = normalizarAtivo(variacao.ativo, atual?.ativo);
+      const estaSendoInativada = Number(atual?.ativo) === 1 && ativo === 0;
+      const estoque = estaSendoInativada ? Number(atual.estoque) : variacao.estoque;
       await connection.query(
         `
         UPDATE produto_variacoes
-        SET tamanho=?, cor=?, preco=?, estoque=?
+        SET tamanho=?, cor=?, preco=?, preco_promocional=?, estoque=?, ativo=?
         WHERE id=? AND produto_id=?
         `,
-        [variacao.tamanho, variacao.cor, variacao.preco, variacao.estoque, variacao.id, id],
+        [
+          variacao.tamanho,
+          variacao.cor,
+          variacao.preco,
+          variacao.preco_promocional,
+          estoque,
+          ativo,
+          variacao.id,
+          id,
+        ],
       );
     }
 
     for (const variacao of plan.inserts) {
       await connection.query(
         `
-        INSERT INTO produto_variacoes (produto_id, tamanho, cor, preco, estoque)
-        VALUES (?, ?, ?, ?, ?)
+        INSERT INTO produto_variacoes (produto_id, tamanho, cor, preco, preco_promocional, estoque, ativo)
+        VALUES (?, ?, ?, ?, ?, ?, ?)
         `,
-        [id, variacao.tamanho, variacao.cor, variacao.preco, variacao.estoque],
+        [
+          id,
+          variacao.tamanho,
+          variacao.cor,
+          variacao.preco,
+          variacao.preco_promocional,
+          variacao.estoque,
+          normalizarAtivo(variacao.ativo),
+        ],
       );
     }
 
     if (plan.deletions.length) {
-      const placeholders = plan.deletions.map(() => '?').join(',');
-      const [referenciadas] = await connection.query(
-        `SELECT DISTINCT variacao_id FROM pedido_itens WHERE variacao_id IN (${placeholders})`,
-        plan.deletions,
-      );
-      const idsReferenciados = referenciadas.map((item) => item.variacao_id);
-      const idsRemoviveis = plan.deletions.filter((id) => !idsReferenciados.includes(id));
-
-      if (idsReferenciados.length) {
-        await connection.query(
-          `UPDATE produto_variacoes SET ativo = 0, estoque = 0 WHERE produto_id=? AND id IN (${idsReferenciados.map(() => '?').join(',')})`,
-          [id, ...idsReferenciados],
-        );
-      }
-
-      if (idsRemoviveis.length) {
       await connection.query(
-          `DELETE FROM produto_variacoes WHERE produto_id=? AND id IN (${idsRemoviveis.map(() => '?').join(',')})`,
-          [id, ...idsRemoviveis],
+        `UPDATE produto_variacoes
+         SET ativo = 0
+         WHERE produto_id=? AND id IN (${plan.deletions.map(() => '?').join(',')})`,
+        [id, ...plan.deletions],
       );
-      }
     }
 
     novasImagens = Array.isArray(req.files) ? req.files : [];
@@ -392,6 +484,9 @@ router.put('/:id', verificarToken, isAdmin, uploadProduto.array('imagens'), vali
       await connection.rollback();
     }
     removerImagensProduto(novasImagens);
+    if (err?.statusCode === 400) {
+      return res.status(400).json({ error: err.message });
+    }
     console.log(err);
 
     res.status(500).json({
@@ -401,6 +496,67 @@ router.put('/:id', verificarToken, isAdmin, uploadProduto.array('imagens'), vali
     if (connection) {
       connection.release();
     }
+  }
+});
+
+// ===============================
+//  ATIVAR / INATIVAR VARIAÇÃO
+// ===============================
+router.patch('/:produtoId/variacoes/:variacaoId/status', verificarToken, isAdmin, async (req, res) => {
+  const produtoId = Number(req.params.produtoId);
+  const variacaoId = Number(req.params.variacaoId);
+  const ativo = req.body?.ativo;
+
+  if (!Number.isInteger(produtoId) || produtoId <= 0 || !Number.isInteger(variacaoId) || variacaoId <= 0) {
+    return res.status(400).json({ erro: 'Produto ou variação inválidos' });
+  }
+  if (typeof ativo !== 'boolean') {
+    return res.status(400).json({ erro: 'O campo ativo deve ser booleano' });
+  }
+
+  let connection;
+  try {
+    connection = await db.getConnection();
+    await connection.beginTransaction();
+
+    const [variacoes] = await connection.query(
+      `SELECT id, ativo, estoque
+       FROM produto_variacoes
+       WHERE produto_id = ?
+       FOR UPDATE`,
+      [produtoId],
+    );
+    const variacao = variacoes.find((item) => Number(item.id) === variacaoId);
+
+    if (!variacao) {
+      await connection.rollback();
+      return res.status(404).json({ erro: 'Variação não encontrada' });
+    }
+
+    const estaAtiva = Number(variacao.ativo) === 1;
+    const totalAtivas = variacoes.filter((item) => Number(item.ativo) === 1).length;
+    if (!ativo && estaAtiva && totalAtivas <= 1) {
+      await connection.rollback();
+      return res.status(409).json({ erro: 'O produto precisa manter ao menos uma variação ativa' });
+    }
+
+    await connection.query(
+      'UPDATE produto_variacoes SET ativo = ? WHERE id = ? AND produto_id = ?',
+      [ativo ? 1 : 0, variacaoId, produtoId],
+    );
+    await connection.commit();
+
+    return res.json({
+      id: variacaoId,
+      produto_id: produtoId,
+      ativo,
+      estoque: Number(variacao.estoque),
+    });
+  } catch (err) {
+    if (connection) await connection.rollback();
+    return res.status(500).json({ erro: 'Erro ao atualizar status da variação' });
+  } finally {
+    if (connection) connection.release();
   }
 });
 
