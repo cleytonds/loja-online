@@ -62,6 +62,7 @@ export default function App() {
               <Route path="/pagamento-retorno" element={<PagamentoRetorno />} />
               <Route path="/pagamento/pendente" element={<PagamentoRetorno />} />
               <Route path="/pagamento/falhou" element={<PagamentoRetorno />} />
+              <Route path="/pagamento/*" element={<PagamentoRetorno />} />
 
               {/* USUÁRIO LOGADO */}
               <Route

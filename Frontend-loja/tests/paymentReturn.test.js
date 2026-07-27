@@ -6,6 +6,7 @@ import {
   extrairParametrosRetornoPagamento,
   mensagemErroReconciliacao,
   mensagemResultadoReconciliacao,
+  obterPedidoIdParaConsulta,
   reconciliarRetornoPagamento,
 } from '../src/utils/paymentReturn.js';
 
@@ -44,6 +45,19 @@ test('aceita collection_id e não reconcilia sem identificadores válidos', () =
   assert.equal(dadosRetornoSaoValidos(extrairParametrosRetornoPagamento({ hash: '#/pagamento/sucesso?external_reference=244' })), false);
 });
 
+test('aceita parâmetros antes do fragmento e retorno sem parâmetros não gera exceção', () => {
+  const antesDoHash = extrairParametrosRetornoPagamento({
+    search: '?payment_id=123456&external_reference=244&status=approved',
+    hash: '#/pagamento/sucesso',
+  });
+  assert.equal(dadosRetornoSaoValidos(antesDoHash), true);
+
+  const retornoSemParametros = extrairParametrosRetornoPagamento({ hash: '#/pagamento' });
+  assert.equal(dadosRetornoSaoValidos(retornoSemParametros), false);
+  assert.equal(obterPedidoIdParaConsulta(retornoSemParametros, { pedidoId: 244 }), '244');
+  assert.equal(obterPedidoIdParaConsulta(retornoSemParametros, null), null);
+});
+
 for (const status of [401, 400, 500]) {
   test(`resposta ${status} mantém a tela em análise sem confirmar o pedido`, async () => {
     const apiMock = { post: async () => { throw { response: { status } }; } };
@@ -67,4 +81,10 @@ test('só libera entrega quando o backend persistiu pedido pago e Mercado Pago a
 
   assert.equal(classificarResultadoReconciliacao({ resultado: { mpStatus: 'pending' } }), 'processando');
   assert.equal(classificarResultadoReconciliacao({ resultado: { mpStatus: 'rejected' } }), 'recusado');
+});
+
+test('retorno manual reconhece pagamento confirmado pelo status oficial do pedido', () => {
+  assert.equal(classificarResultadoReconciliacao({
+    pedido: { status: 'pago', mp_status: 'approved', pagamento_confirmado_em: '2026-07-27 19:44:00' },
+  }), 'aprovado');
 });

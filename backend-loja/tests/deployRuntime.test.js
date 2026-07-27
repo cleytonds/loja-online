@@ -23,6 +23,11 @@ test('Mercado Pago exige ambiente explicito e webhook usa URL publica sem barras
   process.env.FRONT_URL = 'https://loja.test/';
   process.env.PUBLIC_API_URL = 'https://api.loja.test/';
   delete process.env.BACKEND_URL;
+  assert.deepEqual(urlsCheckout().backUrls, {
+    success: 'https://loja.test/#/pagamento/sucesso',
+    pending: 'https://loja.test/#/pagamento/pendente',
+    failure: 'https://loja.test/#/pagamento/falhou',
+  });
   assert.equal(urlsCheckout().notificationUrl, 'https://api.loja.test/pagamentos/mercado-pago/webhook');
   process.env.FRONT_URL = oldFront;
   process.env.PUBLIC_API_URL = oldPublic;

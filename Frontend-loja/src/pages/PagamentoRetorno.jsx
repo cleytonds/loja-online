@@ -10,9 +10,10 @@ import {
   dadosRetornoSaoValidos,
   extrairParametrosRetornoPagamento,
   mensagemErroReconciliacao,
+  obterPedidoIdParaConsulta,
   reconciliarRetornoPagamento,
 } from '../utils/paymentReturn.js';
-import { concluirTentativaCheckout } from '../utils/mercadoPagoCheckout.js';
+import { concluirTentativaCheckout, recuperarTentativaCheckout } from '../utils/mercadoPagoCheckout.js';
 import './PagamentoRetorno.css';
 
 const mensagens = {
@@ -52,13 +53,60 @@ export default function PagamentoRetorno() {
       hash: window.location.hash,
     });
     const { paymentId, pedidoId } = parametros;
+    const pedidoIdParaConsulta = obterPedidoIdParaConsulta(
+      parametros,
+      recuperarTentativaCheckout(),
+    );
 
     setMensagemAtual(mensagemInicial);
     setPedidoConfirmado(null);
 
+    const aplicarEstadoOficial = (pedido, resultado = {}) => {
+      const novoEstado = classificarResultadoReconciliacao({ pedido, resultado });
+      setEstado(novoEstado);
+
+      if (novoEstado === 'aprovado' && pedido) {
+        if (concluirTentativaCheckout(pedidoIdParaConsulta)) limparCarrinho();
+        setPedidoConfirmado(pedido);
+        setMensagemAtual({
+          titulo: 'Pagamento aprovado com sucesso!',
+          texto: 'Recebemos a confirmação oficial do seu pagamento. Agora combine a entrega do pedido pelo WhatsApp da loja.',
+        });
+      } else if (novoEstado === 'processando') {
+        setMensagemAtual({
+          titulo: 'Pagamento em processamento',
+          texto: 'Seu pagamento ainda está sendo processado. Aguarde alguns instantes e acompanhe seus pedidos.',
+        });
+      } else {
+        setMensagemAtual({
+          titulo: 'Pagamento não aprovado',
+          texto: 'O Mercado Pago informou que este pagamento não foi aprovado. Você pode tentar novamente conforme as regras do pedido.',
+        });
+      }
+    };
+
     if (!dadosRetornoSaoValidos(parametros)) {
-      setEstado(etapa === 'falhou' ? 'recusado' : 'inicial');
-      return undefined;
+      if (!pedidoIdParaConsulta) {
+        setEstado(etapa === 'falhou' ? 'recusado' : 'inicial');
+        return undefined;
+      }
+
+      setEstado('consultando');
+      let ativo = true;
+      api.get('/pedidos/meus')
+        .then((pedidosResposta) => {
+          if (!ativo) return;
+          const pedido = obterListaPedidos(pedidosResposta)
+            .find((item) => Number(item.id) === Number(pedidoIdParaConsulta));
+          aplicarEstadoOficial(pedido);
+        })
+        .catch(() => {
+          if (!ativo) return;
+          setEstado('erro');
+          setMensagemAtual(mensagemErroReconciliacao());
+        });
+
+      return () => { ativo = false; };
     }
 
     const chaveReconciliacao = `${pedidoId}:${paymentId}`;
@@ -80,28 +128,7 @@ export default function PagamentoRetorno() {
 
         if (!ativo) return;
 
-        const resultado = resposta.data;
-        const novoEstado = classificarResultadoReconciliacao({ pedido, resultado });
-        setEstado(novoEstado);
-
-        if (novoEstado === 'aprovado' && pedido) {
-          if (concluirTentativaCheckout(pedidoId)) limparCarrinho();
-          setPedidoConfirmado(pedido);
-          setMensagemAtual({
-            titulo: 'Pagamento aprovado!',
-            texto: 'Recebemos a confirmação do seu pagamento. Agora combine a entrega do pedido pelo WhatsApp da loja.',
-          });
-        } else if (novoEstado === 'processando') {
-          setMensagemAtual({
-            titulo: 'Pagamento em processamento',
-            texto: 'Seu pagamento ainda está sendo processado. Aguarde alguns instantes e acompanhe seus pedidos.',
-          });
-        } else {
-          setMensagemAtual({
-            titulo: 'Pagamento não aprovado',
-            texto: 'O Mercado Pago informou que este pagamento não foi aprovado. Você pode tentar novamente conforme as regras do pedido.',
-          });
-        }
+        aplicarEstadoOficial(pedido, resposta.data);
       })
       .catch((erro) => {
         reconciliacoesIniciadas.current.delete(chaveReconciliacao);
@@ -142,7 +169,7 @@ export default function PagamentoRetorno() {
         <h1>{mensagemAtual.titulo}</h1>
         <p>{mensagemAtual.texto}</p>
 
-        {estado === 'confirmando' && <span className="pagamento-retorno-carregando">Confirmando seu pagamento...</span>}
+        {(estado === 'confirmando' || estado === 'consultando') && <span className="pagamento-retorno-carregando">Consultando a situação oficial do pedido...</span>}
 
         {estado === 'aprovado' && pedidoConfirmado && (
           <>
