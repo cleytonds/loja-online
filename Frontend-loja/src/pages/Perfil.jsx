@@ -1,7 +1,8 @@
-import { useEffect, useState, useContext } from 'react';
+import { useEffect, useState, useContext, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 
 import api from '../services/api';
+import { criarBloqueioPagamentoPorPedido, redirecionarParaCheckout } from '../utils/mercadoPagoCheckout.js';
 import ImagemProduto from '../components/ImagemProduto.jsx';
 import { montarUrlImagem } from '../utils/imagem.js';
 import { AuthContext } from '../context/AuthContext';
@@ -39,6 +40,7 @@ export default function Perfil() {
   const [pedidos, setPedidos] = useState([]);
   const [carregandoPedidos, setCarregandoPedidos] = useState(false);
   const [continuandoPedidoId, setContinuandoPedidoId] = useState(null);
+  const pagamentosEmAndamento = useRef(criarBloqueioPagamentoPorPedido());
   const [agora, setAgora] = useState(Date.now());
 
   const [editar, setEditar] = useState(false);
@@ -178,8 +180,11 @@ export default function Perfil() {
   }
 
   async function continuarPagamentoMercadoPago(pedido) {
+    const pedidoId = pedido.id;
+    if (!pagamentosEmAndamento.current.bloquear(pedidoId)) return;
+    let redirecionamentoIniciado = false;
     try {
-      setContinuandoPedidoId(pedido.id);
+      setContinuandoPedidoId(pedidoId);
 
       const resposta = await api.post(
         `/pagamentos/mercado-pago/preferencia/${pedido.id}`,
@@ -196,11 +201,15 @@ export default function Perfil() {
         throw new Error('Link de pagamento indisponível');
       }
 
-      window.location.assign(checkoutUrl);
+      redirecionarParaCheckout(checkoutUrl);
+      redirecionamentoIniciado = true;
     } catch (err) {
       alert(getErrorMessage(err, 'Não foi possível continuar o pagamento'));
     } finally {
-      setContinuandoPedidoId(null);
+      if (!redirecionamentoIniciado) {
+        pagamentosEmAndamento.current.liberar(pedidoId);
+        setContinuandoPedidoId(null);
+      }
     }
   }
 

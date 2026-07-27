@@ -1,6 +1,20 @@
 import { Payment, Preference } from 'mercadopago';
 import { getMercadoPagoClient } from '../config/mercadoPago.js';
 
+const MERCADO_PAGO_ENVIRONMENTS = new Set(['sandbox', 'production']);
+
+function obterAmbienteMercadoPago(env = process.env) {
+  const ambiente = String(env.MP_ENVIRONMENT || '').trim().toLowerCase();
+
+  if (!MERCADO_PAGO_ENVIRONMENTS.has(ambiente)) {
+    const error = new Error('MP_ENVIRONMENT inválido. Use sandbox ou production.');
+    error.code = 'MP_ENVIRONMENT_INVALID';
+    throw error;
+  }
+
+  return ambiente;
+}
+
 function getPreferenceClient() {
   return new Preference(getMercadoPagoClient());
 }
@@ -80,8 +94,13 @@ async function criarPreferencia({
   paymentMethods,
   validade,
   opcoes,
+  ambiente,
 }) {
   try {
+    const ambienteMercadoPago = obterAmbienteMercadoPago(
+      ambiente ? { MP_ENVIRONMENT: ambiente } : process.env,
+    );
+
     if (!validade?.expirationDateFrom || !validade?.expirationDateTo) {
       throw new Error('Validade da preferência não configurada');
     }
@@ -101,7 +120,7 @@ async function criarPreferencia({
       },
     };
 
-    if (String(process.env.MP_ENVIRONMENT || 'production').trim().toLowerCase() !== 'sandbox') {
+    if (ambienteMercadoPago === 'production') {
       body.payer = comprador;
     }
 
@@ -135,6 +154,7 @@ async function consultarPagamento(paymentId, opcoes) {
 
 export {
   MercadoPagoServiceError,
+  obterAmbienteMercadoPago,
   criarPreferencia,
   consultarPagamento,
 };

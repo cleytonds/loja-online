@@ -67,9 +67,12 @@ test('rota Mercado Pago protege, valida e persiste apenas preferência válida',
   const originalQuery = db.query;
   const originalGetConnection = db.getConnection;
   const originalCreate = Preference.prototype.create;
+  const originalEnvironment = process.env.MP_ENVIRONMENT;
   const app = express();
   app.use('/pagamentos', pagamentosRoutes);
   const token = jwt.sign({ id: 1, tipo: 'cliente' }, process.env.JWT_SECRET);
+
+  process.env.MP_ENVIRONMENT = 'sandbox';
 
   const estado = {
     pedido: pedido(),
@@ -92,11 +95,13 @@ test('rota Mercado Pago protege, valida e persiste apenas preferência válida',
     db.query = originalQuery;
     db.getConnection = originalGetConnection;
     Preference.prototype.create = originalCreate;
+    if (originalEnvironment === undefined) delete process.env.MP_ENVIRONMENT;
+    else process.env.MP_ENVIRONMENT = originalEnvironment;
   });
 
   let result = await requisicao(app, '/pagamentos/mercado-pago/preferencia/100', token);
   assert.equal(result.status, 200);
-  assert.deepEqual(result.body, { pedidoId: 100, preferenceId: 'pref-100', checkoutUrl: 'https://sandbox.test', ambiente: 'teste' });
+  assert.deepEqual(result.body, { pedidoId: 100, preferenceId: 'pref-100', checkoutUrl: 'https://sandbox.test', ambiente: 'sandbox' });
   assert.equal(estado.updates, 1);
   assert.equal(estado.pedido.pagamento, undefined);
 
@@ -105,7 +110,7 @@ test('rota Mercado Pago protege, valida e persiste apenas preferência válida',
   estado.updates = 0;
   result = await requisicao(app, '/pagamentos/mercado-pago/preferencia/100', token);
   assert.equal(result.status, 200);
-  assert.deepEqual(result.body, { pedidoId: 100, preferenceId: 'existente', checkoutUrl: 'https://existente.test', ambiente: 'teste' });
+  assert.deepEqual(result.body, { pedidoId: 100, preferenceId: 'existente', checkoutUrl: 'https://existente.test', ambiente: 'sandbox' });
   assert.equal(estado.chamadasSdk, 0);
   assert.equal(estado.updates, 0);
 
@@ -143,6 +148,7 @@ test('rota Mercado Pago protege, valida e persiste apenas preferência válida',
     { init_point: 'https://checkout.test', external_reference: '100' },
     { id: 'pref-100', external_reference: '100' },
     { id: 'pref-100', sandbox_init_point: null, init_point: null, external_reference: '100' },
+    { id: 'pref-100', sandbox_init_point: null, init_point: 'https://producao.test', external_reference: '100' },
   ]) {
     estado.pedido = pedido();
     estado.updates = 0;
@@ -163,13 +169,62 @@ test('rota Mercado Pago protege, valida e persiste apenas preferência válida',
   assert.doesNotMatch(JSON.stringify(result.body), /token-secreto-nao-vazar/);
 });
 
+test('MP_ENVIRONMENT=production seleciona init_point mesmo quando NODE_ENV não é production', async (t) => {
+  const originalQuery = db.query;
+  const originalGetConnection = db.getConnection;
+  const originalCreate = Preference.prototype.create;
+  const originalEnvironment = process.env.MP_ENVIRONMENT;
+  const originalNodeEnvironment = process.env.NODE_ENV;
+  const app = express();
+  app.use('/pagamentos', pagamentosRoutes);
+  const token = jwt.sign({ id: 1, tipo: 'cliente' }, process.env.JWT_SECRET);
+  const estado = {
+    pedido: pedido(),
+    itens: [{ produto_id: 1, variacao_id: 2, quantidade: 2, preco: '25.00', nome: 'Produto real' }],
+    updates: 0,
+  };
+
+  process.env.NODE_ENV = 'test';
+  process.env.MP_ENVIRONMENT = 'production';
+  db.query = async () => [[{ id: 1, nome: 'Cliente Teste', email: 'cliente@test.local', tipo: 'cliente', ativo: 1 }]];
+  db.getConnection = async () => criarBancoFalso(estado);
+  Preference.prototype.create = async () => ({
+    id: 'pref-production',
+    init_point: 'https://producao.test/checkout',
+    sandbox_init_point: 'https://sandbox.test/checkout',
+    external_reference: '100',
+  });
+  t.after(() => {
+    db.query = originalQuery;
+    db.getConnection = originalGetConnection;
+    Preference.prototype.create = originalCreate;
+    if (originalEnvironment === undefined) delete process.env.MP_ENVIRONMENT;
+    else process.env.MP_ENVIRONMENT = originalEnvironment;
+    if (originalNodeEnvironment === undefined) delete process.env.NODE_ENV;
+    else process.env.NODE_ENV = originalNodeEnvironment;
+  });
+
+  const result = await requisicao(app, '/pagamentos/mercado-pago/preferencia/100', token);
+
+  assert.equal(result.status, 200);
+  assert.deepEqual(result.body, {
+    pedidoId: 100,
+    preferenceId: 'pref-production',
+    checkoutUrl: 'https://producao.test/checkout',
+    ambiente: 'production',
+  });
+});
+
 test('duas requisições simultâneas reutilizam a primeira preferência persistida', async (t) => {
   const originalQuery = db.query;
   const originalGetConnection = db.getConnection;
   const originalCreate = Preference.prototype.create;
+  const originalEnvironment = process.env.MP_ENVIRONMENT;
   const app = express();
   app.use('/pagamentos', pagamentosRoutes);
   const token = jwt.sign({ id: 1, tipo: 'cliente' }, process.env.JWT_SECRET);
+
+  process.env.MP_ENVIRONMENT = 'sandbox';
   const estado = {
     pedido: pedido(),
     itens: [{ produto_id: 1, variacao_id: 2, quantidade: 2, preco: '25.00', nome: 'Produto real' }],
@@ -193,6 +248,8 @@ test('duas requisições simultâneas reutilizam a primeira preferência persist
     db.query = originalQuery;
     db.getConnection = originalGetConnection;
     Preference.prototype.create = originalCreate;
+    if (originalEnvironment === undefined) delete process.env.MP_ENVIRONMENT;
+    else process.env.MP_ENVIRONMENT = originalEnvironment;
   });
 
   const [primeira, segunda] = await Promise.all([
@@ -205,4 +262,41 @@ test('duas requisições simultâneas reutilizam a primeira preferência persist
   assert.equal(estado.updates, 1);
   assert.equal(primeira.body.preferenceId, segunda.body.preferenceId);
   assert.equal(estado.pedido.mp_preference_id, primeira.body.preferenceId);
+});
+
+test('ambiente Mercado Pago inválido falha antes de abrir conexão ou chamar o SDK', async (t) => {
+  const originalQuery = db.query;
+  const originalGetConnection = db.getConnection;
+  const originalCreate = Preference.prototype.create;
+  const originalEnvironment = process.env.MP_ENVIRONMENT;
+  const app = express();
+  app.use('/pagamentos', pagamentosRoutes);
+  const token = jwt.sign({ id: 1, tipo: 'cliente' }, process.env.JWT_SECRET);
+  let abriuConexao = false;
+  let chamouSdk = false;
+
+  process.env.MP_ENVIRONMENT = 'invalido';
+  db.query = async () => [[{ id: 1, nome: 'Cliente Teste', email: 'cliente@test.local', tipo: 'cliente', ativo: 1 }]];
+  db.getConnection = async () => {
+    abriuConexao = true;
+    throw new Error('não deveria abrir conexão');
+  };
+  Preference.prototype.create = async () => {
+    chamouSdk = true;
+    throw new Error('não deveria chamar SDK');
+  };
+  t.after(() => {
+    db.query = originalQuery;
+    db.getConnection = originalGetConnection;
+    Preference.prototype.create = originalCreate;
+    if (originalEnvironment === undefined) delete process.env.MP_ENVIRONMENT;
+    else process.env.MP_ENVIRONMENT = originalEnvironment;
+  });
+
+  const result = await requisicao(app, '/pagamentos/mercado-pago/preferencia/100', token);
+
+  assert.equal(result.status, 500);
+  assert.deepEqual(result.body, { erro: 'Configuração de pagamento indisponível' });
+  assert.equal(abriuConexao, false);
+  assert.equal(chamouSdk, false);
 });
