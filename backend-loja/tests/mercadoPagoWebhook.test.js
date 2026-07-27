@@ -8,7 +8,26 @@ process.env.MERCADO_PAGO_ACCESS_TOKEN ||= 'TEST-token';
 process.env.MERCADO_PAGO_WEBHOOK_SECRET ||= 'test-webhook-secret';
 
 const { default: db } = await import('../src/config/database.js');
-const { default: router, aplicarResultadoPagamentoMercadoPago } = await import('../src/routes/pagamentos.js');
+const { default: router, aplicarResultadoPagamentoMercadoPago, resumirErroWebhook } = await import('../src/routes/pagamentos.js');
+
+test('resumo de falha IPN registra diagnóstico sem vazar segredo ou assinatura', () => {
+  const error = new Error('falha com access_token=segredo');
+  error.code = 'ECONNRESET';
+  error.status = 502;
+  error.cause = new Error('secret=nao-expor');
+  const resumo = resumirErroWebhook(error, { formato: 'legado', recursoId: '168590757445' });
+  assert.deepEqual({
+    formato: resumo.formato,
+    paymentId: resumo.paymentId,
+    name: resumo.name,
+    code: resumo.code,
+    status: resumo.status,
+  }, {
+    formato: 'legado', paymentId: '168590757445', name: 'Error', code: 'ECONNRESET', status: 502,
+  });
+  assert.equal(resumo.message, '[REDACTED]');
+  assert.equal(resumo.cause, '[REDACTED]');
+});
 
 async function post(app, body, headers = {}, query = '?data.id=77') {
   const server = await new Promise((resolve) => { const s = app.listen(0, '127.0.0.1', () => resolve(s)); });
