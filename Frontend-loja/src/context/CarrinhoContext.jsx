@@ -1,5 +1,6 @@
 import { createContext, useState, useEffect } from 'react';
 import { normalizarCaminhoImagem } from '../utils/imagem.js';
+import { obterDadosPrecoCarrinho } from '../utils/precoPromocional.js';
 
 export const CarrinhoContext = createContext();
 
@@ -62,6 +63,7 @@ export function CarrinhoProvider({ children }) {
 
     const estoque = Number(variacao.estoque ?? 0);
     const preco = Number(variacao.preco ?? 0);
+    const dadosPreco = obterDadosPrecoCarrinho(variacao);
 
     if (estoque <= 0) return alert('Sem estoque');
 
@@ -80,7 +82,7 @@ export function CarrinhoProvider({ children }) {
               return item;
             }
 
-            return { ...item, quantidade: novaQtd };
+            return { ...item, ...dadosPreco, quantidade: novaQtd };
           }
           return item;
         });
@@ -94,6 +96,7 @@ export function CarrinhoProvider({ children }) {
           nome: produto.nome,
           imagem: normalizarCaminhoImagem(produto.imagem_principal),
           preco,
+          ...dadosPreco,
           quantidade: Number(variacao.quantidade ?? 1),
           estoque,
           tamanho: variacao.tamanho,
@@ -193,7 +196,13 @@ export function CarrinhoProvider({ children }) {
           variacao_id: variacaoId,
           nome: item.nome,
           imagem: normalizarCaminhoImagem(item.imagem_principal),
-          preco: Number(item.preco_atual ?? item.preco ?? 0),
+          preco: Number.isFinite(Number(item.preco_atual ?? item.preco))
+            ? Number(item.preco_atual ?? item.preco)
+            : 0,
+          ...obterDadosPrecoCarrinho({
+            preco: item.preco_normal ?? item.preco_atual ?? item.preco,
+            preco_promocional: item.preco_promocional,
+          }),
           quantidade: quantidadeParaRestaurar,
           estoque,
           tamanho: item.tamanho,
