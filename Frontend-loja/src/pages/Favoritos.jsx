@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import api from '../services/api';
 import ImagemProduto from '../components/ImagemProduto.jsx';
+import ProductPrice from '../components/ProductPrice.jsx';
 import './Favoritos.css';
 
 export default function Favoritos() {
@@ -91,9 +92,7 @@ export default function Favoritos() {
             <div className="info">
               <h3>{item.nome}</h3>
 
-              <strong>
-                R$ {Number(item.variacoes?.[0]?.preco || item.preco_base || 0).toFixed(2)}
-              </strong>
+              <ProductPrice variacao={item.variacoes?.[0]} preco={item.preco_base ?? item.preco} />
             </div>
 
             <div className="acoes">
