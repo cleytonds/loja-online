@@ -4,7 +4,9 @@ import { FiTrash2 } from 'react-icons/fi';
 import { CarrinhoContext } from '../context/CarrinhoContext';
 import api from '../services/api';
 import ImagemProduto from '../components/ImagemProduto.jsx';
+import ProductPrice from '../components/ProductPrice.jsx';
 import { getErrorMessage } from '../utils/frontendState.js';
+import { obterPrecoEfetivoCarrinho } from '../utils/precoPromocional.js';
 import BotaoAtendimentoWhatsApp from '../components/BotaoAtendimentoWhatsApp.jsx';
 import {
   iniciarCheckoutMercadoPago,
@@ -29,10 +31,10 @@ export default function Carrinho() {
     if (carrinho.length) setCheckoutPendente(recuperarTentativaCheckout());
   }, [carrinho]);
 
-  const formatarPreco = (valor) => new Intl.NumberFormat('pt-BR', {
-    style: 'currency', currency: 'BRL',
-  }).format(Number(valor || 0));
-  const total = carrinho.reduce((acc, item) => acc + Number(item.preco || 0) * Number(item.quantidade || 0), 0);
+  const total = carrinho.reduce(
+    (acc, item) => acc + obterPrecoEfetivoCarrinho(item) * (Number(item.quantidade) || 0),
+    0,
+  );
 
   async function finalizarCompra() {
     if (finalizando || checkoutEmAndamento.current) return;
@@ -80,28 +82,45 @@ export default function Carrinho() {
       <h1 className="carrinho-titulo">Carrinho de compras</h1>
       <div className="carrinho-layout">
         <div className="lista-carrinho">
-          {carrinho.map((item) => (
-            <div className="carrinho-item" key={item.variacao_id}>
-              <div className="item-info">
-                <ImagemProduto url={item.imagem} alt={item.nome} />
-                <div className="item-detalhes"><h2>{item.nome}</h2><p>{item.tamanho} • {item.cor}</p><strong className="item-preco-unitario">{formatarPreco(item.preco)}</strong></div>
+          {carrinho.map((item) => {
+            const precoEfetivo = obterPrecoEfetivoCarrinho(item);
+
+            return (
+              <div className="carrinho-item" key={item.variacao_id}>
+                <div className="item-info">
+                  <ImagemProduto url={item.imagem} alt={item.nome} />
+                  <div className="item-detalhes">
+                    <h2>{item.nome}</h2>
+                    <p>{item.tamanho} • {item.cor}</p>
+                    <ProductPrice
+                      className="item-preco-unitario"
+                      variacao={{
+                        preco: item.preco_normal ?? item.preco,
+                        preco_promocional: item.preco_promocional,
+                      }}
+                    />
+                  </div>
+                </div>
+                <div className="item-quantidade" aria-label={`Quantidade de ${item.nome}`}>
+                  <button type="button" onClick={() => diminuirQuantidade(item.variacao_id)} aria-label="Diminuir quantidade">−</button>
+                  <span>{item.quantidade}</span>
+                  <button type="button" onClick={() => aumentarQuantidade(item.variacao_id)} aria-label="Aumentar quantidade">+</button>
+                </div>
+                <div className="item-acoes">
+                  <ProductPrice preco={precoEfetivo * (Number(item.quantidade) || 0)} />
+                  <button type="button" onClick={() => removerDoCarrinho(item.variacao_id)}>
+                    <FiTrash2 aria-hidden="true" />
+                    Remover
+                  </button>
+                </div>
               </div>
-              <div className="item-quantidade" aria-label={`Quantidade de ${item.nome}`}>
-                <button type="button" onClick={() => diminuirQuantidade(item.variacao_id)} aria-label="Diminuir quantidade">−</button>
-                <span>{item.quantidade}</span>
-                <button type="button" onClick={() => aumentarQuantidade(item.variacao_id)} aria-label="Aumentar quantidade">+</button>
-              </div>
-              <div className="item-acoes">
-                <strong>{formatarPreco(item.preco * item.quantidade)}</strong>
-                <button type="button" onClick={() => removerDoCarrinho(item.variacao_id)}><FiTrash2 aria-hidden="true" />Remover</button>
-              </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
         <aside className="carrinho-resumo">
           <h2>Resumo do pedido</h2>
-          <div className="resumo-linha"><span>Subtotal</span><span>{formatarPreco(total)}</span></div>
-          <div className="resumo-linha resumo-total"><span>Total</span><span>{formatarPreco(total)}</span></div>
+          <div className="resumo-linha"><span>Subtotal</span><ProductPrice preco={total} /></div>
+          <div className="resumo-linha resumo-total"><span>Total</span><ProductPrice preco={total} /></div>
           <button className="btn-finalizar" disabled={finalizando} onClick={finalizarCompra}>
             {finalizando ? 'Preparando pagamento...' : checkoutPendente?.pedidoId ? 'Continuar pagamento' : 'Pagar com PIX ou cartão'}
           </button>
