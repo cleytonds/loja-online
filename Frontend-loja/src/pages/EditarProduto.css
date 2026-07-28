@@ -70,7 +70,7 @@ border-radius:12px;
 .variacao-box{
 
 display:grid;
-grid-template-columns:repeat(4,1fr);
+grid-template-columns:repeat(5,1fr);
 
 gap:10px;
 
@@ -105,5 +105,32 @@ background:#111;
 color:white;
 
 font-size:18px;
+
+}
+
+.variacao-status{
+
+display:flex;
+align-items:center;
+justify-content:space-between;
+gap:8px;
+font-size:0.9rem;
+
+}
+
+.variacao-status.ativa span{ color:#15803d; }
+.variacao-status.inativa span{ color:#b91c1c; }
+
+.variacao-status button{
+
+padding:8px 10px;
+font-size:0.85rem;
+
+}
+
+@media (max-width:760px){
+
+  .variacao-box{ grid-template-columns:repeat(2,1fr); }
+  .variacao-status{ grid-column:1 / -1; }
 
 }

@@ -3,6 +3,10 @@ import { useParams, useNavigate } from 'react-router-dom';
 
 import api from '../services/api';
 import { montarUrlImagem } from '../utils/imagem.js';
+import {
+  normalizarVariacaoParaEdicao,
+  validarPrecoPromocionalVariacao,
+} from '../utils/variacoesAdmin.js';
 import './EditarProduto.css';
 
 export default function EditarProduto() {
@@ -21,6 +25,7 @@ export default function EditarProduto() {
   const [variacoes, setVariacoes] = useState([]);
 
   const [imagens, setImagens] = useState([]);
+  const [atualizandoVariacaoId, setAtualizandoVariacaoId] = useState(null);
 
   // Carregamento inicial
 
@@ -33,7 +38,7 @@ export default function EditarProduto() {
 
   async function carregarProduto() {
     try {
-      const res = await api.get(`/produtos/${id}`);
+      const res = await api.get(`/produtos/admin/${id}`);
 
       const p = res.data;
 
@@ -44,7 +49,7 @@ export default function EditarProduto() {
       setDescricao(p.descricao);
       setCategoria(p.categoria_id);
 
-      setVariacoes(p.variacoes || []);
+      setVariacoes((p.variacoes || []).map(normalizarVariacaoParaEdicao));
     } catch (err) {
       console.log(err);
     }
@@ -81,7 +86,9 @@ export default function EditarProduto() {
         tamanho: '',
         cor: '',
         preco: '',
+        preco_promocional: '',
         estoque: '',
+        ativo: true,
       },
     ]);
   }
@@ -96,6 +103,14 @@ export default function EditarProduto() {
 
   async function salvar(e) {
     e.preventDefault();
+
+    const erroPromocao = variacoes
+      .map((variacao) => validarPrecoPromocionalVariacao(variacao.preco, variacao.preco_promocional))
+      .find(Boolean);
+    if (erroPromocao) {
+      alert(erroPromocao);
+      return;
+    }
 
     const formData = new FormData();
 
@@ -126,6 +141,26 @@ export default function EditarProduto() {
       console.log('ERRO COMPLETO:', err.response?.data || err);
 
       alert(err.response?.data?.error || 'Erro ao atualizar produto');
+    }
+  }
+
+  async function alterarStatusVariacao(variacao) {
+    if (!variacao?.id || atualizandoVariacaoId === variacao.id) return;
+
+    try {
+      setAtualizandoVariacaoId(variacao.id);
+      const proximoAtivo = !variacao.ativo;
+      const res = await api.patch(`/produtos/${id}/variacoes/${variacao.id}/status`, { ativo: proximoAtivo });
+
+      setVariacoes((atuais) => atuais.map((item) => (
+        Number(item.id) === Number(variacao.id)
+          ? { ...item, ativo: Boolean(res.data?.ativo), estoque: res.data?.estoque ?? item.estoque }
+          : item
+      )));
+    } catch (err) {
+      alert(err.response?.data?.erro || 'Não foi possível atualizar o status da variação.');
+    } finally {
+      setAtualizandoVariacaoId(null);
     }
   }
 
@@ -197,10 +232,34 @@ export default function EditarProduto() {
 
             <input
               type="number"
+              min="0"
+              step="0.01"
+              placeholder="Preço promocional (opcional)"
+              value={v.preco_promocional ?? ''}
+              onChange={(e) => alterarVariacao(index, 'preco_promocional', e.target.value)}
+            />
+
+            <input
+              type="number"
               placeholder="Estoque"
               value={v.estoque}
               onChange={(e) => alterarVariacao(index, 'estoque', e.target.value)}
             />
+
+            <div className={`variacao-status ${v.ativo ? 'ativa' : 'inativa'}`}>
+              <span>{v.ativo ? '🟢 Ativa' : '🔴 Inativa'}</span>
+              {v.id ? (
+                <button
+                  type="button"
+                  onClick={() => alterarStatusVariacao(v)}
+                  disabled={atualizandoVariacaoId === v.id}
+                >
+                  {atualizandoVariacaoId === v.id
+                    ? 'Atualizando...'
+                    : v.ativo ? 'Inativar' : 'Reativar'}
+                </button>
+              ) : null}
+            </div>
           </div>
         ))}
 
