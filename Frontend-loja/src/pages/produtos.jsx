@@ -8,6 +8,7 @@ import { useNavigate, useLocation } from 'react-router-dom';
 
 import api from '../services/api';
 import ImagemProduto from '../components/ImagemProduto.jsx';
+import ProductPrice from '../components/ProductPrice.jsx';
 
 import { CarrinhoContext } from '../context/CarrinhoContext';
 
@@ -247,7 +248,10 @@ function Produtos() {
               <h3>{produto.nome}</h3>
 
               <div className="preco-area">
-                <strong>R$ {produto.variacoes?.[0]?.preco || produto.preco || 0}</strong>
+                <ProductPrice
+                  variacao={produto.variacoes?.[0]}
+                  preco={produto.preco_base ?? produto.preco}
+                />
               </div>
 
               <div className="produto-acoes">

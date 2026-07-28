@@ -6,6 +6,7 @@ import { useEffect, useState } from 'react';
 
 import api from '../services/api';
 import ImagemProduto from '../components/ImagemProduto.jsx';
+import ProductPrice from '../components/ProductPrice.jsx';
 
 const BANNERS = [
   {
@@ -26,11 +27,15 @@ const BANNERS = [
 ];
 
 function ProdutoCard({ produto }) {
+  const variacao = produto.variacoes?.[0];
+
   return (
     <Link className="card-produto" to={`/produto/${produto.id}`}>
       <ImagemProduto url={produto.imagem_principal} alt={produto.nome} />
 
       <h3>{produto.nome}</h3>
+
+      <ProductPrice variacao={variacao} preco={produto.preco_base ?? produto.preco} />
 
       <span>Ver produto</span>
     </Link>
