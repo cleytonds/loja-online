@@ -98,6 +98,7 @@ test('inativação preserva estoque e não emite DELETE físico', async () => {
     const update = queries.find(({ sql }) => sql.startsWith('UPDATE produto_variacoes'));
     assert.match(update.sql, /SET ativo = \?/);
     assert.doesNotMatch(update.sql, /estoque\s*=/i);
+    assert.doesNotMatch(update.sql, /preco_promocional\s*=/i);
     assert.equal(update.params[0], 0);
   });
 
@@ -118,6 +119,7 @@ test('reativação altera somente ativo e mantém estoque existente', async () =
     const update = queries.find(({ sql }) => sql.startsWith('UPDATE produto_variacoes'));
     assert.equal(update.params[0], 1);
     assert.doesNotMatch(update.sql, /estoque\s*=/i);
+    assert.doesNotMatch(update.sql, /preco_promocional\s*=/i);
   });
 
   assert.equal(res.statusCode, 200);
@@ -180,6 +182,10 @@ test('bloqueia inativação da última variação ativa', async () => {
   });
 
   assert.equal(res.statusCode, 409);
+  assert.equal(
+    res.body.erro,
+    'Este produto precisa possuir pelo menos uma variação ativa. Ative outra variação antes de inativar esta.',
+  );
 });
 
 test('catálogo público consulta somente variações ativas', async () => {

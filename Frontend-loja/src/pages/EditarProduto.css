@@ -128,6 +128,35 @@ font-size:0.85rem;
 
 }
 
+.variacao-remover{
+
+background:#fee2e2;
+color:#b91c1c;
+
+}
+
+.variacao-feedback{
+
+margin:0 0 12px;
+padding:10px 12px;
+border-radius:8px;
+
+}
+
+.variacao-feedback--sucesso{
+
+background:#dcfce7;
+color:#166534;
+
+}
+
+.variacao-feedback--erro{
+
+background:#fee2e2;
+color:#b91c1c;
+
+}
+
 @media (max-width:760px){
 
   .variacao-box{ grid-template-columns:repeat(2,1fr); }

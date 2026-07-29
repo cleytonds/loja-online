@@ -1,4 +1,4 @@
-import { obterPrecoParaExibicao } from '../utils/precoPromocional.js';
+import { obterClassesPreco, obterPrecoParaExibicao } from '../utils/precoPromocional.js';
 import './ProductPrice.css';
 
 function formatarMoeda(valor) {
@@ -10,7 +10,7 @@ function formatarMoeda(valor) {
 
 export default function ProductPrice({ variacao, preco, className = '' }) {
   const exibicao = obterPrecoParaExibicao({ variacao, preco });
-  const classes = `product-price${exibicao.temPromocao ? ' product-price--promotion' : ''}${className ? ` ${className}` : ''}`;
+  const classes = obterClassesPreco(exibicao, className);
 
   if (!exibicao.temPromocao) {
     return <span className={classes}>{formatarMoeda(exibicao.precoEfetivo)}</span>;

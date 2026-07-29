@@ -33,6 +33,13 @@ export function obterPrecoParaExibicao({ variacao, preco } = {}) {
   };
 }
 
+export function obterClassesPreco(exibicao, className = '') {
+  const classes = ['product-price'];
+  if (exibicao?.temPromocao) classes.push('product-price--promotion');
+  if (className) classes.push(className);
+  return classes.join(' ');
+}
+
 export function obterDadosPrecoCarrinho(variacao) {
   const exibicao = obterPrecoParaExibicao({ variacao });
 
