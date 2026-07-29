@@ -3,8 +3,12 @@
   align-items: baseline;
   flex-wrap: wrap;
   gap: 0.5rem;
-  color: var(--primary-dark, #b4536a);
+  color: var(--gold-dark, #b88a1d);
   font-weight: 700;
+}
+
+.product-price--promotion {
+  color: var(--primary-dark, #b4536a);
 }
 
 .product-price__normal {

@@ -395,7 +395,9 @@ router.put('/:id', verificarToken, isAdmin, uploadProduto.array('imagens'), vali
 
     if (ativasRestantes < 1) {
       await connection.rollback();
-      return res.status(409).json({ erro: 'O produto precisa manter ao menos uma variação ativa' });
+      return res.status(409).json({
+        erro: 'Este produto precisa possuir pelo menos uma variação ativa. Ative outra variação antes de inativar esta.',
+      });
     }
 
     for (const variacao of plan.updates) {
@@ -537,7 +539,9 @@ router.patch('/:produtoId/variacoes/:variacaoId/status', verificarToken, isAdmin
     const totalAtivas = variacoes.filter((item) => Number(item.ativo) === 1).length;
     if (!ativo && estaAtiva && totalAtivas <= 1) {
       await connection.rollback();
-      return res.status(409).json({ erro: 'O produto precisa manter ao menos uma variação ativa' });
+      return res.status(409).json({
+        erro: 'Este produto precisa possuir pelo menos uma variação ativa. Ative outra variação antes de inativar esta.',
+      });
     }
 
     await connection.query(

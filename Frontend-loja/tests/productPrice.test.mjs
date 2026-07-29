@@ -1,8 +1,10 @@
 import assert from 'node:assert/strict';
+import fs from 'node:fs';
 import test from 'node:test';
 
 import {
   obterDadosPrecoCarrinho,
+  obterClassesPreco,
   obterPrecoEfetivoCarrinho,
   obterPrecoParaExibicao,
   promocaoValida,
@@ -86,4 +88,38 @@ test('mantém no carrinho os metadados necessários para a apresentação promoc
     obterDadosPrecoCarrinho({ preco: 104.9, preco_promocional: 59.9 }),
     { preco_normal: 104.9, preco_promocional: 59.9, preco_efetivo: 59.9 },
   );
+});
+
+test('contrato visual mantém preços promocionais lado a lado, com normal riscado e promocional destacado', () => {
+  const css = fs.readFileSync(new URL('../src/components/ProductPrice.css', import.meta.url), 'utf8');
+
+  assert.match(css, /\.product-price\s*\{[\s\S]*display:\s*inline-flex/);
+  assert.match(css, /\.product-price\s*\{[\s\S]*align-items:\s*baseline/);
+  assert.match(css, /\.product-price__normal\s*\{[\s\S]*text-decoration:\s*line-through/);
+  assert.match(css, /\.product-price__promotional\s*\{[\s\S]*font-size:\s*1\.14em/);
+  assert.match(css, /\.product-price\s*\{[\s\S]*color:\s*var\(--gold-dark/);
+  assert.match(css, /\.product-price--promotion\s*\{[\s\S]*color:\s*var\(--primary-dark/);
+});
+
+test('preco sem promocao usa somente a classe normal para null, vazio e valores invalidos', () => {
+  for (const precoPromocional of [null, '', undefined, 0, 'invalido']) {
+    const exibicao = obterPrecoParaExibicao({ variacao: { preco: 60, preco_promocional: precoPromocional } });
+    assert.equal(exibicao.temPromocao, false);
+    assert.equal(obterClassesPreco(exibicao), 'product-price');
+    assert.doesNotMatch(obterClassesPreco(exibicao), /product-price--promotion/);
+  }
+});
+
+test('preco promocional valido aplica classe promocional para os dois valores lado a lado', () => {
+  const exibicao = obterPrecoParaExibicao({ variacao: { preco: 100, preco_promocional: 95 } });
+  assert.equal(obterClassesPreco(exibicao), 'product-price product-price--promotion');
+});
+
+test('Home não importa nem renderiza ProductPrice, enquanto Produtos continua usando o componente', () => {
+  const home = fs.readFileSync(new URL('../src/pages/Home.jsx', import.meta.url), 'utf8');
+  const produtos = fs.readFileSync(new URL('../src/pages/produtos.jsx', import.meta.url), 'utf8');
+
+  assert.doesNotMatch(home, /ProductPrice/);
+  assert.doesNotMatch(home, /preco_base|produto\.preco/);
+  assert.match(produtos, /ProductPrice/);
 });
