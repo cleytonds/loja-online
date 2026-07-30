@@ -9,7 +9,6 @@ import {
   obterPrecoParaExibicao,
   promocaoValida,
 } from '../src/utils/precoPromocional.js';
-import { iniciarCheckoutMercadoPago } from '../src/utils/mercadoPagoCheckout.js';
 
 test('reconhece somente promoções maiores que zero e menores que o preço normal', () => {
   assert.equal(promocaoValida(104.9, 59.9), true);
@@ -42,31 +41,21 @@ test('reagrupa variacao preservando preco legado e atualizando metadados visuais
   );
 });
 
-test('checkout mantem contrato legado sem metadados visuais', async () => {
-  const chamadas = [];
-  const dados = new Map();
-  const storage = {
-    getItem: (key) => dados.get(key) || null,
-    setItem: (key, value) => dados.set(key, String(value)),
-    removeItem: (key) => dados.delete(key),
-  };
-  const apiClient = {
-    post: async (url, body) => {
-      chamadas.push({ url, body });
-      return url === '/pedidos'
-        ? { data: { pedido_id: 77 } }
-        : { data: { checkoutUrl: 'https://www.mercadopago.com.br/checkout/v1/redirect?pref_id=abc' } };
-    },
-  };
+test('Carrinho usa preços efetivos e preserva o checkout direto atual', () => {
+  const carrinho = fs.readFileSync(new URL('../src/pages/Carrinho.jsx', import.meta.url), 'utf8');
 
-  await iniciarCheckoutMercadoPago({
-    apiClient,
-    carrinho: [{ produto_id: 1, variacao_id: 2, quantidade: 3, preco: 104.9, preco_normal: 104.9, preco_promocional: 59.9, preco_efetivo: 59.9 }],
-    storage,
-    redirect: () => {},
-  });
+  assert.match(carrinho, /import ProductPrice from ['"]\.\.\/components\/ProductPrice\.jsx['"];?/);
+  assert.match(carrinho, /import \{ obterPrecoEfetivoCarrinho \} from ['"]\.\.\/utils\/precoPromocional\.js['"];?/);
+  assert.match(carrinho, /obterPrecoEfetivoCarrinho\(item\) \* \(Number\(item\.quantidade\) \|\| 0\)/);
+  assert.match(carrinho, /<ProductPrice\s+className="item-preco-unitario"[\s\S]*preco: item\.preco_normal \?\? item\.preco,[\s\S]*preco_promocional: item\.preco_promocional,/);
+  assert.match(carrinho, /<ProductPrice preco=\{precoEfetivo \* \(Number\(item\.quantidade\) \|\| 0\)\} \/>/);
+  assert.match(carrinho, /<span>Subtotal<\/span>\s*<ProductPrice preco=\{total\} \/>/);
+  assert.match(carrinho, /<span>Total<\/span>\s*<ProductPrice preco=\{total\} \/>/);
 
-  assert.deepEqual(chamadas[0].body.itens, [{ produto_id: 1, variacao_id: 2, quantidade: 3, preco: 104.9 }]);
+  assert.match(carrinho, /api\.post\(\s*['"]\/pedidos['"]/);
+  assert.match(carrinho, /\/pagamentos\/mercado-pago\/preferencia\/\$\{pedidoId\}/);
+  assert.match(carrinho, /limparCarrinho\(\);\s*window\.location\.assign\(checkoutUrl\);/);
+  assert.doesNotMatch(carrinho, /mercadoPagoCheckout|iniciarCheckoutMercadoPago|recuperarTentativaCheckout|checkoutPendente|checkoutEmAndamento/);
 });
 
 test('retorna preço normal isolado quando não existe promoção válida', () => {
