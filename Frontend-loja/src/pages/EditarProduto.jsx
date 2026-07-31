@@ -3,6 +3,16 @@ import { useParams, useNavigate } from 'react-router-dom';
 
 import api from '../services/api';
 import { montarUrlImagem } from '../utils/imagem.js';
+import {
+  atualizarStatusVariacaoLocal,
+  normalizarVariacaoParaEdicao,
+  obterMensagemErroStatusVariacao,
+  removerVariacaoNova,
+  rotuloAcaoStatusVariacao,
+  solicitarAtualizacaoStatusVariacao,
+  validarPrecoPromocionalVariacao,
+  variacaoEhPersistida,
+} from '../utils/variacoesAdmin.js';
 import './EditarProduto.css';
 
 export default function EditarProduto() {
@@ -21,6 +31,8 @@ export default function EditarProduto() {
   const [variacoes, setVariacoes] = useState([]);
 
   const [imagens, setImagens] = useState([]);
+  const [atualizandoVariacaoId, setAtualizandoVariacaoId] = useState(null);
+  const [mensagemVariacao, setMensagemVariacao] = useState(null);
 
   // Carregamento inicial
 
@@ -33,7 +45,7 @@ export default function EditarProduto() {
 
   async function carregarProduto() {
     try {
-      const res = await api.get(`/produtos/${id}`);
+      const res = await api.get(`/produtos/admin/${id}`);
 
       const p = res.data;
 
@@ -44,7 +56,7 @@ export default function EditarProduto() {
       setDescricao(p.descricao);
       setCategoria(p.categoria_id);
 
-      setVariacoes(p.variacoes || []);
+      setVariacoes((p.variacoes || []).map(normalizarVariacaoParaEdicao));
     } catch (err) {
       console.log(err);
     }
@@ -81,7 +93,9 @@ export default function EditarProduto() {
         tamanho: '',
         cor: '',
         preco: '',
+        preco_promocional: '',
         estoque: '',
+        ativo: true,
       },
     ]);
   }
@@ -96,6 +110,14 @@ export default function EditarProduto() {
 
   async function salvar(e) {
     e.preventDefault();
+
+    const erroPromocao = variacoes
+      .map((variacao) => validarPrecoPromocionalVariacao(variacao.preco, variacao.preco_promocional))
+      .find(Boolean);
+    if (erroPromocao) {
+      alert(erroPromocao);
+      return;
+    }
 
     const formData = new FormData();
 
@@ -126,6 +148,53 @@ export default function EditarProduto() {
       console.log('ERRO COMPLETO:', err.response?.data || err);
 
       alert(err.response?.data?.error || 'Erro ao atualizar produto');
+    }
+  }
+
+  function removerVariacao(index) {
+    setVariacoes((atuais) => removerVariacaoNova(atuais, index));
+  }
+
+  async function alterarStatusVariacao(variacao) {
+    if (!variacaoEhPersistida(variacao) || Number(atualizandoVariacaoId) === Number(variacao.id)) return;
+
+    try {
+      setMensagemVariacao(null);
+      setAtualizandoVariacaoId(variacao.id);
+      const resultado = await solicitarAtualizacaoStatusVariacao({
+        apiClient: api,
+        produtoId: id,
+        variacao,
+        confirmarInativacao: () => window.confirm('Deseja inativar esta variação? Ela deixará de aparecer para clientes.'),
+      });
+      if (resultado.cancelada) return;
+
+      setVariacoes((atuais) => atualizarStatusVariacaoLocal(atuais, variacao.id, resultado.resposta.data));
+      setMensagemVariacao({
+        tipo: 'sucesso',
+        texto: resultado.ativo ? 'Variação ativada com sucesso.' : 'Variação inativada com sucesso.',
+      });
+    } catch (err) {
+      const status = err.response?.status;
+      const corpo = err.response?.data;
+      const url = `/produtos/${id}/variacoes/${variacao.id}/status`;
+      const ativo = !variacao.ativo;
+      if (import.meta.env.DEV) {
+        console.error('Falha ao atualizar o status da variação', {
+          status,
+          response: corpo,
+          url,
+          produtoId: id,
+          variacaoId: variacao.id,
+          ativo,
+        });
+      }
+      setMensagemVariacao({
+        tipo: 'erro',
+        texto: obterMensagemErroStatusVariacao(err),
+      });
+    } finally {
+      setAtualizandoVariacaoId(null);
     }
   }
 
@@ -174,8 +243,14 @@ export default function EditarProduto() {
 
         <h2>Variações</h2>
 
+        {mensagemVariacao ? (
+          <p className={`variacao-feedback variacao-feedback--${mensagemVariacao.tipo}`} role="status">
+            {mensagemVariacao.texto}
+          </p>
+        ) : null}
+
         {variacoes.map((v, index) => (
-          <div className="variacao-box" key={index}>
+          <div className="variacao-box" key={variacaoEhPersistida(v) ? v.id : `nova-${index}`}>
             <input
               placeholder="Tamanho"
               value={v.tamanho}
@@ -197,10 +272,38 @@ export default function EditarProduto() {
 
             <input
               type="number"
+              min="0"
+              step="0.01"
+              placeholder="Preço promocional (opcional)"
+              value={v.preco_promocional ?? ''}
+              onChange={(e) => alterarVariacao(index, 'preco_promocional', e.target.value)}
+            />
+
+            <input
+              type="number"
               placeholder="Estoque"
               value={v.estoque}
               onChange={(e) => alterarVariacao(index, 'estoque', e.target.value)}
             />
+
+            <div className={`variacao-status ${v.ativo ? 'ativa' : 'inativa'}`}>
+              <span>{v.ativo ? '🟢 Ativa' : '🔴 Inativa'}</span>
+              {variacaoEhPersistida(v) ? (
+                <button
+                  type="button"
+                  onClick={() => alterarStatusVariacao(v)}
+                  disabled={Number(atualizandoVariacaoId) === Number(v.id)}
+                >
+                  {Number(atualizandoVariacaoId) === Number(v.id)
+                    ? 'Atualizando...'
+                    : rotuloAcaoStatusVariacao(v)}
+                </button>
+              ) : (
+                <button type="button" className="variacao-remover" onClick={() => removerVariacao(index)}>
+                  Remover
+                </button>
+              )}
+            </div>
           </div>
         ))}
 

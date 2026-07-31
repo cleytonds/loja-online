@@ -4,6 +4,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import api from '../services/api';
 
 import ImagemProduto from '../components/ImagemProduto';
+import ProductPrice from '../components/ProductPrice.jsx';
 
 import { CarrinhoContext } from '../context/CarrinhoContext';
 
@@ -178,7 +179,7 @@ export default function ProdutoDetalhe() {
         <p className="descricao">{produto.descricao}</p>
 
         <h2 className="preco">
-          <span className="currency">R$</span> {variacaoAtual?.preco || produto.preco_base}
+          <ProductPrice variacao={variacaoAtual} preco={produto.preco_base} />
         </h2>
 
         <h3>Cor</h3>

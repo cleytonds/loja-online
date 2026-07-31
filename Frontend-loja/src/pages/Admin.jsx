@@ -5,6 +5,10 @@ import { useNavigate } from 'react-router-dom';
 import { FiCheckCircle, FiEye, FiRotateCcw, FiTruck } from 'react-icons/fi';
 import api from '../services/api';
 import { montarUrlImagem } from '../utils/imagem.js';
+import {
+  normalizarPrecoPromocional,
+  validarPrecoPromocionalVariacao,
+} from '../utils/variacoesAdmin.js';
 
 import {
   BarChart,
@@ -102,6 +106,7 @@ export default function Admin() {
   const [cor, setCor] = useState('');
 
   const [precoVariacao, setPrecoVariacao] = useState('');
+  const [precoPromocionalVariacao, setPrecoPromocionalVariacao] = useState('');
 
   const [estoqueVariacao, setEstoqueVariacao] = useState('');
 
@@ -286,6 +291,12 @@ export default function Admin() {
       return;
     }
 
+    const erroPromocao = validarPrecoPromocionalVariacao(precoVariacao, precoPromocionalVariacao);
+    if (erroPromocao) {
+      alert(erroPromocao);
+      return;
+    }
+
     setVariacoes([
       ...variacoes,
 
@@ -296,6 +307,8 @@ export default function Admin() {
 
         preco: Number(precoVariacao),
 
+        preco_promocional: normalizarPrecoPromocional(precoPromocionalVariacao),
+
         estoque: Number(estoqueVariacao),
       },
     ]);
@@ -303,6 +316,7 @@ export default function Admin() {
     setTamanho('');
     setCor('');
     setPrecoVariacao('');
+    setPrecoPromocionalVariacao('');
     setEstoqueVariacao('');
   }
 
@@ -672,6 +686,15 @@ export default function Admin() {
 
             <input
               type="number"
+              min="0"
+              step="0.01"
+              placeholder="Preço promocional (opcional)"
+              value={precoPromocionalVariacao}
+              onChange={(e) => setPrecoPromocionalVariacao(e.target.value)}
+            />
+
+            <input
+              type="number"
               placeholder="Estoque"
               value={estoqueVariacao}
               onChange={(e) => setEstoqueVariacao(e.target.value)}
@@ -692,6 +715,13 @@ export default function Admin() {
                 {' | R$ '}
 
                 {v.preco}
+
+                {v.preco_promocional !== null && v.preco_promocional !== undefined ? (
+                  <>
+                    {' | Promo R$ '}
+                    {v.preco_promocional}
+                  </>
+                ) : null}
 
                 {' | Estoque '}
 

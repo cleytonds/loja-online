@@ -3,6 +3,8 @@ import { CarrinhoContext } from '../context/CarrinhoContext';
 import { useNavigate } from 'react-router-dom';
 import './MiniCarrinho.css';
 import ImagemProduto from './ImagemProduto.jsx';
+import ProductPrice from './ProductPrice.jsx';
+import { obterPrecoEfetivoCarrinho } from '../utils/precoPromocional.js';
 
 export default function MiniCarrinho() {
   const {
@@ -18,7 +20,7 @@ export default function MiniCarrinho() {
 
   // 🔥 TOTAL SEGURO
   const total = carrinho.reduce((acc, item) => {
-    const preco = Number(item.preco) || 0;
+    const preco = obterPrecoEfetivoCarrinho(item);
     const quantidade = Number(item.quantidade) || 0;
     return acc + preco * quantidade;
   }, 0);
@@ -50,7 +52,7 @@ export default function MiniCarrinho() {
             const id = item.variacao_id;
             const nome = item.nome;
 
-            const preco = Number(item.preco) || 0;
+            const preco = obterPrecoEfetivoCarrinho(item);
             const quantidade = Number(item.quantidade) || 0;
             const estoque = Number(
               item.estoque ?? item.variacao?.estoque ?? item.produto?.estoque ?? 0,
@@ -71,7 +73,7 @@ export default function MiniCarrinho() {
                     {item.tamanho || 'Sem tamanho'}
                   </p>
 
-                  <p className="preco">R$ {preco.toFixed(2)}</p>
+                  <ProductPrice variacao={{ preco: item.preco_normal ?? preco, preco_promocional: item.preco_promocional }} />
 
                   <small className="estoque">
                     {estoque <= 5
@@ -104,12 +106,7 @@ export default function MiniCarrinho() {
         <div className="drawer-footer">
           <div className="total">
             <span>Total</span>
-            <strong>
-              R${' '}
-              {total.toLocaleString('pt-BR', {
-                minimumFractionDigits: 2,
-              })}
-            </strong>
+            <ProductPrice preco={total} />
           </div>
 
           <button

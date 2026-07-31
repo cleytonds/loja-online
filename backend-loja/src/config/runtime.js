@@ -2,6 +2,7 @@ import fs from 'fs';
 import path from 'path';
 
 const LOCALHOST_PATTERN = /(^|\/\/)(localhost|127\.0\.0\.1)(?::\d+)?(?:\/|$)/i;
+export const CORS_METHODS = Object.freeze(['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS']);
 
 export function parseTrustProxy(value) {
   const normalized = String(value ?? '').trim().toLowerCase();

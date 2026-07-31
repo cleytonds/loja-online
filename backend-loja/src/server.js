@@ -14,7 +14,7 @@ import usuariosRoutes from './routes/usuariosRoutes.js';
 import favoritosRoutes from './routes/favoritosRoutes.js';
 import pagamentosRoutes from './routes/pagamentos.js';
 import db from './config/database.js';
-import { getUploadProductsDir, parseCorsOrigins, validateRuntimeEnvironment } from './config/runtime.js';
+import { CORS_METHODS, getUploadProductsDir, parseCorsOrigins, validateRuntimeEnvironment } from './config/runtime.js';
 import { stopOrderScheduler } from './utils/orderScheduler.js';
 import { logger } from './utils/logger.js';
 
@@ -48,7 +48,7 @@ app.use(cors({
       : callback(Object.assign(new Error('CORS origin nao autorizada'), { statusCode: 403 }));
   },
   credentials: true,
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  methods: CORS_METHODS,
   allowedHeaders: ['Content-Type', 'Authorization', 'X-Idempotency-Key', 'ngrok-skip-browser-warning'],
 }));
 

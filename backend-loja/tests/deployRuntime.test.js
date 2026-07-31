@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { buildDatabaseConfig, parseCorsOrigins, parseTrustProxy, publicApiUrl, validateMercadoPagoConfiguration, validateRuntimeEnvironment } from '../src/config/runtime.js';
+import { buildDatabaseConfig, CORS_METHODS, parseCorsOrigins, parseTrustProxy, publicApiUrl, validateMercadoPagoConfiguration, validateRuntimeEnvironment } from '../src/config/runtime.js';
 import { urlsCheckout } from '../src/routes/pagamentos.js';
 
 test('runtime normaliza trust proxy e origens CORS', () => {
@@ -9,6 +9,10 @@ test('runtime normaliza trust proxy e origens CORS', () => {
   assert.equal(parseTrustProxy('1'), 1);
   assert.throws(() => parseTrustProxy('loopback'));
   assert.deepEqual(parseCorsOrigins(' https://loja.test, https://admin.test '), ['https://loja.test', 'https://admin.test']);
+});
+
+test('CORS permite PATCH para a atualização administrativa de status de variação', () => {
+  assert.ok(CORS_METHODS.includes('PATCH'));
 });
 
 test('Mercado Pago exige ambiente explicito e webhook usa URL publica sem barras duplicadas', () => {

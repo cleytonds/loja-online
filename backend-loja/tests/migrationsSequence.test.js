@@ -11,6 +11,7 @@ const migrationNames = [
   '004_pedidos_idempotency.sql',
   '005_mercado_pago.sql',
   '006_reconciliacao_pagamentos.sql',
+  '008_precos_promocionais_variacoes.sql',
 ];
 
 function migration(name) {
@@ -71,4 +72,14 @@ test('migration de reconciliação adiciona somente metadados operacionais idemp
   assert.match(content, /DEFAULT ''nenhuma''/);
   assert.match(content, /idx_pedidos_reconciliacao_pendente/);
   assert.match(content, /ON DELETE SET NULL/);
+});
+
+test('migration de preço promocional é idempotente e somente aditiva', () => {
+  const content = migration('008_precos_promocionais_variacoes.sql');
+  assert.match(content, /TABLE_NAME = 'produto_variacoes'/);
+  assert.match(content, /COLUMN_NAME = 'preco_promocional'/);
+  assert.match(content, /DECIMAL\(10,2\) NULL/);
+  assert.match(content, /@has_promotional_price = 0/);
+  assert.match(content, /PREPARE\s+migration_statement/i);
+  assert.doesNotMatch(content.replace(/^--.*$/gm, ''), /\b(UPDATE|INSERT|DELETE|DROP|TRUNCATE)\b/i);
 });

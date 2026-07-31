@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import api from "../services/api";
 import ImagemProduto from '../components/ImagemProduto.jsx';
+import ProductPrice from '../components/ProductPrice.jsx';
 import "./Busca.css";
 
 export default function Busca() {
@@ -66,7 +67,7 @@ export default function Busca() {
             <div key={p.id} className="produto-card">
               <ImagemProduto url={p.imagem} alt={p.nome} />
               <h3>{p.nome}</h3>
-              <p>R$ {Number(p.preco).toFixed(2)}</p>
+              <ProductPrice variacao={p.variacoes?.[0]} preco={p.preco_base ?? p.preco} />
               <p className="categoria">{p.categoria_nome}</p>
             </div>
           ))}
