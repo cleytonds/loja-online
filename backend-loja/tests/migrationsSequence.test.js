@@ -12,6 +12,7 @@ const migrationNames = [
   '005_mercado_pago.sql',
   '006_reconciliacao_pagamentos.sql',
   '008_precos_promocionais_variacoes.sql',
+  '009_auth_sessions.sql',
 ];
 
 function migration(name) {
