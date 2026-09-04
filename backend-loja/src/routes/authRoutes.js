@@ -4,13 +4,48 @@
 import express from 'express';
 import db from '../config/database.js';
 import bcrypt from 'bcryptjs';
-import jwt from 'jsonwebtoken';
 import crypto from 'crypto';
 import { enviarEmail } from '../utils/email.js';
 import { verificarToken } from '../middlewares/auth.js';
 import { normalizarCelularBrasileiro } from '../utils/celular.js';
+import { gerarAccessToken } from '../utils/authToken.js';
+import { definirRefreshCookie, lerRefreshCookie, limparRefreshCookie } from '../utils/authCookie.js';
+import {
+  buscarSessaoPorHash,
+  criarSessaoRefresh,
+  hashRefreshToken,
+  refreshSessionsEnabled,
+  revogarFamilia,
+  revogarSessao,
+  rotacionarSessaoRefresh,
+  sessaoExpirada,
+  sessaoRotacionadaNaJanelaDeTolerancia,
+} from '../services/authSessionService.js';
 
 const router = express.Router();
+
+function usuarioPublico(usuario) {
+  return {
+    id: usuario.id,
+    nome: usuario.nome,
+    email: usuario.email,
+    tipo: usuario.tipo,
+    ativo: usuario.ativo,
+  };
+}
+
+function usuarioPodeRenovar(usuario) {
+  return Number(usuario?.ativo) === 1 && ['admin', 'cliente'].includes(usuario?.tipo);
+}
+
+function respostaRefreshInvalido(res) {
+  limparRefreshCookie(res);
+  return res.status(401).json({ error: 'Sessao invalida ou expirada' });
+}
+
+function respostaRefreshConflito(res) {
+  return res.status(409).json({ error: 'Sessao em atualizacao', code: 'AUTH_REFRESH_CONFLICT' });
+}
 
 // =========================
 //  CADASTRO DE USUÁRIO
@@ -145,20 +180,16 @@ router.post('/login', async (req, res) => {
       return res.status(401).json({ error: 'Email ou senha inválidos' });
     }
 
-    // gera token
-    const token = jwt.sign({ id: usuario.id, tipo: usuario.tipo }, process.env.JWT_SECRET, {
-      expiresIn: '1d',
-    });
+    const token = gerarAccessToken(usuario);
+
+    if (refreshSessionsEnabled()) {
+      const sessao = await criarSessaoRefresh({ usuarioId: usuario.id });
+      definirRefreshCookie(res, sessao.token);
+    }
 
     return res.json({
       token,
-      usuario: {
-        id: usuario.id,
-        nome: usuario.nome,
-        email: usuario.email,
-        tipo: usuario.tipo,
-        ativo: usuario.ativo,
-      },
+      usuario: usuarioPublico(usuario),
     });
   } catch (err) {
     console.error(' ERRO NO LOGIN:', err);
@@ -281,6 +312,131 @@ router.post('/reenviar-codigo', async (req, res) => {
     return res.status(503).json({
       error: 'Não foi possível enviar o código de confirmação. Tente novamente em alguns instantes.',
     });
+  }
+});
+
+router.post('/refresh', async (req, res) => {
+  if (!refreshSessionsEnabled()) return respostaRefreshInvalido(res);
+
+  const refreshToken = lerRefreshCookie(req.headers.cookie);
+  if (!refreshToken) return respostaRefreshInvalido(res);
+
+  let connection;
+  let transactionStarted = false;
+  let transactionFinished = false;
+  try {
+    connection = await db.getConnection();
+    await connection.beginTransaction();
+    transactionStarted = true;
+    const sessao = await buscarSessaoPorHash(hashRefreshToken(refreshToken), { connection, forUpdate: true });
+
+    if (!sessao) {
+      await connection.commit();
+      transactionFinished = true;
+      return respostaRefreshInvalido(res);
+    }
+
+    if (sessao.revoked_at) {
+      if (sessaoRotacionadaNaJanelaDeTolerancia(sessao)) {
+        await connection.commit();
+        transactionFinished = true;
+        return respostaRefreshConflito(res);
+      }
+      if (sessao.replaced_by_session_id) await revogarFamilia(sessao.family_id, { connection });
+      await connection.commit();
+      transactionFinished = true;
+      return respostaRefreshInvalido(res);
+    }
+
+    if (sessaoExpirada(sessao) || !usuarioPodeRenovar(sessao)) {
+      await revogarFamilia(sessao.family_id, { connection });
+      await connection.commit();
+      transactionFinished = true;
+      return respostaRefreshInvalido(res);
+    }
+
+    const novaSessao = await rotacionarSessaoRefresh(sessao, { connection });
+    const token = gerarAccessToken(sessao);
+    await connection.commit();
+    transactionFinished = true;
+    definirRefreshCookie(res, novaSessao.token);
+    return res.json({ token, usuario: usuarioPublico(sessao) });
+  } catch (err) {
+    if (connection && transactionStarted && !transactionFinished) {
+      try {
+        await connection.rollback();
+        transactionFinished = true;
+      } catch (rollbackError) {
+        console.error('ERRO ROLLBACK REFRESH:', rollbackError?.message);
+      }
+    }
+    console.error('ERRO REFRESH:', err?.message);
+    return res.status(500).json({ error: 'Erro ao atualizar sessao' });
+  } finally {
+    connection?.release();
+  }
+});
+
+router.post('/logout', async (req, res) => {
+  const refreshToken = lerRefreshCookie(req.headers.cookie);
+  try {
+    if (refreshSessionsEnabled() && refreshToken) {
+      const sessao = await buscarSessaoPorHash(hashRefreshToken(refreshToken));
+      if (sessao) await revogarSessao(sessao.id);
+    }
+  } catch (err) {
+    console.error('ERRO LOGOUT:', err?.message);
+  }
+
+  limparRefreshCookie(res);
+  return res.json({ mensagem: 'Logout realizado com sucesso' });
+});
+
+router.post('/session/upgrade', verificarToken, async (req, res) => {
+  if (!refreshSessionsEnabled()) return res.status(404).json({ error: 'Rota nao disponivel' });
+
+  const refreshToken = lerRefreshCookie(req.headers.cookie);
+  let connection;
+  let transactionStarted = false;
+  let transactionFinished = false;
+  try {
+    connection = await db.getConnection();
+    await connection.beginTransaction();
+    transactionStarted = true;
+    const [users] = await connection.query('SELECT id FROM usuarios WHERE id = ? FOR UPDATE', [req.user.id]);
+    if (!users.length) {
+      await connection.commit();
+      transactionFinished = true;
+      return respostaRefreshInvalido(res);
+    }
+
+    const sessaoExistente = refreshToken
+      ? await buscarSessaoPorHash(hashRefreshToken(refreshToken), { connection, forUpdate: true })
+      : null;
+    const jaPossuiSessaoValida = sessaoExistente
+      && Number(sessaoExistente.usuario_id) === Number(req.user.id)
+      && !sessaoExistente.revoked_at
+      && !sessaoExpirada(sessaoExistente);
+    const sessao = jaPossuiSessaoValida ? null : await criarSessaoRefresh({ usuarioId: req.user.id, connection });
+    const token = gerarAccessToken(req.user);
+    await connection.commit();
+    transactionFinished = true;
+
+    if (sessao) definirRefreshCookie(res, sessao.token);
+    return res.json({ token, usuario: usuarioPublico(req.user) });
+  } catch (err) {
+    if (connection && transactionStarted && !transactionFinished) {
+      try {
+        await connection.rollback();
+        transactionFinished = true;
+      } catch (rollbackError) {
+        console.error('ERRO ROLLBACK SESSION UPGRADE:', rollbackError?.message);
+      }
+    }
+    console.error('ERRO SESSION UPGRADE:', err?.message);
+    return res.status(500).json({ error: 'Erro ao atualizar sessao' });
+  } finally {
+    connection?.release();
   }
 });
 
