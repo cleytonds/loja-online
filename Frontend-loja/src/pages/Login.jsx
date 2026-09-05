@@ -1,6 +1,6 @@
 import { useContext, useState } from 'react';
 import { FaEye, FaEyeSlash } from 'react-icons/fa';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import AuthLayout from '../components/AuthLayout.jsx';
 import { AuthContext } from '../context/AuthContext';
 import api from '../services/api';
@@ -12,6 +12,7 @@ export default function Login() {
   const [loading, setLoading] = useState(false);
   const [erro, setErro] = useState('');
   const navigate = useNavigate();
+  const location = useLocation();
   const { login } = useContext(AuthContext);
 
   async function handleLogin(event) {
@@ -25,7 +26,13 @@ export default function Login() {
       const { token, usuario } = response.data;
       if (!token || !usuario) throw new Error('Resposta inválida do backend');
       login(usuario, token);
-      navigate(usuario.tipo === 'admin' ? '/admin' : '/');
+      const from = location.state?.from;
+      const destino = typeof from === 'string'
+        ? from
+        : from?.pathname
+          ? `${from.pathname}${from.search || ''}${from.hash || ''}`
+          : usuario.tipo === 'admin' ? '/admin' : '/';
+      navigate(destino, { replace: true });
     } catch (error) {
       setErro(
         error.response?.data?.error ||
