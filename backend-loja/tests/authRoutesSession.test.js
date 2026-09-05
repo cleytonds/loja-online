@@ -29,6 +29,21 @@ function usuario() {
   return { id: 7, nome: 'Cliente', email: 'cliente@test.local', tipo: 'cliente', ativo: 1 };
 }
 
+function sessaoRefresh(overrides = {}) {
+  const { id: ignoredUserId, ...dadosUsuario } = usuario();
+  return {
+    id: 1,
+    usuario_id: 7,
+    user_id: 7,
+    family_id: 'a'.repeat(64),
+    expires_at: new Date(Date.now() + 60000),
+    revoked_at: null,
+    replaced_by_session_id: null,
+    ...dadosUsuario,
+    ...overrides,
+  };
+}
+
 test('refresh rotaciona, emite cookie HttpOnly e replay revoga a familia', async () => {
   const previousEnabled = process.env.AUTH_REFRESH_ENABLED;
   const previousSecret = process.env.JWT_SECRET;
@@ -48,15 +63,10 @@ test('refresh rotaciona, emite cookie HttpOnly e replay revoga a familia', async
     query: async (sql) => {
       calls.push(sql);
       if (sql.startsWith('SELECT s.id')) {
-        return [[{
-          id: 1,
-          usuario_id: 7,
-          family_id: 'a'.repeat(64),
-          expires_at: new Date(Date.now() + 60000),
+        return [[sessaoRefresh({
           revoked_at: rotatedAt,
           replaced_by_session_id: rotated ? 2 : null,
-          ...usuario(),
-        }]];
+        })]];
       }
       if (sql.startsWith('INSERT INTO auth_sessions')) return [{ insertId: 2 }];
       if (sql.includes('replaced_by_session_id')) {
@@ -94,6 +104,92 @@ test('refresh rotaciona, emite cookie HttpOnly e replay revoga a familia', async
     process.env.AUTH_REFRESH_ENABLED = previousEnabled;
     process.env.JWT_SECRET = previousSecret;
     process.env.AUTH_REFRESH_REPLAY_GRACE_SECONDS = previousGrace;
+  }
+});
+
+test('refresh usa a identidade do usuario, nao o id da sessao', async () => {
+  const previousEnabled = process.env.AUTH_REFRESH_ENABLED;
+  const previousSecret = process.env.JWT_SECRET;
+  const originalGetConnection = db.getConnection;
+  process.env.AUTH_REFRESH_ENABLED = 'true';
+  process.env.JWT_SECRET = 'jwt-test-secret';
+  db.getConnection = async () => ({
+    beginTransaction: async () => {},
+    commit: async () => {},
+    rollback: async () => {},
+    release: () => {},
+    query: async (sql) => {
+      if (sql.startsWith('SELECT s.id')) return [[sessaoRefresh({
+        id: 16,
+        usuario_id: 33,
+        user_id: 33,
+        nome: 'Cliente 33',
+        email: 'cliente33@test.local',
+      })]];
+      if (sql.startsWith('INSERT INTO auth_sessions')) return [{ insertId: 17 }];
+      if (sql.includes('replaced_by_session_id')) return [{ affectedRows: 1 }];
+      throw new Error(`Query inesperada: ${sql}`);
+    },
+  });
+
+  try {
+    const result = await request(createApp(), '/auth/refresh', {
+      method: 'POST',
+      headers: { Cookie: 'dl_refresh=token-antigo', 'X-Auth-Expected-User-Id': '33' },
+    });
+    const payload = jwt.verify(result.body.token, process.env.JWT_SECRET);
+    assert.equal(result.response.status, 200);
+    assert.equal(result.body.usuario.id, 33);
+    assert.notEqual(result.body.usuario.id, 16);
+    assert.equal(payload.id, 33);
+    assert.notEqual(payload.id, 16);
+  } finally {
+    db.getConnection = originalGetConnection;
+    process.env.AUTH_REFRESH_ENABLED = previousEnabled;
+    process.env.JWT_SECRET = previousSecret;
+  }
+});
+
+test('refresh recusa user_id divergente de usuario_id antes da rotacao', async () => {
+  const previousEnabled = process.env.AUTH_REFRESH_ENABLED;
+  const previousSecret = process.env.JWT_SECRET;
+  const originalGetConnection = db.getConnection;
+  process.env.AUTH_REFRESH_ENABLED = 'true';
+  process.env.JWT_SECRET = 'jwt-test-secret';
+  let familyRevoked = 0;
+  let inserts = 0;
+  db.getConnection = async () => ({
+    beginTransaction: async () => {},
+    commit: async () => {},
+    rollback: async () => {},
+    release: () => {},
+    query: async (sql) => {
+      if (sql.startsWith('SELECT s.id')) return [[sessaoRefresh({ id: 16, usuario_id: 33, user_id: 34 })]];
+      if (sql.includes('WHERE family_id')) {
+        familyRevoked += 1;
+        return [{ affectedRows: 1 }];
+      }
+      if (sql.startsWith('INSERT INTO auth_sessions')) {
+        inserts += 1;
+        throw new Error('Rotacao nao deveria ocorrer');
+      }
+      throw new Error(`Query inesperada: ${sql}`);
+    },
+  });
+
+  try {
+    const result = await request(createApp(), '/auth/refresh', {
+      method: 'POST',
+      headers: { Cookie: 'dl_refresh=token-antigo', 'X-Auth-Expected-User-Id': '33' },
+    });
+    assert.equal(result.response.status, 401);
+    assert.deepEqual(result.body, { error: 'Sessao invalida ou expirada', code: 'AUTH_REFRESH_IDENTITY_MISMATCH' });
+    assert.equal(familyRevoked, 1);
+    assert.equal(inserts, 0);
+  } finally {
+    db.getConnection = originalGetConnection;
+    process.env.AUTH_REFRESH_ENABLED = previousEnabled;
+    process.env.JWT_SECRET = previousSecret;
   }
 });
 
@@ -216,27 +312,11 @@ test('duas requisicoes concorrentes preservam a nova sessao durante a janela de 
         if (sql.startsWith('SELECT s.id')) {
           if (id === 1) {
             firstSelectReached();
-            return [[{
-              id: 1,
-              usuario_id: 7,
-              family_id: 'a'.repeat(64),
-              expires_at: new Date(Date.now() + 60000),
-              revoked_at: null,
-              replaced_by_session_id: null,
-              ...usuario(),
-            }]];
+            return [[sessaoRefresh()]];
           }
           secondSelectStarted();
           await lockReleased;
-          return [[{
-            id: 1,
-            usuario_id: 7,
-            family_id: 'a'.repeat(64),
-            expires_at: new Date(Date.now() + 60000),
-            revoked_at: new Date(),
-            replaced_by_session_id: 2,
-            ...usuario(),
-          }]];
+          return [[sessaoRefresh({ revoked_at: new Date(), replaced_by_session_id: 2 })]];
         }
         if (sql.startsWith('INSERT INTO auth_sessions')) return [{ insertId: 2 }];
         if (sql.includes('replaced_by_session_id')) {
@@ -339,15 +419,7 @@ test('erro depois do commit nao executa rollback e sempre libera conexao', async
     rollback: async () => { rollbacks += 1; },
     release: () => { releases += 1; },
     query: async (sql) => {
-      if (sql.startsWith('SELECT s.id')) return [[{
-        id: 1,
-        usuario_id: 7,
-        family_id: 'a'.repeat(64),
-        expires_at: new Date(Date.now() + 60000),
-        revoked_at: null,
-        replaced_by_session_id: null,
-        ...usuario(),
-      }]];
+      if (sql.startsWith('SELECT s.id')) return [[sessaoRefresh()]];
       if (sql.startsWith('INSERT INTO auth_sessions')) return [{ insertId: 2 }];
       if (sql.includes('replaced_by_session_id')) return [{ affectedRows: 1 }];
       throw new Error(`Query inesperada: ${sql}`);
