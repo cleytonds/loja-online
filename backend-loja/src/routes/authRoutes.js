@@ -59,6 +59,20 @@ function expectedRefreshUserId(req) {
   return Number.isSafeInteger(userId) && userId > 0 ? userId : null;
 }
 
+function usuarioDaSessaoRefresh(sessao) {
+  const userId = Number(sessao?.user_id);
+  const sessionUserId = Number(sessao?.usuario_id);
+  if (!Number.isSafeInteger(userId) || userId <= 0 || userId !== sessionUserId) return null;
+
+  return {
+    id: userId,
+    nome: sessao.nome,
+    email: sessao.email,
+    tipo: sessao.tipo,
+    ativo: sessao.ativo,
+  };
+}
+
 // =========================
 //  CADASTRO DE USUÁRIO
 // =========================
@@ -358,6 +372,14 @@ router.post('/refresh', async (req, res) => {
       return respostaRefreshIdentidadeInvalida(res, 'AUTH_REFRESH_IDENTITY_MISMATCH');
     }
 
+    const usuarioRefresh = usuarioDaSessaoRefresh(sessao);
+    if (!usuarioRefresh) {
+      await revogarFamilia(sessao.family_id, { connection });
+      await connection.commit();
+      transactionFinished = true;
+      return respostaRefreshIdentidadeInvalida(res, 'AUTH_REFRESH_IDENTITY_MISMATCH');
+    }
+
     if (sessao.revoked_at) {
       if (sessaoRotacionadaNaJanelaDeTolerancia(sessao)) {
         await connection.commit();
@@ -370,7 +392,7 @@ router.post('/refresh', async (req, res) => {
       return respostaRefreshInvalido(res);
     }
 
-    if (sessaoExpirada(sessao) || !usuarioPodeRenovar(sessao)) {
+    if (sessaoExpirada(sessao) || !usuarioPodeRenovar(usuarioRefresh)) {
       await revogarFamilia(sessao.family_id, { connection });
       await connection.commit();
       transactionFinished = true;
@@ -378,11 +400,11 @@ router.post('/refresh', async (req, res) => {
     }
 
     const novaSessao = await rotacionarSessaoRefresh(sessao, { connection });
-    const token = gerarAccessToken(sessao);
+    const token = gerarAccessToken(usuarioRefresh);
     await connection.commit();
     transactionFinished = true;
     definirRefreshCookie(res, novaSessao.token);
-    return res.json({ token, usuario: usuarioPublico(sessao) });
+    return res.json({ token, usuario: usuarioPublico(usuarioRefresh) });
   } catch (err) {
     if (connection && transactionStarted && !transactionFinished) {
       try {
