@@ -71,21 +71,21 @@ test('refresh rotaciona, emite cookie HttpOnly e replay revoga a familia', async
 
   try {
     const app = createApp();
-    const first = await request(app, '/auth/refresh', { method: 'POST', headers: { Cookie: 'dl_refresh=token-antigo' } });
+    const first = await request(app, '/auth/refresh', { method: 'POST', headers: { Cookie: 'dl_refresh=token-antigo', 'X-Auth-Expected-User-Id': '7' } });
     assert.equal(first.response.status, 200);
     assert.equal(typeof first.body.token, 'string');
     assert.equal(first.body.usuario.id, 7);
     assert.match(first.response.headers.get('set-cookie'), /HttpOnly/i);
     assert.doesNotMatch(JSON.stringify(first.body), /token-antigo/);
 
-    const conflict = await request(app, '/auth/refresh', { method: 'POST', headers: { Cookie: 'dl_refresh=token-antigo' } });
+    const conflict = await request(app, '/auth/refresh', { method: 'POST', headers: { Cookie: 'dl_refresh=token-antigo', 'X-Auth-Expected-User-Id': '7' } });
     assert.equal(conflict.response.status, 409);
     assert.deepEqual(conflict.body, { error: 'Sessao em atualizacao', code: 'AUTH_REFRESH_CONFLICT' });
     assert.equal(conflict.response.headers.get('set-cookie'), null);
     assert.equal(calls.filter((sql) => typeof sql === 'string' && sql.includes('WHERE family_id')).length, 0);
 
     rotatedAt = new Date(Date.now() - 11000);
-    const replay = await request(app, '/auth/refresh', { method: 'POST', headers: { Cookie: 'dl_refresh=token-antigo' } });
+    const replay = await request(app, '/auth/refresh', { method: 'POST', headers: { Cookie: 'dl_refresh=token-antigo', 'X-Auth-Expected-User-Id': '7' } });
     assert.equal(replay.response.status, 401);
     assert.deepEqual(replay.body, { error: 'Sessao invalida ou expirada' });
     assert.ok(calls.some((sql) => typeof sql === 'string' && sql.includes('WHERE family_id')));
@@ -94,6 +94,92 @@ test('refresh rotaciona, emite cookie HttpOnly e replay revoga a familia', async
     process.env.AUTH_REFRESH_ENABLED = previousEnabled;
     process.env.JWT_SECRET = previousSecret;
     process.env.AUTH_REFRESH_REPLAY_GRACE_SECONDS = previousGrace;
+  }
+});
+
+test('refresh exige identidade esperada e bloqueia cookie de outro usuario antes da rotacao', async () => {
+  const previousEnabled = process.env.AUTH_REFRESH_ENABLED;
+  const previousSecret = process.env.JWT_SECRET;
+  const originalGetConnection = db.getConnection;
+  process.env.AUTH_REFRESH_ENABLED = 'true';
+  process.env.JWT_SECRET = 'jwt-test-secret';
+  let familyRevoked = 0;
+  let inserts = 0;
+  db.getConnection = async () => ({
+    beginTransaction: async () => {},
+    commit: async () => {},
+    rollback: async () => {},
+    release: () => {},
+    query: async (sql) => {
+      if (sql.startsWith('SELECT s.id')) {
+        return [[{
+          id: 1,
+          usuario_id: 16,
+          family_id: 'a'.repeat(64),
+          expires_at: new Date(Date.now() + 60000),
+          revoked_at: null,
+          replaced_by_session_id: null,
+          user_id: 16,
+          nome: 'Outro cliente',
+          email: 'outro@test.local',
+          tipo: 'cliente',
+          ativo: 1,
+        }]];
+      }
+      if (sql.includes('WHERE family_id')) {
+        familyRevoked += 1;
+        return [{ affectedRows: 1 }];
+      }
+      if (sql.startsWith('INSERT INTO auth_sessions')) {
+        inserts += 1;
+        throw new Error('Rotacao nao deveria ocorrer');
+      }
+      throw new Error(`Query inesperada: ${sql}`);
+    },
+  });
+
+  try {
+    const app = createApp();
+    const mismatch = await request(app, '/auth/refresh', {
+      method: 'POST',
+      headers: { Cookie: 'dl_refresh=token-outro-usuario', 'X-Auth-Expected-User-Id': '33' },
+    });
+    assert.equal(mismatch.response.status, 401);
+    assert.deepEqual(mismatch.body, { error: 'Sessao invalida ou expirada', code: 'AUTH_REFRESH_IDENTITY_MISMATCH' });
+    assert.equal(inserts, 0);
+    assert.equal(familyRevoked, 1);
+    assert.match(mismatch.response.headers.get('set-cookie'), /Expires=Thu, 01 Jan 1970/i);
+  } finally {
+    db.getConnection = originalGetConnection;
+    process.env.AUTH_REFRESH_ENABLED = previousEnabled;
+    process.env.JWT_SECRET = previousSecret;
+  }
+});
+
+test('refresh rejeita expected user id ausente ou invalido sem abrir transacao', async () => {
+  const previousEnabled = process.env.AUTH_REFRESH_ENABLED;
+  const originalGetConnection = db.getConnection;
+  process.env.AUTH_REFRESH_ENABLED = 'true';
+  let connections = 0;
+  db.getConnection = async () => {
+    connections += 1;
+    throw new Error('Nao deveria abrir conexao');
+  };
+
+  try {
+    const app = createApp();
+    for (const expectedUserId of [undefined, '0', 'invalido']) {
+      const headers = { Cookie: 'dl_refresh=token-antigo' };
+      if (expectedUserId !== undefined) headers['X-Auth-Expected-User-Id'] = expectedUserId;
+      const result = await request(app, '/auth/refresh', { method: 'POST', headers });
+      assert.equal(result.response.status, 401);
+      assert.deepEqual(result.body, { error: 'Sessao invalida ou expirada', code: 'AUTH_REFRESH_IDENTITY_REQUIRED' });
+      assert.match(result.response.headers.get('set-cookie'), /Expires=Thu, 01 Jan 1970/i);
+    }
+    assert.equal(connections, 0);
+  } finally {
+    db.getConnection = originalGetConnection;
+    process.env.AUTH_REFRESH_ENABLED = previousEnabled;
   }
 });
 
@@ -172,9 +258,9 @@ test('duas requisicoes concorrentes preservam a nova sessao durante a janela de 
   });
   try {
     const url = `http://127.0.0.1:${server.address().port}/auth/refresh`;
-    const first = fetch(url, { method: 'POST', headers: { Cookie: 'dl_refresh=token-antigo' } });
+    const first = fetch(url, { method: 'POST', headers: { Cookie: 'dl_refresh=token-antigo', 'X-Auth-Expected-User-Id': '7' } });
     await firstSelected;
-    const second = fetch(url, { method: 'POST', headers: { Cookie: 'dl_refresh=token-antigo' } });
+    const second = fetch(url, { method: 'POST', headers: { Cookie: 'dl_refresh=token-antigo', 'X-Auth-Expected-User-Id': '7' } });
     const [firstResponse, secondResponse] = await Promise.all([first, second]);
     assert.equal(firstResponse.status, 200);
     assert.equal(secondResponse.status, 409);
@@ -275,7 +361,7 @@ test('erro depois do commit nao executa rollback e sempre libera conexao', async
       next();
     });
     app.use('/auth', authRoutes);
-    const result = await request(app, '/auth/refresh', { method: 'POST', headers: { Cookie: 'dl_refresh=token-antigo' } });
+    const result = await request(app, '/auth/refresh', { method: 'POST', headers: { Cookie: 'dl_refresh=token-antigo', 'X-Auth-Expected-User-Id': '7' } });
     assert.equal(result.response.status, 500);
     assert.equal(commits, 1);
     assert.equal(rollbacks, 0);

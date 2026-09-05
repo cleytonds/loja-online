@@ -47,6 +47,18 @@ function respostaRefreshConflito(res) {
   return res.status(409).json({ error: 'Sessao em atualizacao', code: 'AUTH_REFRESH_CONFLICT' });
 }
 
+function respostaRefreshIdentidadeInvalida(res, code) {
+  limparRefreshCookie(res);
+  return res.status(401).json({ error: 'Sessao invalida ou expirada', code });
+}
+
+function expectedRefreshUserId(req) {
+  const value = String(req.get('X-Auth-Expected-User-Id') || '').trim();
+  if (!/^\d+$/.test(value)) return null;
+  const userId = Number(value);
+  return Number.isSafeInteger(userId) && userId > 0 ? userId : null;
+}
+
 // =========================
 //  CADASTRO DE USUÁRIO
 // =========================
@@ -318,6 +330,9 @@ router.post('/reenviar-codigo', async (req, res) => {
 router.post('/refresh', async (req, res) => {
   if (!refreshSessionsEnabled()) return respostaRefreshInvalido(res);
 
+  const expectedUserId = expectedRefreshUserId(req);
+  if (!expectedUserId) return respostaRefreshIdentidadeInvalida(res, 'AUTH_REFRESH_IDENTITY_REQUIRED');
+
   const refreshToken = lerRefreshCookie(req.headers.cookie);
   if (!refreshToken) return respostaRefreshInvalido(res);
 
@@ -334,6 +349,13 @@ router.post('/refresh', async (req, res) => {
       await connection.commit();
       transactionFinished = true;
       return respostaRefreshInvalido(res);
+    }
+
+    if (Number(sessao.usuario_id) !== expectedUserId) {
+      await revogarFamilia(sessao.family_id, { connection });
+      await connection.commit();
+      transactionFinished = true;
+      return respostaRefreshIdentidadeInvalida(res, 'AUTH_REFRESH_IDENTITY_MISMATCH');
     }
 
     if (sessao.revoked_at) {
