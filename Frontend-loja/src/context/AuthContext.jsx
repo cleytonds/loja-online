@@ -24,22 +24,43 @@ export function AuthProvider({ children }) {
     let active = true;
     async function iniciarSessao() {
       const startupToken = obterAccessToken();
+      const startupUserId = Number(obterUsuario()?.id);
       if (!startupToken) {
         if (active) setLoading(false);
         return;
+      }
+      if (!Number.isSafeInteger(startupUserId) || startupUserId <= 0) {
+        limparSessao('session-expired');
+        if (active) setLoading(false);
+        return;
+      }
+
+      async function encerrarPorIdentidadeDivergente() {
+        limparSessao('session-expired');
+        try {
+          await api.post('/auth/logout');
+        } catch {
+          // A limpeza remota do cookie e best-effort.
+        }
       }
 
       try {
         const { data: usuario } = await api.get('/auth/me', { timeout: AUTH_NETWORK_TIMEOUT_MS });
         if (!usuario) throw new Error('Usuario ausente');
         if (!active || obterAccessToken() !== startupToken) return;
+        if (Number(usuario.id) !== startupUserId) {
+          await encerrarPorIdentidadeDivergente();
+          return;
+        }
         salvarSessao({ token: startupToken, usuario });
 
         try {
           if (!active || obterAccessToken() !== startupToken) return;
           const { data: upgraded } = await api.post('/auth/session/upgrade');
-          if (active && obterAccessToken() === startupToken && upgraded?.token && upgraded?.usuario) {
+          if (active && obterAccessToken() === startupToken && upgraded?.token && upgraded?.usuario && Number(upgraded.usuario.id) === startupUserId) {
             salvarSessao({ token: upgraded.token, usuario: upgraded.usuario });
+          } else if (active && obterAccessToken() === startupToken && upgraded?.usuario && Number(upgraded.usuario.id) !== startupUserId) {
+            await encerrarPorIdentidadeDivergente();
           }
         } catch {
           // O upgrade e opcional enquanto o backend ainda opera sem refresh.

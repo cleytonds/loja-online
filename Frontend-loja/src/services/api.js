@@ -1,5 +1,5 @@
 import axios from 'axios';
-import { obterAccessToken, limparSessao, salvarSessao } from '../utils/authSession';
+import { obterAccessToken, obterUsuario, limparSessao, salvarSessao } from '../utils/authSession';
 
 const baseURL = import.meta.env.VITE_API_URL;
 export const AUTH_NETWORK_TIMEOUT_MS = 10000;
@@ -45,27 +45,53 @@ function erroRefreshStale() {
   return error;
 }
 
+function erroRefreshIdentidade(code) {
+  const error = new Error(code);
+  error.code = code;
+  return error;
+}
+
+function sessaoAtualCorrespondeAoEsperado(tokenInicial, expectedUserId) {
+  return obterAccessToken() === tokenInicial && Number(obterUsuario()?.id) === expectedUserId;
+}
+
+async function limparCookieRefreshBestEffort() {
+  try {
+    await refreshApi.post('/auth/logout');
+  } catch {
+    // O logout remoto e apenas uma limpeza complementar do cookie HttpOnly.
+  }
+}
+
 async function atualizarSessao() {
   const tokenInicial = obterAccessToken();
-  if (!tokenInicial) throw erroRefreshStale();
+  const expectedUserId = Number(obterUsuario()?.id);
+  if (!tokenInicial || !Number.isSafeInteger(expectedUserId) || expectedUserId <= 0) {
+    limparSessao('session-expired');
+    throw erroRefreshIdentidade('AUTH_REFRESH_IDENTITY_REQUIRED');
+  }
 
   let conflicts = 0;
   while (true) {
-    if (obterAccessToken() !== tokenInicial) throw erroRefreshStale();
+    if (!sessaoAtualCorrespondeAoEsperado(tokenInicial, expectedUserId)) throw erroRefreshStale();
 
     try {
-      const { data } = await refreshApi.post('/auth/refresh');
+      const { data } = await refreshApi.post('/auth/refresh', undefined, {
+        headers: { 'X-Auth-Expected-User-Id': String(expectedUserId) },
+      });
       if (!data?.token || !data?.usuario) throw new Error('Resposta de refresh invalida');
 
-      if (obterAccessToken() !== tokenInicial) {
+      if (!sessaoAtualCorrespondeAoEsperado(tokenInicial, expectedUserId)) {
         if (!obterAccessToken()) {
-          try {
-            await refreshApi.post('/auth/logout');
-          } catch {
-            // A limpeza do cookie apos um refresh obsoleto e best-effort.
-          }
+          await limparCookieRefreshBestEffort();
         }
         throw erroRefreshStale();
+      }
+
+      if (Number(data.usuario.id) !== expectedUserId) {
+        limparSessao('session-expired');
+        await limparCookieRefreshBestEffort();
+        throw erroRefreshIdentidade('AUTH_REFRESH_IDENTITY_MISMATCH');
       }
 
       salvarSessao({ token: data.token, usuario: data.usuario });
@@ -74,7 +100,7 @@ async function atualizarSessao() {
       if (error.response?.status === 409 && error.response?.data?.code === 'AUTH_REFRESH_CONFLICT' && conflicts < 2) {
         conflicts += 1;
         await aguardar(250);
-        if (obterAccessToken() !== tokenInicial) throw erroRefreshStale();
+        if (!sessaoAtualCorrespondeAoEsperado(tokenInicial, expectedUserId)) throw erroRefreshStale();
         continue;
       }
       if (error.response?.status === 401) limparSessao('session-expired');
