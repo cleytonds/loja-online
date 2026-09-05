@@ -3,6 +3,7 @@ import api, { AUTH_NETWORK_TIMEOUT_MS } from '../services/api';
 import {
   limparSessao,
   obterAccessToken,
+  obterUsuario,
   observarSessao,
   salvarSessao,
   salvarUsuario,
