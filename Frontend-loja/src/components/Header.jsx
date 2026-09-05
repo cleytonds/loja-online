@@ -8,13 +8,11 @@ import logoDayaneLima from "../assets/logo-dayane-lima-header.png";
 
 export default function Header() {
   const { carrinho, toggleCarrinho } = useContext(CarrinhoContext);
-  const { user, logout } = useContext(AuthContext); // 👈 pega usuário
+  const { user, logout, loading } = useContext(AuthContext); // 👈 pega usuário
   const navigate = useNavigate();
   const location = useLocation();
 
   const [bloqueado, setBloqueado] = useState(false);
-
-  const token = localStorage.getItem("token");
 
   function sair() {
     logout();
@@ -29,7 +27,7 @@ export default function Header() {
 
   // 🔥 FUNÇÃO CORRIGIDA
   const handlePerfilClick = () => {
-    if (bloqueado) return;
+    if (bloqueado || loading) return;
 
     const destino = user?.tipo === "admin" ? "/admin" : "/perfil";
 
@@ -86,9 +84,9 @@ export default function Header() {
           <Link to="/">Home</Link>
           <Link to="/produtos">Produtos</Link>
 
-          {!token && <Link to="/login">Conecte-se</Link>}
+          {!loading && !user && <Link to="/login">Conecte-se</Link>}
 
-          {token && (
+          {!loading && user && (
             <button onClick={sair} className="btn-sair">
               Sair
             </button>
