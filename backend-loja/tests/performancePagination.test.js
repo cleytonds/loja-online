@@ -11,6 +11,14 @@ let clientToken;
 let originalQuery;
 
 function pedidosMockados(sql, params) {
+  if (sql.includes("p.reconciliacao_status = 'pendente'")) {
+    assert.match(sql, /p\.reconciliacao_status = 'resolvida_atendimento'/);
+    assert.match(sql, /p\.status = 'expirado'/);
+    assert.match(sql, /p\.pagamento_confirmado_em IS NULL/);
+    assert.match(sql, /p\.mp_status = 'approved'/);
+    if (sql.includes('SELECT COUNT(*) AS total FROM pedidos')) return [[{ total: 0 }]];
+    return [[]];
+  }
   if (sql.includes('p.reconciliacao_status = ?')) {
     assert.match(sql, /WHERE p\.reconciliacao_status = \?/);
     assert.equal(params[0], 'pendente');
@@ -179,6 +187,15 @@ test('fila administrativa de reconciliação filtra pendências e mantém pagina
   assert.equal(body.data.length, 0);
   assert.equal(body.pagination.page, 1);
   assert.equal(body.pagination.total, 0);
+});
+
+test('filtro operacional inclui pendente e legado sem incluir pago resolvido', async () => {
+  const response = await fetch(`${baseUrl}/pedidos?reconciliacao_status=operacional&page=1&limit=20`, {
+    headers: { Authorization: `Bearer ${adminToken}` },
+  });
+  const body = await response.json();
+  assert.equal(response.status, 200);
+  assert.equal(body.data.length, 0);
 });
 
 test('somente admin resolve reconciliação sem alterar status ou estoque', async (t) => {

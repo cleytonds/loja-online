@@ -432,7 +432,7 @@ router.get('/', verificarToken, async (req, res) => {
 
     const statusFiltro = statusPorTipo[tipo] || null;
     const reconciliacaoStatus = String(req.query.reconciliacao_status || '').trim().toLowerCase();
-    const reconciliacaoPermitidos = ['nenhuma', 'pendente', 'resolvida_estorno', 'resolvida_atendimento'];
+    const reconciliacaoPermitidos = ['nenhuma', 'pendente', 'resolvida_estorno', 'resolvida_atendimento', 'operacional'];
 
     if (reconciliacaoStatus && !reconciliacaoPermitidos.includes(reconciliacaoStatus)) {
       return res.status(400).json({ erro: 'Status de reconciliação inválido' });
@@ -444,7 +444,13 @@ router.get('/', verificarToken, async (req, res) => {
       whereParts.push(`p.status IN (${statusFiltro.map(() => '?').join(',')})`);
       whereParams.push(...statusFiltro);
     }
-    if (reconciliacaoStatus) {
+    if (reconciliacaoStatus === 'operacional') {
+      whereParts.push(`(p.reconciliacao_status = 'pendente'
+        OR (p.reconciliacao_status = 'resolvida_atendimento'
+            AND p.status = 'expirado'
+            AND p.pagamento_confirmado_em IS NULL
+            AND p.mp_status = 'approved'))`);
+    } else if (reconciliacaoStatus) {
       whereParts.push('p.reconciliacao_status = ?');
       whereParams.push(reconciliacaoStatus);
     }
@@ -455,7 +461,7 @@ router.get('/', verificarToken, async (req, res) => {
       ...whereParams,
       ...(pagination.hasPagination ? [pagination.limit, pagination.offset] : []),
     ];
-    const orderSql = reconciliacaoStatus === 'pendente'
+    const orderSql = ['pendente', 'operacional'].includes(reconciliacaoStatus)
       ? 'ORDER BY p.reconciliacao_em ASC, p.id ASC'
       : 'ORDER BY p.created_at DESC, p.id DESC';
 
@@ -683,10 +689,13 @@ router.put('/:id/reconciliacao', verificarToken, async (req, res) => {
     const pedidoId = Number.parseInt(req.params.id, 10);
     const resolucao = String(req.body?.resolucao || '').trim().toLowerCase();
     const observacao = String(req.body?.observacao || '').trim().slice(0, 255);
-    const resolucoesPermitidas = ['resolvida_estorno', 'resolvida_atendimento'];
+    const resolucoesPermitidas = ['resolvida_estorno'];
 
     if (!Number.isInteger(pedidoId) || pedidoId <= 0) {
       return res.status(400).json({ erro: 'Pedido inválido' });
+    }
+    if (resolucao === 'resolvida_atendimento') {
+      return res.status(409).json({ erro: 'Use a ação de aceitação do pagamento para registrar atendimento' });
     }
     if (!resolucoesPermitidas.includes(resolucao)) {
       return res.status(400).json({ erro: 'Resolução de reconciliação inválida' });

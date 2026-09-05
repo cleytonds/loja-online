@@ -75,6 +75,7 @@ jobs:
       CORS_ORIGINS: https://loja.test
       MERCADO_PAGO_ACCESS_TOKEN: TEST-ci-token
       MERCADO_PAGO_WEBHOOK_SECRET: ci-webhook-secret
+      MERCADO_PAGO_COLLECTOR_ID: '1'
       MP_ENVIRONMENT: sandbox
       UPLOAD_DIR: /tmp/dl-modas-uploads
       EMAIL_PROVIDER: smtp

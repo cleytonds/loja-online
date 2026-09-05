@@ -12,6 +12,7 @@ const {
   selecionarCheckoutUrl,
   configurarMeiosPagamento,
   montarValidadePreferencia,
+  aceitarPagamentoReconciliado,
 } = await import('../src/routes/pagamentos.js');
 
 test('aceita somente pedido pendente e ainda não expirado para Mercado Pago', () => {
@@ -106,4 +107,75 @@ test('valida MP_MAX_INSTALLMENTS com padrão seguro entre 1 e 12', () => {
   assert.equal(excluidos.includes('account_money'), false);
   assert.equal(excluidos.includes('bank_transfer'), false);
   assert.equal(excluidos.includes('credit_card'), false);
+});
+
+test('aceita pagamento tardio uma vez e suporta o estado legado resolvida_atendimento', async () => {
+  const state = {
+    pedido: {
+      id: 999, usuario_id: 7, status: 'expirado', total: '20.00', pagamento: 'mercado_pago',
+      mp_payment_id: '555', pagamento_confirmado_em: null, reconciliacao_status: 'resolvida_atendimento',
+      reconciliacao_motivo: 'Fixture legado',
+    },
+    estoque: 2,
+    baixas: 0,
+  };
+  const connection = {
+    query: async (sql, params = []) => {
+      if (sql.includes('FROM pedidos WHERE id = ? FOR UPDATE')) return [[state.pedido]];
+      if (sql.includes('FROM pedido_itens')) return [[{ variacao_id: 4, quantidade: 1 }]];
+      if (sql.includes('FROM produto_variacoes')) return [[{ id: 4, estoque: state.estoque }]];
+      if (sql.includes('SET estoque = estoque -')) {
+        state.estoque -= Number(params[0]);
+        state.baixas += 1;
+        return [{ affectedRows: 1 }];
+      }
+      if (sql.includes("SET status = 'pago'")) {
+        state.pedido.status = 'pago';
+        state.pedido.pagamento_confirmado_em = params[0];
+        state.pedido.reconciliacao_status = 'resolvida_atendimento';
+        return [{ affectedRows: 1 }];
+      }
+      throw new Error(`SQL inesperado: ${sql}`);
+    },
+  };
+  const pagamento = { paymentId: '555', externalReference: '999', currencyId: 'BRL', valorPago: '20.00', collectorId: '1', status: 'approved', statusDetail: 'accredited', dataAprovacao: new Date() };
+
+  const primeiro = await aceitarPagamentoReconciliado(connection, { pedidoId: 999, pagamento, adminId: 1 });
+  const segundo = await aceitarPagamentoReconciliado(connection, { pedidoId: 999, pagamento, adminId: 1 });
+
+  assert.deepEqual(primeiro, { pedidoId: 999, status: 'pago', idempotente: false });
+  assert.deepEqual(segundo, { pedidoId: 999, status: 'pago', idempotente: true });
+  assert.equal(state.estoque, 1);
+  assert.equal(state.baixas, 1);
+  assert.ok(state.pedido.pagamento_confirmado_em);
+});
+
+test('recusa dados operacionais inválidos sem baixar estoque', async () => {
+  const criarCenario = () => {
+    const state = { pedido: { id: 998, status: 'expirado', total: '20.00', pagamento: 'mercado_pago', mp_payment_id: '554', pagamento_confirmado_em: null, reconciliacao_status: 'pendente' }, estoque: 1, baixas: 0 };
+    const connection = { query: async (sql) => {
+      if (sql.includes('FROM pedidos WHERE id = ? FOR UPDATE')) return [[state.pedido]];
+      if (sql.includes('FROM pedido_itens')) return [[{ variacao_id: 4, quantidade: 1 }]];
+      if (sql.includes('FROM produto_variacoes')) return [[{ id: 4, estoque: state.estoque }]];
+      if (sql.includes('SET estoque = estoque -')) { state.baixas += 1; return [{ affectedRows: 1 }]; }
+      throw new Error(`SQL inesperado: ${sql}`);
+    } };
+    return { state, connection };
+  };
+  const base = { paymentId: '554', externalReference: '998', currencyId: 'BRL', valorPago: '20.00', collectorId: '1', status: 'approved', dataAprovacao: new Date() };
+  for (const overrides of [{ status: 'pending' }, { externalReference: '999' }, { valorPago: '19.99' }, { paymentId: '555' }, { dataAprovacao: null }, { dataAprovacao: 'invalida' }]) {
+    const { state, connection } = criarCenario();
+    await assert.rejects(() => aceitarPagamentoReconciliado(connection, { pedidoId: 998, pagamento: { ...base, ...overrides }, adminId: 1 }));
+    assert.equal(state.baixas, 0);
+    assert.equal(state.pedido.status, 'expirado');
+  }
+  const { state, connection } = criarCenario();
+  state.estoque = 0;
+  await assert.rejects(() => aceitarPagamentoReconciliado(connection, { pedidoId: 998, pagamento: base, adminId: 1 }));
+  assert.equal(state.baixas, 0);
+
+  const estorno = criarCenario();
+  estorno.state.pedido.reconciliacao_status = 'resolvida_estorno';
+  await assert.rejects(() => aceitarPagamentoReconciliado(estorno.connection, { pedidoId: 998, pagamento: base, adminId: 1 }));
+  assert.equal(estorno.state.baixas, 0);
 });

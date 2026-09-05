@@ -253,7 +253,7 @@ export default function Admin() {
 
     try {
       const url = tipo === 'reconciliacoes'
-        ? '/pedidos?reconciliacao_status=pendente'
+        ? '/pedidos?reconciliacao_status=operacional'
         : `/pedidos?tipo=${tipo}`;
       const res = await api.get(url);
       const lista = Array.isArray(res.data) ? res.data : res.data?.data || [];
@@ -379,6 +379,21 @@ export default function Admin() {
     }
   }
 
+  async function aceitarPagamentoReconciliado(id) {
+    if (!window.confirm('O pagamento será revalidado no Mercado Pago, o estoque será baixado e o pedido será marcado como pago. Continuar?')) return;
+    try {
+      await api.post(`/pagamentos/mercado-pago/${id}/aceitar-reconciliacao`);
+      await Promise.all([carregarPedidos('reconciliacoes'), carregarPedidos('atuais'), carregarPedidos('historico'), carregarEstoque()]);
+    } catch (err) {
+      alert(err.response?.data?.erro || 'Não foi possível aceitar o pagamento.');
+    }
+  }
+
+  async function registrarEstornoManual(id) {
+    if (!window.confirm('Confirme somente se o valor já foi devolvido ao cliente pelo Mercado Pago. Esta ação apenas registra o estorno no sistema.')) return;
+    await resolverReconciliacao(id, 'resolvida_estorno');
+  }
+
   async function criarProduto(e) {
     e.preventDefault();
 
@@ -486,6 +501,11 @@ export default function Admin() {
   }
 
   function renderizarCardPedido(pedido, somenteLeitura = false) {
+    const reconciliacaoOperacional = pedido.reconciliacao_status === 'pendente'
+      || (pedido.reconciliacao_status === 'resolvida_atendimento'
+        && pedido.status === 'expirado'
+        && !pedido.pagamento_confirmado_em
+        && pedido.mp_status === 'approved');
     return (
       <article key={pedido.id} className={`pedido-card-horizontal${somenteLeitura ? ' pedido-card-readonly' : ''}`}>
         <div className="pedido-card-cabecalho">
@@ -502,7 +522,7 @@ export default function Admin() {
           <p><span>Data do pedido</span>{formatarData(pedido.created_at)}</p>
         </div>
 
-        {pedido.reconciliacao_status === 'pendente' ? (
+        {reconciliacaoOperacional ? (
           <p className="pedido-reconciliacao-alerta">
             Pagamento aprovado após expiração. Requer reconciliação operacional.
           </p>
@@ -513,10 +533,10 @@ export default function Admin() {
           <div className="pedido-acoes-lista">
             <button className="pedido-acao pedido-acao-detalhes" onClick={() => abrirDetalhes(pedido.id)}><FiEye aria-hidden="true" />Ver detalhes</button>
             {renderizarAcoesPedido(pedido)}
-            {pedido.reconciliacao_status === 'pendente' ? (
+            {reconciliacaoOperacional ? (
               <>
-                <button className="pedido-acao pedido-acao-atendimento" onClick={() => resolverReconciliacao(pedido.id, 'resolvida_atendimento')}><FiCheckCircle aria-hidden="true" />Registrar atendimento</button>
-                <button className="pedido-acao pedido-acao-estorno" onClick={() => resolverReconciliacao(pedido.id, 'resolvida_estorno')}><FiRotateCcw aria-hidden="true" />Registrar estorno</button>
+                <button className="pedido-acao pedido-acao-atendimento" onClick={() => aceitarPagamentoReconciliado(pedido.id)}><FiCheckCircle aria-hidden="true" />Aceitar pagamento</button>
+                {pedido.reconciliacao_status === 'pendente' ? <button className="pedido-acao pedido-acao-estorno" onClick={() => registrarEstornoManual(pedido.id)}><FiRotateCcw aria-hidden="true" />Registrar estorno manual</button> : null}
               </>
             ) : null}
           </div>
@@ -857,7 +877,7 @@ export default function Admin() {
       {tab === 'reconciliacoes' && (
         <div className="admin-pedidos">
           <h2>Reconciliações pendentes</h2>
-          <p className="pedido-reconciliacao-intro">Pagamentos aprovados após a expiração não reativam o pedido nem o estoque. Registre o atendimento ou estorno após análise operacional.</p>
+            <p className="pedido-reconciliacao-intro">Aceitar pagamento revalida o Mercado Pago, baixa o estoque e marca o pedido como pago. Estorno manual apenas registra uma devolução já feita fora do sistema.</p>
 
           {erroPedidos ? <p>{erroPedidos}</p> : null}
           {carregandoPedidos ? <p>Carregando reconciliações...</p> : null}
