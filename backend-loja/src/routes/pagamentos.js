@@ -526,6 +526,58 @@ async function reaplicarReservaDeEstoque(connection, pedidoId) {
   }
 }
 
+function erroReconciliacao(mensagem, statusCode = 409) {
+  const error = new Error(mensagem);
+  error.statusCode = statusCode;
+  return error;
+}
+
+async function aceitarPagamentoReconciliado(connection, { pedidoId, pagamento, adminId }) {
+  const [pedidos] = await connection.query(
+    `SELECT id, usuario_id, status, total, expires_at, pagamento, mp_payment_id,
+            mp_status, mp_status_detail, pagamento_confirmado_em,
+            reconciliacao_status, reconciliacao_motivo
+     FROM pedidos WHERE id = ? FOR UPDATE`,
+    [pedidoId],
+  );
+  const pedido = pedidos[0];
+  if (!pedido) throw erroReconciliacao('Pedido não encontrado', 404);
+
+  validarPagamentoConsultado(pagamento, pedido, true);
+  if (!pagamentoFoiAprovado(pagamento.status)) throw erroReconciliacao('Pagamento não está aprovado');
+  if (String(pedido.pagamento) !== 'mercado_pago' || String(pedido.mp_payment_id) !== String(pagamento.paymentId)) {
+    throw erroReconciliacao('Pagamento não corresponde ao pedido');
+  }
+
+  const reconciliacao = String(pedido.reconciliacao_status || '').trim().toLowerCase();
+  if (reconciliacao === 'resolvida_estorno') throw erroReconciliacao('Pedido possui estorno manual registrado');
+  if (pedido.status === 'pago' && pedido.pagamento_confirmado_em && reconciliacao === 'resolvida_atendimento') {
+    return { pedidoId: Number(pedido.id), status: 'pago', idempotente: true };
+  }
+  if (pedido.status !== 'expirado' || pedido.pagamento_confirmado_em || !['pendente', 'resolvida_atendimento'].includes(reconciliacao)) {
+    throw erroReconciliacao('Pedido não possui reconciliação de pagamento aplicável');
+  }
+
+  if (pagamento.dataAprovacao === null || pagamento.dataAprovacao === undefined || String(pagamento.dataAprovacao).trim() === '') {
+    throw erroReconciliacao('Data de aprovação inválida');
+  }
+  const dataAprovacao = new Date(pagamento.dataAprovacao);
+  if (!Number.isFinite(dataAprovacao.getTime())) throw erroReconciliacao('Data de aprovação inválida');
+
+  await reaplicarReservaDeEstoque(connection, pedidoId);
+  const [updatePedido] = await connection.query(
+    `UPDATE pedidos
+     SET status = 'pago', pagamento_confirmado_em = ?, mp_status = ?, mp_status_detail = ?,
+         pagamento_atualizado_em = NOW(), reconciliacao_status = 'resolvida_atendimento',
+         reconciliacao_resolvida_em = NOW(), reconciliacao_resolvida_por = ?
+     WHERE id = ? AND status = 'expirado' AND pagamento_confirmado_em IS NULL
+       AND reconciliacao_status IN ('pendente', 'resolvida_atendimento')`,
+    [dataAprovacao, pagamento.status, pagamento.statusDetail, adminId, pedidoId],
+  );
+  if (updatePedido.affectedRows !== 1) throw erroReconciliacao('Pedido atualizado por outra operação');
+  return { pedidoId: Number(pedido.id), status: 'pago', idempotente: false };
+}
+
 function resumirErroWebhook(error, notificacao) {
   const causa = error?.cause;
   const resumo = {
@@ -749,6 +801,32 @@ router.post('/mercado-pago/:pedidoId/reconciliar', verificarToken, async (req, r
   }
 });
 
+router.post('/mercado-pago/:pedidoId/aceitar-reconciliacao', verificarToken, async (req, res) => {
+  const pedidoId = Number(req.params.pedidoId);
+  if (!Number.isSafeInteger(pedidoId) || pedidoId <= 0 || req.user?.tipo !== 'admin') {
+    return res.status(req.user?.tipo === 'admin' ? 400 : 403).json({ erro: 'Ação não permitida' });
+  }
+
+  let connection;
+  try {
+    const [pedidos] = await db.query('SELECT id, mp_payment_id FROM pedidos WHERE id = ?', [pedidoId]);
+    const paymentId = String(pedidos[0]?.mp_payment_id || '').trim();
+    if (!idPagamentoValido(paymentId)) return res.status(409).json({ erro: 'Pedido não possui pagamento Mercado Pago válido' });
+
+    const pagamento = await consultarPagamento(paymentId);
+    connection = await db.getConnection();
+    await connection.beginTransaction();
+    const resultado = await aceitarPagamentoReconciliado(connection, { pedidoId, pagamento, adminId: req.user.id });
+    await connection.commit();
+    return res.json({ ok: true, ...resultado });
+  } catch (error) {
+    if (connection) await connection.rollback().catch(() => {});
+    return res.status(error?.statusCode || 409).json({ erro: 'Não foi possível aceitar o pagamento reconciliado' });
+  } finally {
+    if (connection) connection.release();
+  }
+});
+
 router.post('/mercado-pago/webhook', async (req, res) => {
   const notificacao = extrairNotificacaoPagamento(req);
 
@@ -898,6 +976,7 @@ export {
   idPagamentoValido,
   pagamentoFoiAprovadoNoPrazo,
   aplicarResultadoPagamentoMercadoPago,
+  aceitarPagamentoReconciliado,
   resumirAssinaturaWebhook,
   headersAssinaturaWebhook,
   urlsCheckout,
