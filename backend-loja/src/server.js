@@ -15,6 +15,7 @@ import favoritosRoutes from './routes/favoritosRoutes.js';
 import pagamentosRoutes from './routes/pagamentos.js';
 import db from './config/database.js';
 import { CORS_METHODS, getUploadProductsDir, parseCorsOrigins, validateRuntimeEnvironment } from './config/runtime.js';
+import { productImagesStaticOptions } from './config/productImagesStatic.js';
 import { stopOrderScheduler } from './utils/orderScheduler.js';
 import { logger } from './utils/logger.js';
 
@@ -53,9 +54,7 @@ app.use(cors({
 }));
 
 app.use(express.json({ limit: '10kb' }));
-app.use('/uploads/produtos', express.static(getUploadProductsDir(process.env), {
-  setHeaders: (res) => res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin'),
-}));
+app.use('/uploads/produtos', express.static(getUploadProductsDir(process.env), productImagesStaticOptions));
 
 export function buildRateLimitConfig() {
   const base = {

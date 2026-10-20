@@ -39,6 +39,16 @@ Defina `TRUST_PROXY` somente conforme a topologia do provedor (por exemplo, `1` 
 
 Em produção, `UPLOAD_DIR` é obrigatório e deve ser gravável e persistente. Disco efêmero/serverless ou várias instâncias sem armazenamento compartilhado não são compatíveis com uploads locais; avalie S3/Cloudinary futuramente.
 
+### Imagens de produtos
+
+Para o volume de produção em `/data/produtos`, configure `UPLOAD_DIR=/data`: `getUploadProductsDir()` acrescenta `produtos`. Upload, leitura pública e exclusão após substituição usam esse mesmo diretório. As URLs continuam em `/uploads/produtos/<arquivo>`, com o nome final persistido em `produto_imagens.url`; o frontend já aceita WebP.
+
+Apenas novos uploads de criação/edição passam por Sharp (Node.js >= 20.9.0; instalar dependências opcionais nativas com `npm ci`). JPEG vira WebP com qualidade 90; PNG usa WebP sem perdas. A imagem é orientada pelo EXIF, convertida para sRGB com perfil ICC e limitada a 2400 px por lado, mantendo proporção e sem recorte ou ampliação. O original é mantido quando a saída não economiza bytes. WebP já dentro do limite e animações são validados e preservados sem recompressão. O limite existente de 5 MB por arquivo continua; o decode limita a 40 milhões de pixels e 10 segundos de processamento. Um lote é processado por vez em cada processo, podendo aumentar o tempo de resposta sob concorrência.
+
+Novos arquivos otimizados recebem UUID e sufixo `.optimized.webp`, com `public, max-age=31536000, immutable`; esses nomes nunca devem ser reutilizados. Arquivos anteriores mantêm URLs e bytes e recebem `public, max-age=3600, must-revalidate`. ETag, Last-Modified e acesso cross-origin são preservados. Em substituições futuras, arquivos anteriores só são removidos após commit; falhas de limpeza podem deixar órfãos, sem desfazer referências já confirmadas.
+
+Esta alteração não contém migração nem processamento em lote dos arquivos existentes. Não reduz os 357 MB já armazenados; a economia de armazenamento é incremental, e o cache reduz transferências em acessos repetidos. Antes de publicar, execute `npm run test:safe` e valide visualmente algumas novas fotos de roupas: compressão com perdas e redução de resolução podem afetar detalhes finos. O binário Linux do Sharp precisa ser instalado no build do Railway; não copie `node_modules` do Windows.
+
 ## Observabilidade e smoke test
 
 - `GET /health` confirma que o processo HTTP está ativo.

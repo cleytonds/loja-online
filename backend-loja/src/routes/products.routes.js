@@ -3,8 +3,9 @@ import db from '../config/database.js';
 import { verificarToken } from '../middlewares/auth.js';
 import { isAdmin } from '../middlewares/isAdmin.js';
 import uploadProduto, { removerImagensProduto, validarImagensProduto } from '../middlewares/uploadProduto.js';
-import fs from 'fs';
+import { otimizarImagensProduto } from '../middlewares/otimizarImagensProduto.js';
 import path from 'path';
+import { getUploadProductsDir } from '../config/runtime.js';
 import {
   buildVariacaoPlan,
   normalizeVariacoesPayload,
@@ -12,6 +13,16 @@ import {
 } from '../utils/produtoCatalog.js';
 
 const router = express.Router();
+
+function arquivosDeImagensProduto(imagens) {
+  const directory = getUploadProductsDir();
+  return imagens.flatMap(({ url }) => {
+    const match = typeof url === 'string' && /^\/uploads\/produtos\/([^/\\?#:\0]+)$/.exec(url);
+    if (!match) return [];
+    const filePath = path.resolve(directory, match[1]);
+    return path.dirname(filePath) === directory ? [{ path: filePath }] : [];
+  });
+}
 
 function normalizarAtivo(valor, fallback = 1) {
   if (valor === undefined) return fallback;
@@ -261,19 +272,21 @@ router.get('/:id', async (req, res) => {
 // ===============================
 //  CRIAR PRODUTO (COMPLETO)
 // ===============================
-router.post('/', verificarToken, isAdmin, uploadProduto.array('imagens'), validarImagensProduto, async (req, res) => {
+router.post('/', verificarToken, isAdmin, uploadProduto.array('imagens'), validarImagensProduto, otimizarImagensProduto, async (req, res) => {
   let connection;
   try {
     const { nome, preco, descricao, categoria } = req.body;
 
     const variacoes = normalizeVariacoesPayload(req.body.variacoes ? JSON.parse(req.body.variacoes) : []);
     if (!Array.isArray(variacoes) || variacoes.length === 0) {
+      removerImagensProduto(req.files);
       return res.status(400).json({
         error: 'Produto precisa de pelo menos uma variação',
       });
     }
     variacoes.forEach(validarPrecoPromocional);
     if (!variacoes.some((variacao) => normalizarAtivo(variacao.ativo) === 1)) {
+      removerImagensProduto(req.files);
       return res.status(400).json({ error: 'Produto precisa de pelo menos uma variação ativa' });
     }
     connection = await db.getConnection();
@@ -340,14 +353,17 @@ router.post('/', verificarToken, isAdmin, uploadProduto.array('imagens'), valida
 //  ATUALIZAR PRODUTO COMPLETO (DADOS, VARIAÇÕES E IMAGENS)
 // ===============================
 
-router.put('/:id', verificarToken, isAdmin, uploadProduto.array('imagens'), validarImagensProduto, async (req, res) => {
+router.put('/:id', verificarToken, isAdmin, uploadProduto.array('imagens'), validarImagensProduto, otimizarImagensProduto, async (req, res) => {
+  const novasImagens = Array.isArray(req.files) ? req.files : [];
   const idNum = Number(req.params.id);
   if (!Number.isInteger(idNum) || idNum <= 0) {
+    removerImagensProduto(novasImagens);
     return res.status(400).json({ erro: 'ID inválido' });
   }
 
   let connection;
-  let novasImagens = [];
+  let imagensAntigasParaRemover = [];
+  let committed = false;
 
   try {
     const { id } = req.params;
@@ -451,20 +467,13 @@ router.put('/:id', verificarToken, isAdmin, uploadProduto.array('imagens'), vali
       );
     }
 
-    novasImagens = Array.isArray(req.files) ? req.files : [];
-
     if (novasImagens.length) {
       const [imagensAntigas] = await connection.query(
         `SELECT id, url FROM produto_imagens WHERE produto_id=?`,
         [id],
       );
 
-      for (const imagem of imagensAntigas) {
-        const caminho = path.join(process.cwd(), imagem.url.replace(/^\//, ''));
-        if (fs.existsSync(caminho)) {
-          fs.unlinkSync(caminho);
-        }
-      }
+      imagensAntigasParaRemover = arquivosDeImagensProduto(imagensAntigas);
 
       await connection.query(`DELETE FROM produto_imagens WHERE produto_id=?`, [id]);
 
@@ -477,15 +486,26 @@ router.put('/:id', verificarToken, isAdmin, uploadProduto.array('imagens'), vali
     }
 
     await connection.commit();
+    committed = true;
+
+    // O banco já referencia os novos uploads; falhas de limpeza não desfazem a atualização.
+    try {
+      removerImagensProduto(imagensAntigasParaRemover);
+    } catch {
+      // A remoção de arquivos antigos é uma limpeza de melhor esforço após o commit.
+    }
 
     res.json({
       mensagem: 'Produto atualizado com sucesso',
     });
   } catch (err) {
-    if (connection) {
-      await connection.rollback();
+    if (connection && !committed) {
+      try {
+        await connection.rollback();
+      } catch {
+        // Os novos uploads ainda precisam ser limpos se o rollback falhar.
+      }
     }
-    removerImagensProduto(novasImagens);
     if (err?.statusCode === 400) {
       return res.status(400).json({ error: err.message });
     }
@@ -495,6 +515,7 @@ router.put('/:id', verificarToken, isAdmin, uploadProduto.array('imagens'), vali
       error: 'Erro ao atualizar produto',
     });
   } finally {
+    if (!committed) removerImagensProduto(novasImagens);
     if (connection) {
       connection.release();
     }
