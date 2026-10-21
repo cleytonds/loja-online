@@ -4,7 +4,7 @@
   "type": "module",
   "main": "src/server.js",
   "scripts": {
-    "dev": "nodemon src/server.js",
+    "dev": "node --watch src/server.js",
     "start": "node src/server.js",
     "test:safe": "node --test tests/adminDashboard.test.js tests/auth.test.js tests/deployRuntime.test.js tests/httpSafety.test.js tests/idempotency.test.js tests/imageMagic.test.js tests/mercadoPagoExpiration.test.js tests/mercadoPagoMigration.test.js tests/mercadoPagoService.test.js tests/mercadoPagoWebhook.test.js tests/migrationsSequence.test.js tests/orderScheduler.test.js tests/otimizarImagensProduto.test.js tests/pagamentos.test.js tests/pagamentosRoute.test.js tests/pedidosSecurity.test.js tests/performancePagination.test.js tests/productCreateTransaction.test.js tests/productImageReplacement.test.js tests/productImagesStatic.test.js tests/productImageUpload.test.js tests/productsCatalog.test.js tests/rateLimit.test.js tests/securityHeaders.test.js tests/uploadProduto.test.js"
   },
@@ -22,8 +22,5 @@
     "mysql2": "^3.24.6",
     "nodemailer": "^10.1.7",
     "sharp": "^0.35.5"
-  },
-  "devDependencies": {
-    "nodemon": "^3.1.14"
   }
 }
