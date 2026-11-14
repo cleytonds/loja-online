@@ -8,14 +8,24 @@ import { otimizarImagensProduto } from '../src/middlewares/otimizarImagensProdut
 
 async function fixture(t, entries) {
   const directory = await fs.mkdtemp(path.join(os.tmpdir(), 'dlmodas-optimize-'));
-  t.after(() => fs.rm(directory, { recursive: true, force: true }));
+  const volume = await fs.mkdtemp(path.join(os.tmpdir(), 'dlmodas-volume-'));
+  const previousUploadDir = process.env.UPLOAD_DIR;
+  process.env.UPLOAD_DIR = volume;
+  const outputDirectory = path.join(volume, 'produtos');
+  await fs.mkdir(outputDirectory, { recursive: true });
+  t.after(async () => {
+    if (previousUploadDir === undefined) delete process.env.UPLOAD_DIR;
+    else process.env.UPLOAD_DIR = previousUploadDir;
+    await fs.rm(directory, { recursive: true, force: true });
+    await fs.rm(volume, { recursive: true, force: true });
+  });
   const files = [];
   for (const [filename, bytes] of entries) {
     const filePath = path.join(directory, filename);
     await fs.writeFile(filePath, bytes);
     files.push({ path: filePath, filename, originalname: filename, size: bytes.length });
   }
-  return { directory, req: { files } };
+  return { directory, outputDirectory, req: { files } };
 }
 
 async function run(req) {
@@ -58,10 +68,10 @@ async function assertColorsClose(actual, expected, tolerance = 8) {
   }
 }
 
-test('large JPEG becomes smaller WebP inside 2400px, preserving aspect and other stored files', async (t) => {
+test('large JPEG becomes smaller WebP inside 1920px, preserving aspect and stored files', async (t) => {
   const input = await colorPattern(3000, 1500).jpeg({ quality: 100, chromaSubsampling: '4:4:4' }).toBuffer();
-  const { req, directory } = await fixture(t, [['nova.jpeg', input]]);
-  await fs.writeFile(path.join(directory, 'existente.jpg'), 'do not touch');
+  const { req, directory, outputDirectory } = await fixture(t, [['nova.jpeg', input]]);
+  await fs.writeFile(path.join(outputDirectory, 'existente.jpg'), 'do not touch');
   const result = await run(req);
   assert.equal(result.advanced, true);
   assert.equal(result.error, undefined);
@@ -73,12 +83,12 @@ test('large JPEG becomes smaller WebP inside 2400px, preserving aspect and other
   assert.ok(output.length < input.length);
   const metadata = await sharp(output).metadata();
   assert.equal(metadata.format, 'webp');
-  assert.equal(metadata.width, 2400);
-  assert.equal(metadata.height, 1200);
+  assert.equal(metadata.width, 1920);
+  assert.equal(metadata.height, 960);
   assert.equal(metadata.hasProfile, true);
   assert.equal(metadata.orientation, undefined);
   await assert.rejects(fs.stat(path.join(directory, 'nova.jpeg')), { code: 'ENOENT' });
-  assert.equal(await fs.readFile(path.join(directory, 'existente.jpg'), 'utf8'), 'do not touch');
+  assert.equal(await fs.readFile(path.join(outputDirectory, 'existente.jpg'), 'utf8'), 'do not touch');
 });
 
 for (const orientation of [2, 6]) {
@@ -134,21 +144,59 @@ test('PNG stays lossless with alpha and is not enlarged', async (t) => {
   assert.deepEqual(decoded, pixels);
 });
 
-test('keeps original when WebP would increase file size', async (t) => {
-  const input = await sharp({ create: { width: 1, height: 1, channels: 3, background: 'white' } }).png().toBuffer();
-  const { req, directory } = await fixture(t, [['pequena.png', input]]);
+test('opaque photographic PNG uses lossy WebP instead of indiscriminate lossless mode', async (t) => {
+  const width = 900;
+  const height = 600;
+  const pixels = Buffer.alloc(width * height * 3);
+  for (let i = 0; i < pixels.length; i += 1) {
+    pixels[i] = (i * 73 + Math.floor(i / width) * 29) % 256;
+  }
+  const input = await sharp(pixels, { raw: { width, height, channels: 3 } })
+    .png({ compressionLevel: 0 }).toBuffer();
+  const { req, directory } = await fixture(t, [['fotografia.png', input]]);
   assert.equal((await run(req)).advanced, true);
-  assert.equal(req.files[0].filename, 'pequena.png');
-  assert.deepEqual(await fs.readFile(req.files[0].path), input);
-  assert.deepEqual(await fs.readdir(directory), ['pequena.png']);
+  const output = await fs.readFile(req.files[0].path);
+  const metadata = await sharp(output).metadata();
+  assert.equal(metadata.format, 'webp');
+  assert.ok(output.length < input.length * 0.5);
+  assert.notDeepEqual(await sharp(output).raw().toBuffer(), pixels);
+  assert.deepEqual(await fs.readdir(directory), []);
 });
 
-test('already-sized WebP is decoded but kept byte-for-byte to avoid generational loss', async (t) => {
+test('stores only the final WebP in the persistent directory', async (t) => {
+  const input = await sharp({ create: { width: 1, height: 1, channels: 3, background: 'white' } }).png().toBuffer();
+  const { req, directory, outputDirectory } = await fixture(t, [['pequena.png', input]]);
+  assert.equal((await run(req)).advanced, true);
+  assert.match(req.files[0].filename, /\.optimized\.webp$/);
+  assert.deepEqual(await fs.readdir(directory), []);
+  assert.deepEqual(await fs.readdir(outputDirectory), [req.files[0].filename]);
+});
+
+test('already-sized WebP is decoded and copied as the sole persistent file', async (t) => {
   const input = await colorPattern(120, 80).webp({ quality: 90 }).toBuffer();
   const { req } = await fixture(t, [['pronta.webp', input]]);
   assert.equal((await run(req)).advanced, true);
-  assert.equal(req.files[0].filename, 'pronta.webp');
+  assert.match(req.files[0].filename, /^[\da-f-]{36}\.webp$/);
   assert.deepEqual(await fs.readFile(req.files[0].path), input);
+});
+
+test('WebP over 1920px is resized even when the compressed original is smaller', async (t) => {
+  const width = 2500;
+  const height = 1500;
+  const pixels = Buffer.alloc(width * height * 3);
+  for (let i = 0; i < pixels.length; i += 1) {
+    pixels[i] = (i * 73 + Math.floor(i / width) * 29) % 256;
+  }
+  const input = await sharp(pixels, { raw: { width, height, channels: 3 } })
+    .webp({ quality: 1 }).toBuffer();
+  const { req } = await fixture(t, [['grande.webp', input]]);
+  assert.equal((await run(req)).advanced, true);
+  const output = await fs.readFile(req.files[0].path);
+  const metadata = await sharp(output).metadata();
+  assert.match(req.files[0].filename, /\.optimized\.webp$/);
+  assert.equal(metadata.width, 1920);
+  assert.equal(metadata.height, 1152);
+  assert.ok(output.length > input.length, 'fixture deve provar que tamanho em bytes não evita redimensionamento');
 });
 
 test('animated WebP retains every frame, timing and original bytes', async (t) => {
@@ -162,6 +210,26 @@ test('animated WebP retains every frame, timing and original bytes', async (t) =
   const output = await fs.readFile(req.files[0].path);
   assert.deepEqual(output, input);
   const metadata = await sharp(output, { animated: true }).metadata();
+  assert.equal(metadata.pages, 2);
+  assert.deepEqual(metadata.delay, [50, 70]);
+  assert.equal(metadata.loop, 0);
+});
+
+test('animated WebP over 1920px is resized while preserving animation timing', async (t) => {
+  const width = 2000;
+  const pageHeight = 200;
+  const pixels = Buffer.alloc(width * pageHeight * 2 * 3);
+  pixels.fill(30, 0, width * pageHeight * 3);
+  pixels.fill(210, width * pageHeight * 3);
+  const input = await sharp(pixels, {
+    raw: { width, height: pageHeight * 2, channels: 3, pageHeight },
+  }).webp({ loop: 0, delay: [50, 70], quality: 10 }).toBuffer();
+  const { req } = await fixture(t, [['animada-grande.webp', input]]);
+  assert.equal((await run(req)).advanced, true);
+  const output = await fs.readFile(req.files[0].path);
+  const metadata = await sharp(output, { animated: true }).metadata();
+  assert.equal(metadata.width, 1920);
+  assert.equal(metadata.pageHeight, 192);
   assert.equal(metadata.pages, 2);
   assert.deepEqual(metadata.delay, [50, 70]);
   assert.equal(metadata.loop, 0);
@@ -188,13 +256,14 @@ test('rejects a tiny file declaring more than 40 million pixels before decoding'
 
 test('rejects a corrupt second upload and cleans the whole batch, leaving stored images untouched', async (t) => {
   const input = await colorPattern(400, 200).jpeg({ quality: 100 }).toBuffer();
-  const { req, directory } = await fixture(t, [['valida.jpg', input], ['truncada.jpg', Buffer.from([0xff, 0xd8, 0xff, 0x00])]]);
-  await fs.writeFile(path.join(directory, 'existente.webp'), 'existing image');
+  const { req, directory, outputDirectory } = await fixture(t, [['valida.jpg', input], ['truncada.jpg', Buffer.from([0xff, 0xd8, 0xff, 0x00])]]);
+  await fs.writeFile(path.join(outputDirectory, 'existente.webp'), 'existing image');
   const result = await run(req);
   assert.equal(result.advanced, false);
   assert.equal(result.res.statusCode, 400);
-  assert.deepEqual(await fs.readdir(directory), ['existente.webp']);
-  assert.equal(await fs.readFile(path.join(directory, 'existente.webp'), 'utf8'), 'existing image');
+  assert.deepEqual(await fs.readdir(directory), []);
+  assert.deepEqual(await fs.readdir(outputDirectory), ['existente.webp']);
+  assert.equal(await fs.readFile(path.join(outputDirectory, 'existente.webp'), 'utf8'), 'existing image');
 });
 
 test('rejects mismatched extension without storing incorrect HTTP content types', async (t) => {
@@ -209,9 +278,20 @@ test('write failure cleans new uploads and propagates an infrastructure error', 
   const { req, directory } = await fixture(t, [['nova.jpg', input]]);
   t.mock.method(fs, 'open', async () => { throw Object.assign(new Error('no space'), { code: 'ENOSPC' }); });
   const result = await run(req);
-  assert.equal(result.error?.code, 'ENOSPC');
-  assert.equal(result.advanced, true);
+  assert.equal(result.res.statusCode, 507);
+  assert.equal(result.advanced, false);
   assert.deepEqual(await fs.readdir(directory), []);
+});
+
+test('insufficient free space returns 507 before opening a persistent file', async (t) => {
+  const input = await colorPattern(400, 200).jpeg({ quality: 100 }).toBuffer();
+  const { req, directory, outputDirectory } = await fixture(t, [['nova.jpg', input]]);
+  t.mock.method(fs, 'statfs', async () => ({ bavail: 0, bsize: 4096 }));
+  const result = await run(req);
+  assert.equal(result.res.statusCode, 507);
+  assert.deepEqual(result.res.body, { erro: 'Espaço insuficiente para armazenar a imagem.' });
+  assert.deepEqual(await fs.readdir(directory), []);
+  assert.deepEqual(await fs.readdir(outputDirectory), []);
 });
 
 test('partially written output is removed together with the original upload', async (t) => {
@@ -228,7 +308,7 @@ test('partially written output is removed together with the original upload', as
     return handle;
   });
   const result = await run(req);
-  assert.equal(result.error?.code, 'ENOSPC');
+  assert.equal(result.res.statusCode, 507);
   assert.deepEqual(await fs.readdir(directory), []);
 });
 

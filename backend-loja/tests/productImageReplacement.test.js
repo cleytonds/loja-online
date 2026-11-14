@@ -55,15 +55,25 @@ function fixture() {
   };
 }
 
-async function withConnection({ oldUrls = ['/uploads/produtos/anterior.jpg'], failQuery, failCommit, failRollback, beforeCommit } = {}, execute) {
+async function withConnection({
+  oldUrls = ['/uploads/produtos/anterior.jpg'],
+  remainingReferences = {},
+  failQuery,
+  failCommit,
+  failRollback,
+  beforeCommit,
+} = {}, execute) {
   const original = db.getConnection;
-  const calls = { begin: 0, commit: 0, rollback: 0, release: 0, queries: [] };
+  const calls = {
+    begin: 0, commit: 0, rollback: 0, release: 0, committed: false, queries: [],
+  };
   const connection = {
     async beginTransaction() { calls.begin += 1; },
     async commit() {
       calls.commit += 1;
       beforeCommit?.();
       if (failCommit) throw new Error('commit simulado');
+      calls.committed = true;
     },
     async rollback() {
       calls.rollback += 1;
@@ -79,6 +89,10 @@ async function withConnection({ oldUrls = ['/uploads/produtos/anterior.jpg'], fa
       if (sql.includes('SELECT id, url FROM produto_imagens')) {
         return [oldUrls.map((url, index) => ({ id: index + 1, url }))];
       }
+      if (sql.includes('SELECT COUNT(*) AS total FROM produto_imagens')) {
+        assert.equal(calls.committed, true, 'referências só podem ser verificadas após commit');
+        return [[{ total: remainingReferences[params[0]] ?? 0 }]];
+      }
       return [{ affectedRows: 1 }];
     },
   };
@@ -90,7 +104,7 @@ async function withConnection({ oldUrls = ['/uploads/produtos/anterior.jpg'], fa
   }
 }
 
-test('substituição usa o volume configurado e só remove a imagem antiga após commit', async () => {
+test('última referência é removida fisicamente somente após commit', async () => {
   const { req, res, oldPath, newPath } = fixture();
   await withConnection({ beforeCommit() { assert.equal(fs.existsSync(oldPath), true); } }, async (calls) => {
     await updateHandler(req, res);
@@ -102,6 +116,23 @@ test('substituição usa o volume configurado e só remove a imagem antiga após
   });
   assert.equal(res.statusCode, 200);
   assert.equal(fs.existsSync(oldPath), false);
+  assert.equal(fs.existsSync(newPath), true);
+});
+
+test('imagem compartilhada permanece quando outra linha ainda referencia a mesma URL', async () => {
+  const { req, res, oldPath, newPath } = fixture();
+  const sharedUrl = '/uploads/produtos/anterior.jpg';
+  await withConnection({
+    oldUrls: [sharedUrl],
+    remainingReferences: { [sharedUrl]: 1 },
+    beforeCommit() { assert.equal(fs.existsSync(oldPath), true); },
+  }, async (calls) => {
+    await updateHandler(req, res);
+    const globalCheck = calls.queries.find(({ sql }) => sql.includes('SELECT COUNT(*) AS total'));
+    assert.deepEqual(globalCheck.params, [sharedUrl]);
+  });
+  assert.equal(res.statusCode, 200);
+  assert.equal(fs.existsSync(oldPath), true);
   assert.equal(fs.existsSync(newPath), true);
 });
 
