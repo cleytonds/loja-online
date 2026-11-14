@@ -1,13 +1,16 @@
 import multer from 'multer';
 import path from 'path';
 import fs from 'fs';
+import os from 'os';
 import { randomUUID } from 'crypto';
 import { isImagemValida } from '../utils/imageMagic.js';
 import { getUploadProductsDir } from '../config/runtime.js';
 
 const uploadDir = getUploadProductsDir(process.env);
+const uploadTempDir = path.join(os.tmpdir(), 'dl-modas-produtos');
 
 fs.mkdirSync(uploadDir, { recursive: true });
+fs.mkdirSync(uploadTempDir, { recursive: true });
 
 const allowedMimeTypes = new Set(['image/jpeg', 'image/png', 'image/webp']);
 const allowedExt = new Set(['.jpg', '.jpeg', '.png', '.webp']);
@@ -47,7 +50,7 @@ export function validarImagensProduto(req, res, next) {
 
 const storage = multer.diskStorage({
   destination: (req, file, cb) => {
-    cb(null, uploadDir);
+    cb(null, uploadTempDir);
   },
 
   filename: (req, file, cb) => {

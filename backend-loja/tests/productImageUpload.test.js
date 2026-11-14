@@ -50,8 +50,16 @@ after(() => {
 
 async function postMultipart({ variations = validVariations, files = [{ name: 'blusa.jpg', bytes: jpeg }] } = {}) {
   let uploads = null;
+  let stagedUploads = null;
   const app = express();
-  app.post('/produtos', ...uploadHandlers, (req, res, next) => {
+  app.post('/produtos', uploadHandlers[0], (req, res, next) => {
+    stagedUploads = req.files.map(({ path: filePath }) => ({
+      path: filePath,
+      exists: fs.existsSync(filePath),
+      outsidePersistentVolume: !path.resolve(filePath).startsWith(`${path.resolve(directory)}${path.sep}`),
+    }));
+    next();
+  }, ...uploadHandlers.slice(1), (req, res, next) => {
     uploads = req.files.map(({ filename, path: filePath, mimetype, size }) => ({
       filename, path: filePath, mimetype, size, existedBeforeTransaction: fs.existsSync(filePath),
     }));
@@ -74,7 +82,7 @@ async function postMultipart({ variations = validVariations, files = [{ name: 'b
   });
   try {
     const response = await fetch(`http://127.0.0.1:${server.address().port}/produtos`, { method: 'POST', body: form });
-    return { status: response.status, body: await response.json(), uploads };
+    return { status: response.status, body: await response.json(), uploads, stagedUploads };
   } finally {
     await new Promise((resolve) => server.close(resolve));
   }
@@ -122,6 +130,10 @@ test('multipart salva WebP e grava no banco a URL do arquivo realmente otimizado
     assert.equal(result.status, 200);
     assert.equal(result.body.message, 'Produto criado com sucesso');
     const [upload] = result.uploads;
+    assert.deepEqual(result.stagedUploads.map(({ exists, outsidePersistentVolume }) => ({ exists, outsidePersistentVolume })), [
+      { exists: true, outsidePersistentVolume: true },
+    ]);
+    assert.equal(fs.existsSync(result.stagedUploads[0].path), false);
     assertOptimizedUpload(upload);
     const imageQuery = calls.queries.find(({ sql }) => sql.includes('INSERT INTO produto_imagens'));
     assert.deepEqual(imageQuery.params, [71, `/uploads/produtos/${upload.filename}`, 1]);

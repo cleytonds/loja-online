@@ -362,7 +362,7 @@ router.put('/:id', verificarToken, isAdmin, uploadProduto.array('imagens'), vali
   }
 
   let connection;
-  let imagensAntigasParaRemover = [];
+  let imagensAntigasParaVerificar = [];
   let committed = false;
 
   try {
@@ -473,7 +473,7 @@ router.put('/:id', verificarToken, isAdmin, uploadProduto.array('imagens'), vali
         [id],
       );
 
-      imagensAntigasParaRemover = arquivosDeImagensProduto(imagensAntigas);
+      imagensAntigasParaVerificar = imagensAntigas;
 
       await connection.query(`DELETE FROM produto_imagens WHERE produto_id=?`, [id]);
 
@@ -488,11 +488,20 @@ router.put('/:id', verificarToken, isAdmin, uploadProduto.array('imagens'), vali
     await connection.commit();
     committed = true;
 
-    // O banco já referencia os novos uploads; falhas de limpeza não desfazem a atualização.
+    // Só remove arquivos antigos que não são mais referenciados por nenhum produto.
     try {
-      removerImagensProduto(imagensAntigasParaRemover);
+      const urlsUnicas = [...new Set(imagensAntigasParaVerificar.map(({ url }) => url))];
+      const imagensSemReferencias = [];
+      for (const url of urlsUnicas) {
+        const [[referencias]] = await connection.query(
+          'SELECT COUNT(*) AS total FROM produto_imagens WHERE url=?',
+          [url],
+        );
+        if (Number(referencias.total) === 0) imagensSemReferencias.push({ url });
+      }
+      removerImagensProduto(arquivosDeImagensProduto(imagensSemReferencias));
     } catch {
-      // A remoção de arquivos antigos é uma limpeza de melhor esforço após o commit.
+      // Na dúvida, preserva os arquivos antigos; uma auditoria pode removê-los depois.
     }
 
     res.json({
