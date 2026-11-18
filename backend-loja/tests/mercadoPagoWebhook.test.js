@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import http from 'node:http';
 import test from 'node:test';
 import express from 'express';
+import jwt from 'jsonwebtoken';
 import { Payment, WebhookSignatureValidator } from 'mercadopago';
 
 process.env.MERCADO_PAGO_ACCESS_TOKEN ||= 'TEST-token';
@@ -106,6 +107,45 @@ test('rota de reconciliação exige autenticação', async () => {
       method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ payment_id: '77001' }),
     });
     assert.equal(response.status, 401);
+  } finally { await new Promise((resolve) => server.close(resolve)); }
+});
+
+test('rota de regularização excepcional exige autenticação', async () => {
+  const app = express(); app.use(express.json()); app.use('/pagamentos', router);
+  const server = await new Promise((resolve) => { const s = app.listen(0, '127.0.0.1', () => resolve(s)); });
+  try {
+    const response = await fetch(`http://127.0.0.1:${server.address().port}/pagamentos/mercado-pago/111/regularizar-entregue`, {
+      method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({}),
+    });
+    assert.equal(response.status, 401);
+  } finally { await new Promise((resolve) => server.close(resolve)); }
+});
+
+test('rota de regularização excepcional rejeita usuário autenticado sem papel admin', async (t) => {
+  const queryOriginal = db.query;
+  const jwtSecretOriginal = process.env.JWT_SECRET;
+  process.env.JWT_SECRET = 'test-only-secret-not-production';
+  db.query = async (sql) => {
+    if (sql.includes('FROM usuarios WHERE id = ?')) {
+      return [[{ id: 7, nome: 'Cliente de teste', email: 'cliente@test.local', tipo: 'cliente', ativo: 1 }]];
+    }
+    throw new Error(`Consulta inesperada: ${sql}`);
+  };
+  t.after(() => {
+    db.query = queryOriginal;
+    if (jwtSecretOriginal === undefined) delete process.env.JWT_SECRET;
+    else process.env.JWT_SECRET = jwtSecretOriginal;
+  });
+  const token = jwt.sign({ id: 7, tipo: 'cliente' }, process.env.JWT_SECRET);
+  const app = express(); app.use(express.json()); app.use('/pagamentos', router);
+  const server = await new Promise((resolve) => { const s = app.listen(0, '127.0.0.1', () => resolve(s)); });
+  try {
+    const response = await fetch(`http://127.0.0.1:${server.address().port}/pagamentos/mercado-pago/111/regularizar-entregue`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', authorization: `Bearer ${token}` },
+      body: JSON.stringify({}),
+    });
+    assert.equal(response.status, 403);
   } finally { await new Promise((resolve) => server.close(resolve)); }
 });
 

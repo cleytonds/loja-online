@@ -17,9 +17,10 @@ const MP_MAX_INSTALLMENTS_LIMIT = 12;
 
 function configurarMeiosPagamento(valorConfigurado) {
   const valor = String(valorConfigurado || '').trim();
-  const installments = /^\d+$/.test(valor) && Number(valor) > 0 && Number(valor) <= MP_MAX_INSTALLMENTS_LIMIT
-    ? Number(valor)
-    : MP_MAX_INSTALLMENTS_DEFAULT;
+  const installments =
+    /^\d+$/.test(valor) && Number(valor) > 0 && Number(valor) <= MP_MAX_INSTALLMENTS_LIMIT
+      ? Number(valor)
+      : MP_MAX_INSTALLMENTS_DEFAULT;
 
   return {
     // Prioriza credit_card e bank_transfer (PIX), excluindo tipos offline,
@@ -37,7 +38,9 @@ function configurarMeiosPagamento(valorConfigurado) {
 }
 
 function removerBarraFinal(url) {
-  return String(url || '').trim().replace(/\/+$/, '');
+  return String(url || '')
+    .trim()
+    .replace(/\/+$/, '');
 }
 
 function urlsCheckout() {
@@ -89,7 +92,9 @@ function diagnosticoSeguroErro(error) {
     status: error?.status ?? error?.response?.status ?? error?.api_response?.status ?? null,
     cause: error?.cause?.message
       ? redigirTextoDiagnostico(error.cause.message)
-      : (error?.cause ? redigirTextoDiagnostico(error.cause) : null),
+      : error?.cause
+        ? redigirTextoDiagnostico(error.cause)
+        : null,
     response: resumirRespostaErro(error?.response),
     api_response: resumirRespostaErro(error?.api_response),
   };
@@ -114,15 +119,20 @@ function paraCentavos(valor) {
 
 function selecionarCheckoutUrl(preferencia, ambiente) {
   const ambienteMercadoPago = obterAmbienteMercadoPago({ MP_ENVIRONMENT: ambiente });
-  const checkoutUrl = ambienteMercadoPago === 'sandbox'
-    ? preferencia.sandboxCheckoutUrl
-    : preferencia.checkoutUrl;
+  const checkoutUrl =
+    ambienteMercadoPago === 'sandbox' ? preferencia.sandboxCheckoutUrl : preferencia.checkoutUrl;
 
   return typeof checkoutUrl === 'string' && checkoutUrl.trim() ? checkoutUrl : null;
 }
 
 function pedidoEstaPagavel(pedido) {
-  if (!STATUS_PAGAVEIS.has(String(pedido.status || '').trim().toLowerCase())) {
+  if (
+    !STATUS_PAGAVEIS.has(
+      String(pedido.status || '')
+        .trim()
+        .toLowerCase(),
+    )
+  ) {
     return false;
   }
 
@@ -134,10 +144,10 @@ function montarValidadePreferencia(expiresAt, createdAt) {
   const expirationDateFrom = new Date(createdAt);
 
   if (
-    Number.isNaN(expirationDateTo.getTime())
-    || Number.isNaN(expirationDateFrom.getTime())
-    || expirationDateTo.getTime() <= Date.now()
-    || expirationDateFrom.getTime() >= expirationDateTo.getTime()
+    Number.isNaN(expirationDateTo.getTime()) ||
+    Number.isNaN(expirationDateFrom.getTime()) ||
+    expirationDateTo.getTime() <= Date.now() ||
+    expirationDateFrom.getTime() >= expirationDateTo.getTime()
   ) {
     throw new Error('Prazo de pagamento inválido ou expirado');
   }
@@ -174,7 +184,11 @@ function montarItens(itens, total) {
     const quantidade = Number(item.quantidade);
     const precoCentavos = paraCentavos(item.preco);
 
-    if (!Number.isFinite(Number(item.preco)) || !Number.isSafeInteger(quantidade) || quantidade <= 0) {
+    if (
+      !Number.isFinite(Number(item.preco)) ||
+      !Number.isSafeInteger(quantidade) ||
+      quantidade <= 0
+    ) {
       throw new Error('Quantidade inválida no item do pedido');
     }
 
@@ -221,7 +235,10 @@ router.post('/mercado-pago/preferencia/:pedidoId', verificarToken, async (req, r
   try {
     ambiente = obterAmbienteMercadoPago();
   } catch (error) {
-    console.error('Configuração de ambiente Mercado Pago inválida:', error.code || error.name || 'erro');
+    console.error(
+      'Configuração de ambiente Mercado Pago inválida:',
+      error.code || error.name || 'erro',
+    );
     return res.status(500).json({ erro: 'Configuração de pagamento indisponível' });
   }
 
@@ -285,9 +302,9 @@ router.post('/mercado-pago/preferencia/:pedidoId', verificarToken, async (req, r
     const checkoutUrl = selecionarCheckoutUrl(preferencia, ambiente);
 
     if (
-      !preferencia.preferenceId
-      || !checkoutUrl
-      || preferencia.externalReference !== String(pedidoId)
+      !preferencia.preferenceId ||
+      !checkoutUrl ||
+      preferencia.externalReference !== String(pedidoId)
     ) {
       throw new Error('Resposta inválida ao criar preferência Mercado Pago');
     }
@@ -354,7 +371,11 @@ function webhookSecret() {
 }
 
 function pagamentoFoiAprovado(status) {
-  return String(status || '').trim().toLowerCase() === 'approved';
+  return (
+    String(status || '')
+      .trim()
+      .toLowerCase() === 'approved'
+  );
 }
 
 function idPagamentoValido(value) {
@@ -402,9 +423,10 @@ function resumirAssinaturaWebhook(req, notificacao, erro = null) {
 
   return {
     formato: notificacao.formato,
-    query: notificacao.formato === 'moderno'
-      ? { dataId: Boolean(req.query['data.id']), type: req.query.type || null }
-      : { id: Boolean(req.query.id), topic: req.query.topic || null },
+    query:
+      notificacao.formato === 'moderno'
+        ? { dataId: Boolean(req.query['data.id']), type: req.query.type || null }
+        : { id: Boolean(req.query.id), topic: req.query.topic || null },
     possuiXSignature: Boolean(assinatura),
     possuiXRequestId: Boolean(xRequestId),
     possuiTs: partes.some((parte) => /^ts=\d+$/i.test(parte)),
@@ -453,10 +475,11 @@ function pagamentoFoiAprovadoNoPrazo(pagamento, pedido) {
 }
 
 function pedidoPodeSerConfirmadoPorMercadoPago(pedido, pagamento) {
-  const status = String(pedido.status || '').trim().toLowerCase();
+  const status = String(pedido.status || '')
+    .trim()
+    .toLowerCase();
   return (
-    ['pendente', 'expirado'].includes(status)
-    && pagamentoFoiAprovadoNoPrazo(pagamento, pedido)
+    ['pendente', 'expirado'].includes(status) && pagamentoFoiAprovadoNoPrazo(pagamento, pedido)
   );
 }
 
@@ -473,15 +496,16 @@ async function reaplicarReservaDeEstoque(connection, pedidoId) {
   for (const item of itens) {
     const variacaoId = Number(item.variacao_id);
     const quantidade = Number(item.quantidade);
-    if (!Number.isSafeInteger(variacaoId) || variacaoId <= 0
-      || !Number.isSafeInteger(quantidade) || quantidade <= 0) {
+    if (
+      !Number.isSafeInteger(variacaoId) ||
+      variacaoId <= 0 ||
+      !Number.isSafeInteger(quantidade) ||
+      quantidade <= 0
+    ) {
       throw new Error('Itens inválidos para restaurar reserva do pedido aprovado');
     }
 
-    reservasPorVariacao.set(
-      variacaoId,
-      (reservasPorVariacao.get(variacaoId) || 0) + quantidade,
-    );
+    reservasPorVariacao.set(variacaoId, (reservasPorVariacao.get(variacaoId) || 0) + quantidade);
   }
 
   const variacoesIds = [...reservasPorVariacao.keys()].sort((a, b) => a - b);
@@ -532,6 +556,203 @@ function erroReconciliacao(mensagem, statusCode = 409) {
   return error;
 }
 
+const PEDIDO_REGULARIZACAO_ENTREGUE_ID = 111;
+
+function validarDeclaracaoRegularizacao({
+  entregaConfirmada,
+  estoqueConferido,
+  evidenciaTipo,
+  evidenciaReferencia,
+  motivo,
+}) {
+  const tiposPermitidos = [
+    'conferencia_operacional',
+    'log_backend',
+    'binlog_mysql',
+    'inventario_assinado',
+  ];
+  const tipo = String(evidenciaTipo || '')
+    .trim()
+    .toLowerCase();
+  const referencia = String(evidenciaReferencia || '').trim();
+  const motivoNormalizado = String(motivo || '').trim();
+  if (entregaConfirmada !== true || estoqueConferido !== true) {
+    throw erroReconciliacao('Confirmações de entrega e estoque são obrigatórias', 400);
+  }
+  if (!tiposPermitidos.includes(tipo) || referencia.length < 12 || referencia.length > 120) {
+    throw erroReconciliacao('Referência operacional declarada é obrigatória', 400);
+  }
+  if (motivoNormalizado.length < 10 || motivoNormalizado.length > 80) {
+    throw erroReconciliacao('Motivo de regularização inválido', 400);
+  }
+  return { tipo, referencia, motivo: motivoNormalizado };
+}
+
+async function registrarAuditoriaRegularizacaoEntregue(
+  connection,
+  { pedido, pagamento, adminId, declaracao },
+) {
+  const eventoId = `regularizacao-entregue:${pedido.id}:${pagamento.paymentId}`;
+  const payload = JSON.stringify({
+    versao: 1,
+    tipo: 'regularizacao_entregue_legado',
+    administrador_id: adminId,
+    estado_anterior: {
+      status: pedido.status,
+      mp_status: pedido.mp_status,
+      mp_status_detail: pedido.mp_status_detail,
+      pagamento_confirmado_em: pedido.pagamento_confirmado_em,
+      reconciliacao_status: pedido.reconciliacao_status,
+      reconciliacao_motivo: pedido.reconciliacao_motivo,
+    },
+    pagamento: {
+      payment_id: pagamento.paymentId,
+      external_reference: pagamento.externalReference,
+      status: pagamento.status,
+      status_detail: pagamento.statusDetail,
+      valor_pago: pagamento.valorPago,
+      moeda: pagamento.currencyId,
+      collector_id: pagamento.collectorId,
+      data_aprovacao: pagamento.dataAprovacao,
+    },
+    declaracao_operacional: {
+      entrega_confirmada: true,
+      estoque_conferido: true,
+      reserva_legada_comprovada: false,
+      decisao: 'regularizacao_manual_excepcional_sem_movimentacao_de_estoque',
+      evidencia_tipo: declaracao.tipo,
+      evidencia_referencia: declaracao.referencia,
+      motivo: declaracao.motivo,
+      verificacao_tecnica: false,
+    },
+  });
+  await connection.query(
+    `INSERT INTO pagamento_eventos
+       (provedor, evento_id, tipo, acao, recurso_id, payload, pedido_id, processado, processado_em)
+     VALUES ('interno', ?, 'regularizacao_entregue_legado', 'administrativa', ?, ?, ?, 1, NOW())`,
+    [eventoId, String(pagamento.paymentId), payload, pedido.id],
+  );
+}
+
+async function regularizarPedidoEntregue(
+  connection,
+  {
+    pedidoId,
+    pagamento,
+    adminId,
+    entregaConfirmada,
+    estoqueConferido,
+    evidenciaTipo,
+    evidenciaReferencia,
+    motivo,
+  },
+) {
+  // Escopo fechado: exceção operacional destinada somente ao pedido legado 111.
+  // Não é um mecanismo genérico de reconciliação.
+  if (Number(pedidoId) !== PEDIDO_REGULARIZACAO_ENTREGUE_ID) {
+    throw erroReconciliacao('Regularização excepcional não autorizada para este pedido', 403);
+  }
+  const declaracao = validarDeclaracaoRegularizacao({
+    entregaConfirmada,
+    estoqueConferido,
+    evidenciaTipo,
+    evidenciaReferencia,
+    motivo,
+  });
+  const [pedidos] = await connection.query(
+    `SELECT id, status, total, expires_at, pagamento, mp_payment_id, mp_status,
+            mp_status_detail, pagamento_confirmado_em, reconciliacao_status,
+            reconciliacao_motivo
+     FROM pedidos WHERE id = ? FOR UPDATE`,
+    [pedidoId],
+  );
+  const pedido = pedidos[0];
+  if (!pedido) throw erroReconciliacao('Pedido não encontrado', 404);
+
+  validarPagamentoConsultado(pagamento, pedido, true);
+  if (!pagamentoFoiAprovado(pagamento.status))
+    throw erroReconciliacao('Pagamento não está aprovado');
+  if (
+    String(pedido.pagamento) !== 'mercado_pago' ||
+    String(pedido.mp_payment_id) !== String(pagamento.paymentId) ||
+    String(pedido.mp_status).toLowerCase() !== 'approved'
+  ) {
+    throw erroReconciliacao('Pedido não possui aprovação Mercado Pago consistente');
+  }
+  if (
+    pedido.status === 'entregue' &&
+    pedido.pagamento_confirmado_em &&
+    pedido.reconciliacao_status === 'resolvida_atendimento'
+  ) {
+    return { pedidoId: Number(pedido.id), status: 'entregue', idempotente: true };
+  }
+  if (
+    pedido.status !== 'pendente' ||
+    pedido.pagamento_confirmado_em ||
+    pedido.reconciliacao_status !== 'pendente'
+  ) {
+    throw erroReconciliacao('Pedido não está elegível para regularização excepcional');
+  }
+
+  // O pedido legado não possui trilha histórica de reserva. Esta exceção exige
+  // decisão operacional expressa e auditada: não presume prova técnica do estoque.
+  if (!pedido.expires_at || pagamentoFoiAprovadoNoPrazo(pagamento, pedido)) {
+    throw erroReconciliacao('Regularização reservada a pagamentos aprovados após a expiração');
+  }
+  if (
+    pagamento.dataAprovacao === null ||
+    pagamento.dataAprovacao === undefined ||
+    String(pagamento.dataAprovacao).trim() === ''
+  ) {
+    throw erroReconciliacao('Data de aprovação inválida');
+  }
+
+  const dataAprovacao = new Date(pagamento.dataAprovacao);
+  const dataExpiracao = new Date(pedido.expires_at);
+
+  if (
+    !Number.isFinite(dataAprovacao.getTime()) ||
+    !Number.isFinite(dataExpiracao.getTime()) ||
+    dataAprovacao.getTime() <= dataExpiracao.getTime()
+  ) {
+    throw erroReconciliacao('Data de aprovação inválida ou fora do prazo esperado');
+  }
+  const decisao = {
+    ...declaracao,
+    entregaConfirmada,
+    estoqueConferido,
+  };
+  // A inserção do evento e a alteração do pedido são atômicas na mesma transação.
+  // Se houver falha, o chamador faz rollback de ambas.
+  await registrarAuditoriaRegularizacaoEntregue(connection, {
+    pedido,
+    pagamento,
+    adminId,
+    declaracao: decisao,
+  });
+  const [atualizacao] = await connection.query(
+    `UPDATE pedidos
+     SET status = 'entregue', pagamento_confirmado_em = ?,
+         mp_status = ?, mp_status_detail = ?, pagamento_atualizado_em = NOW(),
+         reconciliacao_status = 'resolvida_atendimento',
+         reconciliacao_resolvida_em = NOW(), reconciliacao_resolvida_por = ?
+     WHERE id = ? AND status = 'pendente' AND pagamento_confirmado_em IS NULL
+       AND reconciliacao_status = 'pendente' AND mp_payment_id = ?`,
+    [
+      dataAprovacao,
+      pagamento.status,
+      pagamento.statusDetail,
+      adminId,
+      pedidoId,
+      pagamento.paymentId,
+    ],
+  );
+  if (atualizacao.affectedRows !== 1) {
+    throw erroReconciliacao('Pedido atualizado por outra operação');
+  }
+  return { pedidoId: Number(pedido.id), status: 'entregue', idempotente: false };
+}
+
 async function aceitarPagamentoReconciliado(connection, { pedidoId, pagamento, adminId }) {
   const [pedidos] = await connection.query(
     `SELECT id, usuario_id, status, total, expires_at, pagamento, mp_payment_id,
@@ -544,25 +765,45 @@ async function aceitarPagamentoReconciliado(connection, { pedidoId, pagamento, a
   if (!pedido) throw erroReconciliacao('Pedido não encontrado', 404);
 
   validarPagamentoConsultado(pagamento, pedido, true);
-  if (!pagamentoFoiAprovado(pagamento.status)) throw erroReconciliacao('Pagamento não está aprovado');
-  if (String(pedido.pagamento) !== 'mercado_pago' || String(pedido.mp_payment_id) !== String(pagamento.paymentId)) {
+  if (!pagamentoFoiAprovado(pagamento.status))
+    throw erroReconciliacao('Pagamento não está aprovado');
+  if (
+    String(pedido.pagamento) !== 'mercado_pago' ||
+    String(pedido.mp_payment_id) !== String(pagamento.paymentId)
+  ) {
     throw erroReconciliacao('Pagamento não corresponde ao pedido');
   }
 
-  const reconciliacao = String(pedido.reconciliacao_status || '').trim().toLowerCase();
-  if (reconciliacao === 'resolvida_estorno') throw erroReconciliacao('Pedido possui estorno manual registrado');
-  if (pedido.status === 'pago' && pedido.pagamento_confirmado_em && reconciliacao === 'resolvida_atendimento') {
+  const reconciliacao = String(pedido.reconciliacao_status || '')
+    .trim()
+    .toLowerCase();
+  if (reconciliacao === 'resolvida_estorno')
+    throw erroReconciliacao('Pedido possui estorno manual registrado');
+  if (
+    pedido.status === 'pago' &&
+    pedido.pagamento_confirmado_em &&
+    reconciliacao === 'resolvida_atendimento'
+  ) {
     return { pedidoId: Number(pedido.id), status: 'pago', idempotente: true };
   }
-  if (pedido.status !== 'expirado' || pedido.pagamento_confirmado_em || !['pendente', 'resolvida_atendimento'].includes(reconciliacao)) {
+  if (
+    pedido.status !== 'expirado' ||
+    pedido.pagamento_confirmado_em ||
+    !['pendente', 'resolvida_atendimento'].includes(reconciliacao)
+  ) {
     throw erroReconciliacao('Pedido não possui reconciliação de pagamento aplicável');
   }
 
-  if (pagamento.dataAprovacao === null || pagamento.dataAprovacao === undefined || String(pagamento.dataAprovacao).trim() === '') {
+  if (
+    pagamento.dataAprovacao === null ||
+    pagamento.dataAprovacao === undefined ||
+    String(pagamento.dataAprovacao).trim() === ''
+  ) {
     throw erroReconciliacao('Data de aprovação inválida');
   }
   const dataAprovacao = new Date(pagamento.dataAprovacao);
-  if (!Number.isFinite(dataAprovacao.getTime())) throw erroReconciliacao('Data de aprovação inválida');
+  if (!Number.isFinite(dataAprovacao.getTime()))
+    throw erroReconciliacao('Data de aprovação inválida');
 
   await reaplicarReservaDeEstoque(connection, pedidoId);
   const [updatePedido] = await connection.query(
@@ -574,7 +815,8 @@ async function aceitarPagamentoReconciliado(connection, { pedidoId, pagamento, a
        AND reconciliacao_status IN ('pendente', 'resolvida_atendimento')`,
     [dataAprovacao, pagamento.status, pagamento.statusDetail, adminId, pedidoId],
   );
-  if (updatePedido.affectedRows !== 1) throw erroReconciliacao('Pedido atualizado por outra operação');
+  if (updatePedido.affectedRows !== 1)
+    throw erroReconciliacao('Pedido atualizado por outra operação');
   return { pedidoId: Number(pedido.id), status: 'pago', idempotente: false };
 }
 
@@ -589,7 +831,9 @@ function resumirErroWebhook(error, notificacao) {
     status: error?.status ?? error?.statusCode ?? error?.response?.status ?? null,
     cause: causa?.message
       ? redigirTextoDiagnostico(causa.message)
-      : (causa ? redigirTextoDiagnostico(String(causa)) : null),
+      : causa
+        ? redigirTextoDiagnostico(String(causa))
+        : null,
   };
 
   if (process.env.NODE_ENV !== 'production' && error?.stack) {
@@ -604,14 +848,17 @@ function resumirErroWebhook(error, notificacao) {
  * Webhook e reconciliação local compartilham esta mesma transação para não haver
  * caminhos distintos de confirmação de pedido.
  */
-async function aplicarResultadoPagamentoMercadoPago(connection, {
-  pedidoId,
-  pagamento,
-  exigirCollector = false,
-  usuarioSolicitante = null,
-  permitirAdmin = false,
-  evento = null,
-}) {
+async function aplicarResultadoPagamentoMercadoPago(
+  connection,
+  {
+    pedidoId,
+    pagamento,
+    exigirCollector = false,
+    usuarioSolicitante = null,
+    permitirAdmin = false,
+    evento = null,
+  },
+) {
   const [pedidos] = await connection.query(
     `SELECT id, usuario_id, status, total, expires_at, pagamento, mp_payment_id,
             reconciliacao_status, reconciliacao_em
@@ -624,9 +871,11 @@ async function aplicarResultadoPagamentoMercadoPago(connection, {
 
   if (!pedido) throw new Error('Pedido não corresponde ao pagamento');
 
-  if (usuarioSolicitante
-    && Number(pedido.usuario_id) !== Number(usuarioSolicitante.id)
-    && !permitirAdmin) {
+  if (
+    usuarioSolicitante &&
+    Number(pedido.usuario_id) !== Number(usuarioSolicitante.id) &&
+    !permitirAdmin
+  ) {
     const error = new Error('Acesso negado ao pedido');
     error.statusCode = 403;
     throw error;
@@ -644,12 +893,17 @@ async function aplicarResultadoPagamentoMercadoPago(connection, {
 
   const pagamentoAprovado = pagamentoFoiAprovado(pagamento.status);
   const confirmarPedido = pedidoPodeSerConfirmadoPorMercadoPago(pedido, pagamento);
-  const pedidoExpiradoComAprovacaoNoPrazo = confirmarPedido
-    && String(pedido.status || '').trim().toLowerCase() === 'expirado';
-  const pagamentoTardio = pagamentoAprovado
-    && !pagamentoFoiAprovadoNoPrazo(pagamento, pedido);
-  const reconciliacaoJaResolvida = ['resolvida_estorno', 'resolvida_atendimento']
-    .includes(String(pedido.reconciliacao_status || '').trim().toLowerCase());
+  const pedidoExpiradoComAprovacaoNoPrazo =
+    confirmarPedido &&
+    String(pedido.status || '')
+      .trim()
+      .toLowerCase() === 'expirado';
+  const pagamentoTardio = pagamentoAprovado && !pagamentoFoiAprovadoNoPrazo(pagamento, pedido);
+  const reconciliacaoJaResolvida = ['resolvida_estorno', 'resolvida_atendimento'].includes(
+    String(pedido.reconciliacao_status || '')
+      .trim()
+      .toLowerCase(),
+  );
   let estoqueIndisponivelAoRestaurarReserva = false;
 
   // O scheduler pode expirar um pedido logo após a aprovação oficial. Nesse
@@ -723,12 +977,7 @@ async function aplicarResultadoPagamentoMercadoPago(connection, {
       `UPDATE pagamento_eventos
        SET pedido_id = ?, processado = 1, processado_em = NOW(), erro = ?
        WHERE provedor = ? AND evento_id = ?`,
-      [
-        pedidoId,
-        erroEvento,
-        evento.provedor,
-        evento.eventoId,
-      ],
+      [pedidoId, erroEvento, evento.provedor, evento.eventoId],
     );
   }
 
@@ -809,19 +1058,70 @@ router.post('/mercado-pago/:pedidoId/aceitar-reconciliacao', verificarToken, asy
 
   let connection;
   try {
-    const [pedidos] = await db.query('SELECT id, mp_payment_id FROM pedidos WHERE id = ?', [pedidoId]);
+    const [pedidos] = await db.query('SELECT id, mp_payment_id FROM pedidos WHERE id = ?', [
+      pedidoId,
+    ]);
     const paymentId = String(pedidos[0]?.mp_payment_id || '').trim();
-    if (!idPagamentoValido(paymentId)) return res.status(409).json({ erro: 'Pedido não possui pagamento Mercado Pago válido' });
+    if (!idPagamentoValido(paymentId))
+      return res.status(409).json({ erro: 'Pedido não possui pagamento Mercado Pago válido' });
 
     const pagamento = await consultarPagamento(paymentId);
     connection = await db.getConnection();
     await connection.beginTransaction();
-    const resultado = await aceitarPagamentoReconciliado(connection, { pedidoId, pagamento, adminId: req.user.id });
+    const resultado = await aceitarPagamentoReconciliado(connection, {
+      pedidoId,
+      pagamento,
+      adminId: req.user.id,
+    });
     await connection.commit();
     return res.json({ ok: true, ...resultado });
   } catch (error) {
     if (connection) await connection.rollback().catch(() => {});
-    return res.status(error?.statusCode || 409).json({ erro: 'Não foi possível aceitar o pagamento reconciliado' });
+    return res
+      .status(error?.statusCode || 409)
+      .json({ erro: 'Não foi possível aceitar o pagamento reconciliado' });
+  } finally {
+    if (connection) connection.release();
+  }
+});
+
+router.post('/mercado-pago/:pedidoId/regularizar-entregue', verificarToken, async (req, res) => {
+  const pedidoId = Number(req.params.pedidoId);
+  if (!Number.isSafeInteger(pedidoId) || pedidoId <= 0 || req.user?.tipo !== 'admin') {
+    return res.status(req.user?.tipo === 'admin' ? 400 : 403).json({ erro: 'Ação não permitida' });
+  }
+  if (pedidoId !== PEDIDO_REGULARIZACAO_ENTREGUE_ID) {
+    return res.status(403).json({ erro: 'Ação não permitida' });
+  }
+
+  let connection;
+  try {
+    const [pedidos] = await db.query('SELECT id, mp_payment_id FROM pedidos WHERE id = ?', [
+      pedidoId,
+    ]);
+    const paymentId = String(pedidos[0]?.mp_payment_id || '').trim();
+    if (!idPagamentoValido(paymentId))
+      return res.status(409).json({ erro: 'Pedido não possui pagamento Mercado Pago válido' });
+    const pagamento = await consultarPagamento(paymentId);
+    connection = await db.getConnection();
+    await connection.beginTransaction();
+    const resultado = await regularizarPedidoEntregue(connection, {
+      pedidoId,
+      pagamento,
+      adminId: req.user.id,
+      entregaConfirmada: req.body?.entrega_confirmada,
+      estoqueConferido: req.body?.estoque_conferido,
+      evidenciaTipo: req.body?.evidencia_tipo,
+      evidenciaReferencia: req.body?.evidencia_referencia,
+      motivo: req.body?.motivo,
+    });
+    await connection.commit();
+    return res.json({ ok: true, ...resultado });
+  } catch (error) {
+    if (connection) await connection.rollback().catch(() => {});
+    return res.status(error?.statusCode || 409).json({
+      erro: error?.statusCode ? error.message : 'Não foi possível regularizar o pedido entregue',
+    });
   } finally {
     if (connection) connection.release();
   }
@@ -863,16 +1163,22 @@ router.post('/mercado-pago/webhook', async (req, res) => {
     // IPN legado não oferece assinatura como garantia de autenticidade. Os
     // headers recebidos são registrados somente para diagnóstico; a origem é
     // confirmada pela consulta oficial e pelas validações abaixo.
-    console.info('IPN legado recebeu headers de assinatura:', resumirAssinaturaWebhook(req, notificacao));
+    console.info(
+      'IPN legado recebeu headers de assinatura:',
+      resumirAssinaturaWebhook(req, notificacao),
+    );
   }
 
   const { tipo, acao } = notificacao;
 
   const eventoId = req.body?.id
     ? String(req.body.id)
-    : crypto.createHash('sha256')
-      .update(['mercado_pago', tipo, acao || '', recursoId, req.get('x-request-id') || ''].join('|'))
-      .digest('hex');
+    : crypto
+        .createHash('sha256')
+        .update(
+          ['mercado_pago', tipo, acao || '', recursoId, req.get('x-request-id') || ''].join('|'),
+        )
+        .digest('hex');
 
   const evento = {
     provedor: 'mercado_pago',
@@ -880,7 +1186,12 @@ router.post('/mercado-pago/webhook', async (req, res) => {
     tipo: String(tipo),
     acao: acao ? String(acao) : null,
     recursoId: String(recursoId),
-    payload: JSON.stringify({ id: req.body?.id, type: tipo, action: acao, data: { id: recursoId } }),
+    payload: JSON.stringify({
+      id: req.body?.id,
+      type: tipo,
+      action: acao,
+      data: { id: recursoId },
+    }),
   };
 
   try {
@@ -896,7 +1207,14 @@ router.post('/mercado-pago/webhook', async (req, res) => {
         await db.query(
           `INSERT INTO pagamento_eventos (provedor, evento_id, tipo, acao, recurso_id, payload)
            VALUES (?, ?, ?, ?, ?, ?)`,
-          [evento.provedor, evento.eventoId, evento.tipo, evento.acao, evento.recursoId, evento.payload],
+          [
+            evento.provedor,
+            evento.eventoId,
+            evento.tipo,
+            evento.acao,
+            evento.recursoId,
+            evento.payload,
+          ],
         );
       } catch (error) {
         if (error?.code !== 'ER_DUP_ENTRY') throw error;
@@ -915,7 +1233,11 @@ router.post('/mercado-pago/webhook', async (req, res) => {
     const pagamento = await consultarPagamento(evento.recursoId);
     const pedidoId = Number(pagamento.externalReference);
 
-    if (!Number.isSafeInteger(pedidoId) || pedidoId <= 0 || pagamento.externalReference !== String(pedidoId)) {
+    if (
+      !Number.isSafeInteger(pedidoId) ||
+      pedidoId <= 0 ||
+      pagamento.externalReference !== String(pedidoId)
+    ) {
       throw new Error('Referência externa inválida');
     }
 
@@ -955,10 +1277,13 @@ router.post('/mercado-pago/webhook', async (req, res) => {
 
     return res.status(200).json({ ok: true });
   } catch (error) {
-    await db.query(
-      `UPDATE pagamento_eventos SET erro = ? WHERE provedor = ? AND evento_id = ?`,
-      ['Falha ao processar evento de pagamento', evento.provedor, evento.eventoId],
-    ).catch(() => {});
+    await db
+      .query(`UPDATE pagamento_eventos SET erro = ? WHERE provedor = ? AND evento_id = ?`, [
+        'Falha ao processar evento de pagamento',
+        evento.provedor,
+        evento.eventoId,
+      ])
+      .catch(() => {});
     console.error('Webhook Mercado Pago falhou:', resumirErroWebhook(error, notificacao));
     return res.status(500).json({ erro: 'Não foi possível processar o pagamento' });
   }
@@ -977,6 +1302,7 @@ export {
   pagamentoFoiAprovadoNoPrazo,
   aplicarResultadoPagamentoMercadoPago,
   aceitarPagamentoReconciliado,
+  regularizarPedidoEntregue,
   resumirAssinaturaWebhook,
   headersAssinaturaWebhook,
   urlsCheckout,
