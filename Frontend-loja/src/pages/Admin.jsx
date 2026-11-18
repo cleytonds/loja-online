@@ -37,6 +37,14 @@ const STATUS_CONFIG = {
   expirado: { label: 'Expirado', className: 'status-expirado' },
 };
 
+const PEDIDO_REGULARIZACAO_ENTREGUE_ID = 111;
+const TIPOS_EVIDENCIA_REGULARIZACAO = [
+  'conferencia_operacional',
+  'log_backend',
+  'binlog_mysql',
+  'inventario_assinado',
+];
+
 function formatarMoeda(valor) {
   return Number(valor || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 }
@@ -131,6 +139,8 @@ export default function Admin() {
   const [carregandoDetalhes, setCarregandoDetalhes] = useState(false);
   const [erroDetalhes, setErroDetalhes] = useState('');
   const [atualizandoPedidoId, setAtualizandoPedidoId] = useState(null);
+  const [regularizacaoEntrega, setRegularizacaoEntrega] = useState(null);
+  const [enviandoRegularizacao, setEnviandoRegularizacao] = useState(false);
 
   const { logout } = useContext(AuthContext);
 
@@ -389,6 +399,75 @@ export default function Admin() {
     }
   }
 
+  function pedidoElegivelParaRegularizacaoEntregue(pedido) {
+    return Number(pedido?.id) === PEDIDO_REGULARIZACAO_ENTREGUE_ID
+      && pedido?.status === 'pendente'
+      && pedido?.reconciliacao_status === 'pendente';
+  }
+
+  function abrirRegularizacaoEntrega(pedido) {
+    if (!pedidoElegivelParaRegularizacaoEntregue(pedido)) return;
+    setRegularizacaoEntrega({
+      pedidoId: pedido.id,
+      entregaConfirmada: false,
+      estoqueConferido: false,
+      evidenciaTipo: '',
+      evidenciaReferencia: '',
+      motivo: '',
+    });
+  }
+
+  async function enviarRegularizacaoEntrega(event) {
+    event.preventDefault();
+    if (!regularizacaoEntrega || enviandoRegularizacao) return;
+
+    const {
+      pedidoId,
+      entregaConfirmada,
+      estoqueConferido,
+      evidenciaTipo,
+      evidenciaReferencia,
+      motivo,
+    } = regularizacaoEntrega;
+
+    if (!entregaConfirmada || !estoqueConferido) {
+      alert('Confirme a entrega e a conferência operacional do estoque.');
+      return;
+    }
+    if (!TIPOS_EVIDENCIA_REGULARIZACAO.includes(evidenciaTipo)) {
+      alert('Selecione um tipo de evidência válido.');
+      return;
+    }
+    if (!window.confirm('A regularização marcará exclusivamente o pedido #111 como entregue e não movimentará estoque. Confirmar?')) return;
+
+    setEnviandoRegularizacao(true);
+    try {
+      await api.post(`/pagamentos/mercado-pago/${pedidoId}/regularizar-entregue`, {
+        entrega_confirmada: true,
+        estoque_conferido: true,
+        evidencia_tipo: evidenciaTipo,
+        evidencia_referencia: evidenciaReferencia.trim(),
+        motivo: motivo.trim(),
+      });
+      setRegularizacaoEntrega(null);
+      await Promise.all([
+        carregarPedidos('reconciliacoes'),
+        carregarPedidos('atuais'),
+        carregarPedidos('historico'),
+      ]);
+      setPedidoDetalhes((pedido) => (
+        pedido?.id === pedidoId
+          ? { ...pedido, status: 'entregue', reconciliacao_status: 'resolvida_atendimento' }
+          : pedido
+      ));
+      alert('Pedido regularizado como entregue. Nenhum estoque foi movimentado.');
+    } catch (err) {
+      alert(err.response?.data?.erro || 'Não foi possível regularizar o pedido entregue.');
+    } finally {
+      setEnviandoRegularizacao(false);
+    }
+  }
+
   async function registrarEstornoManual(id) {
     if (!window.confirm('Confirme somente se o valor já foi devolvido ao cliente pelo Mercado Pago. Esta ação apenas registra o estorno no sistema.')) return;
     await resolverReconciliacao(id, 'resolvida_estorno');
@@ -485,6 +564,10 @@ export default function Admin() {
   function renderizarAcoesPedido(pedido) {
     const bloqueado = atualizandoPedidoId === pedido.id;
 
+    if (pedidoElegivelParaRegularizacaoEntregue(pedido)) {
+      return <button className="pedido-acao pedido-acao-atendimento" onClick={() => abrirRegularizacaoEntrega(pedido)} disabled={enviandoRegularizacao}><FiCheckCircle aria-hidden="true" />Regularizar pedido entregue</button>;
+    }
+
     if (pedido.status === 'pendente') {
       return <button className="pedido-acao pedido-acao-confirmar" onClick={() => atualizarStatus(pedido.id, 'pago')} disabled={bloqueado}><FiCheckCircle aria-hidden="true" />Marcar como pago</button>;
     }
@@ -501,6 +584,7 @@ export default function Admin() {
   }
 
   function renderizarCardPedido(pedido, somenteLeitura = false) {
+    const regularizacaoExcepcional = pedidoElegivelParaRegularizacaoEntregue(pedido);
     const reconciliacaoOperacional = pedido.reconciliacao_status === 'pendente'
       || (pedido.reconciliacao_status === 'resolvida_atendimento'
         && pedido.status === 'expirado'
@@ -533,7 +617,7 @@ export default function Admin() {
           <div className="pedido-acoes-lista">
             <button className="pedido-acao pedido-acao-detalhes" onClick={() => abrirDetalhes(pedido.id)}><FiEye aria-hidden="true" />Ver detalhes</button>
             {renderizarAcoesPedido(pedido)}
-            {reconciliacaoOperacional ? (
+            {reconciliacaoOperacional && !regularizacaoExcepcional ? (
               <>
                 <button className="pedido-acao pedido-acao-atendimento" onClick={() => aceitarPagamentoReconciliado(pedido.id)}><FiCheckCircle aria-hidden="true" />Aceitar pagamento</button>
                 {pedido.reconciliacao_status === 'pendente' ? <button className="pedido-acao pedido-acao-estorno" onClick={() => registrarEstornoManual(pedido.id)}><FiRotateCcw aria-hidden="true" />Registrar estorno manual</button> : null}
@@ -636,6 +720,44 @@ export default function Admin() {
               </div>
             ))}
           </div>
+        </div>
+      )}
+
+      {regularizacaoEntrega && (
+        <div className="pedido-modal-backdrop" role="presentation">
+          <section className="pedido-modal" role="dialog" aria-modal="true" aria-labelledby="regularizacao-entregue-titulo">
+            <h2 id="regularizacao-entregue-titulo">Regularizar pedido entregue #{regularizacaoEntrega.pedidoId}</h2>
+            <p>Esta ação é excepcional, restrita ao pedido #111 e não movimenta estoque.</p>
+            <form onSubmit={enviarRegularizacaoEntrega}>
+              <label>
+                <input type="checkbox" checked={regularizacaoEntrega.entregaConfirmada} onChange={(event) => setRegularizacaoEntrega((atual) => ({ ...atual, entregaConfirmada: event.target.checked }))} disabled={enviandoRegularizacao} />
+                Confirmo expressamente que o pedido foi entregue.
+              </label>
+              <label>
+                <input type="checkbox" checked={regularizacaoEntrega.estoqueConferido} onChange={(event) => setRegularizacaoEntrega((atual) => ({ ...atual, estoqueConferido: event.target.checked }))} disabled={enviandoRegularizacao} />
+                Confirmo a conferência operacional do estoque, sem nova movimentação.
+              </label>
+              <label>
+                Tipo de evidência
+                <select value={regularizacaoEntrega.evidenciaTipo} onChange={(event) => setRegularizacaoEntrega((atual) => ({ ...atual, evidenciaTipo: event.target.value }))} disabled={enviandoRegularizacao} required>
+                  <option value="">Selecione</option>
+                  {TIPOS_EVIDENCIA_REGULARIZACAO.map((tipo) => <option key={tipo} value={tipo}>{tipo}</option>)}
+                </select>
+              </label>
+              <label>
+                Referência da evidência
+                <input value={regularizacaoEntrega.evidenciaReferencia} onChange={(event) => setRegularizacaoEntrega((atual) => ({ ...atual, evidenciaReferencia: event.target.value }))} minLength="12" maxLength="120" disabled={enviandoRegularizacao} required />
+              </label>
+              <label>
+                Justificativa
+                <textarea value={regularizacaoEntrega.motivo} onChange={(event) => setRegularizacaoEntrega((atual) => ({ ...atual, motivo: event.target.value }))} minLength="10" maxLength="80" disabled={enviandoRegularizacao} required />
+              </label>
+              <div className="pedido-modal-acoes">
+                <button type="button" onClick={() => setRegularizacaoEntrega(null)} disabled={enviandoRegularizacao}>Cancelar</button>
+                <button type="submit" className="pedido-acao pedido-acao-atendimento" disabled={enviandoRegularizacao}>{enviandoRegularizacao ? 'Regularizando...' : 'Confirmar regularização'}</button>
+              </div>
+            </form>
+          </section>
         </div>
       )}
 
